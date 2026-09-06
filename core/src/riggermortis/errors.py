@@ -40,3 +40,7 @@ class PolicyError(RiggermortisError):
 
 class BridgeError(RiggermortisError):
     """The Blender headless bridge failed (missing binary, bad script output)."""
+
+
+class InferenceError(RiggermortisError):
+    """A managed model is missing, tampered with, or a download failed."""

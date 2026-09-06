@@ -83,6 +83,35 @@ Append-only. `NEEDS-HUMAN` items block nothing else — switch tasks and move on
 - Refusal codes are public API; presets keyed by rig fingerprint; determinism
   rules in CONVENTIONS.md.
 
+## D-007 Mapping algorithm v2 — real-rig gate findings (2026-09-06, S2)
+Driven by P0-15 on real Blender 4.0.2 Rigify rigs (metarig 159 bones,
+generated 706 bones: 220 controls / 160 DEF- / 167 MCH- / 159 ORG-):
+- **Side-marked hips flanks** (`pelvis.L/.R`) carry no hips evidence — half a
+  pelvis is not the center hips (metarig previously mapped `hips → pelvis.L`).
+- **Structural pre-pass**: a fork to downward limb chains spanning BOTH
+  character sides at hip height pins `hips` when no name claims hips (the
+  metarig's hips bone is lexicon-named `spine`); a single-child parentless
+  bone directly above pins `root`. Both-sides requirement rejects a lowered
+  (A-pose) hand fanning its fingers downward.
+- **Prefix-duplicate barring**: bones sharing the fork's family signature
+  (``DEF-spine``/``ORG-spine`` of a pinned ``spine``) are barred from the
+  `spine` role — kills the one-vertebra-low torso chain on generated rigs
+  (`spine → DEF-spine.001` now).
+- **Pose-target preference**: name-pass ties break by prefix rank
+  (unprefixed control > `DEF-` > `ORG-`); `MCH-` is a skip token (checked
+  against pre-strip tokens so `MCH-spine` never maps) and `parent` is skipped
+  (Rigify IK/FK parent helpers). Controls are the right FK posing target for
+  generated rigs; DEF- wins where no control exists.
+- **Duplicate-limb views** (co-located with or descending from a mapped
+  thigh: `ORG-thigh.L`, bendy `DEF-thigh.L.001`) are not "extra limb chains";
+  the quadruped detector also ignores skip-token bones (fingers).
+- **Review-feed completeness**: every geometry-assigned role appends to
+  `mapping.ambiguities[]`, not just low-confidence ones.
+
+Gate results after v2 (see docs/BENCHMARKS.md): metarig 21 roles, core
+complete, 0 corrections + 1 review-confirm (structural hips); generated 22/22
+roles, core complete, 0 corrections, 0 flags.
+
 ## NEEDS-HUMAN queue
 - GitHub org/repo + PyPI registration + Blender Extensions account (D-001).
 - Decide public repo name string exactly (`riggermortis` recommended).

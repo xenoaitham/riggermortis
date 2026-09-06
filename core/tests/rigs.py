@@ -167,6 +167,48 @@ def quadruped_rig() -> RigData:
     return rig
 
 
+def rigify_metarig_like() -> RigData:
+    """The REAL Blender human meta-rig's structure that the P0-15 gate exposed:
+
+    - the hips bone is lexicon-named ``spine`` (forks to thigh.L/R) while
+      ``pelvis.L/.R`` are side flanks that must NOT claim hips;
+    - the torso is a numbered chain spine..spine.004 (no ``neck``/``head``
+      bones exist — chain promotion must fill chest/neck/head in height order);
+    - A-pose arms: the hand sits at hip height with fingers fanning DOWN, the
+      trap that once made the structural-fork rule pick a hand for hips.
+    """
+    rig = RigData(name="rigify_metarig_real", bones={})
+    # Root fork (the true hips) at ~0.58 of rig height.
+    _add(rig, "spine", None, (0.0, 0.0, 1.00), (0.0, 0.0, 1.06))
+    _add(rig, "pelvis.L", "spine", (0.0, 0.0, 1.00), (0.12, 0.0, 1.09))
+    _add(rig, "pelvis.R", "spine", (0.0, 0.0, 1.00), (-0.12, 0.0, 1.09))
+    # Torso chain, bottom -> top; role spine/chest/neck/head must follow.
+    _add(rig, "spine.001", "spine", (0.0, 0.0, 1.06), (0.0, 0.0, 1.22))
+    _add(rig, "spine.002", "spine.001", (0.0, 0.0, 1.22), (0.0, 0.0, 1.38))
+    _add(rig, "spine.003", "spine.002", (0.0, 0.0, 1.38), (0.0, 0.0, 1.50))
+    _add(rig, "spine.004", "spine.003", (0.0, 0.0, 1.50), (0.0, 0.0, 1.70))
+    for side, sx in (("L", 1.0), ("R", -1.0)):
+        # A-pose arm: shoulders high, hand hanging near hip height.
+        _add(rig, f"shoulder.{side}", "spine.002",
+             (0.03 * sx, 0.0, 1.30), (0.14 * sx, 0.0, 1.24))
+        _add(rig, f"upper_arm.{side}", f"shoulder.{side}",
+             (0.16 * sx, 0.0, 1.16), (0.46 * sx, 0.0, 0.98))
+        _add(rig, f"forearm.{side}", f"upper_arm.{side}",
+             (0.46 * sx, 0.0, 0.98), (0.68 * sx, 0.0, 0.86))
+        _add(rig, f"hand.{side}", f"forearm.{side}",
+             (0.68 * sx, 0.0, 0.86), (0.78 * sx, 0.0, 0.80))
+        # Fingers fan downward from the hanging hand (skip-tokened names).
+        for fi, fname in enumerate(("thumb", "index", "middle")):
+            fx = (0.78 + 0.02 * fi) * sx
+            _add(rig, f"{fname}.01.{side}", f"hand.{side}",
+                 (0.78 * sx, 0.0, 0.80), (fx, 0.0, 0.71))
+        # Legs: the fork's downward chains.
+        _add(rig, f"thigh.{side}", "spine", (0.10 * sx, 0.0, 1.00), (0.11 * sx, 0.0, 0.52))
+        _add(rig, f"shin.{side}", f"thigh.{side}", (0.11 * sx, 0.0, 0.52), (0.11 * sx, 0.0, 0.09))
+        _add(rig, f"foot.{side}", f"shin.{side}", (0.11 * sx, 0.01, 0.09), (0.11 * sx, -0.13, 0.05))
+    return rig
+
+
 def all_five() -> dict[str, RigData]:
     return {
         "rigify": rigify_rig(),

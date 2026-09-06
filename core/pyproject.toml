@@ -26,6 +26,7 @@ dependencies = []
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.4"]
+inference = ["numpy>=1.24", "onnxruntime>=1.16"]
 
 [project.scripts]
 rigpose = "riggermortis.cli:main"
@@ -38,7 +39,7 @@ Issues = "https://github.com/riggermortis/riggermortis/issues"
 where = ["src"]
 
 [tool.setuptools.package-data]
-riggermortis = ["bridge/*.py"]
+riggermortis = ["bridge/*.py", "inference/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -26,14 +26,15 @@ quadruped) with ≤2 manual corrections each, proven headless.
   - accept: `xtask/blender_verify.sh` end-to-end PASS.
   - media: n/a yet.
 - [x] P0-14 [S1] pytest suite (49 tests): 5 synthetic rigs, determinism, presets, policy, CLI, I/O.
-- [ ] P0-15 Real-rig gate: Rigify meta-rig (headless generation), a real Mixamo export, a real VRM; map each ≤2 corrections; record in docs/BENCHMARKS.md.
-- [ ] P0-16 CI skeleton: ruff + pytest + blender gate + **network-audit test** (zero outbound in default use).
-- [ ] P0-17 Review data model: `propose_reassignment()` + ambiguity ranking for the 30-second review UI.
+- [x] P0-15 [S2] Real-rig gate: Rigify meta-rig (headless generation), a real Mixamo export, a real VRM; map each ≤2 corrections; record in docs/BENCHMARKS.md.
+  - done: metarig + generated Rigify (Blender 4.0.2) + Seed-san VRM all ≤2 corrections (0 each); Mixamo export NEEDS-HUMAN (Adobe login) — gap recorded honestly in docs/BENCHMARKS.md; mapper fixes → DECISIONS D-007.
+- [x] P0-16 [S2] CI skeleton: ruff + pytest + blender gate + **network-audit test** (zero outbound in default use).
+- [x] P0-17 [S2] Review data model: `propose_reassignment()` + ambiguity ranking for the 30-second review UI.
 
 ## Phase 1 — One-image posing (the BOOM)
 **Gate:** 20-image benchmark (10 photo / 10 anime), ≥90% usable-straight-away; BOOM GIF via pipeline; polish pass.
 
-- [ ] P1-1 Checksum-pinned model manager: manifest → one-time local download on explicit action, offline verify. media: n/a.
+- [x] P1-1 [S2] Checksum-pinned model manager: manifest → one-time local download on explicit action, offline verify. media: n/a.
 - [ ] P1-2 DWPose/RTMPose ONNX wrapper (133 keypoints, CPU+GPU via onnxruntime, optional extra). accept: <2s CPU per image.
 - [ ] P1-3 Multi-figure detection + figure selection data model.
 - [ ] P1-4 Keypoints → canonical 3D pose solve (2D→3D lift, symmetry, smoothing, elbow/knee flip disambiguation). accept: flip test on 20 poses.

@@ -2,7 +2,8 @@
 
 Subcommands:
     inspect <rig.json>      bone inventory + skeleton stats
-    map <rig.json>          propose role mapping, print report
+    map <rig.json>          propose role mapping, print report (--set applies
+                            manual reassignments, review-UI equivalent)
     preset save|load        persist / apply reviewed mappings
     policy status           content-policy status (adult module off by default)
 
@@ -15,9 +16,9 @@ import json
 import sys
 
 from . import __version__
-from .errors import RiggermortisError
+from .errors import MappingError, RiggermortisError
 from .io import load_rig
-from .mapper import map_rig
+from .mapper import map_rig, propose_reassignment
 from .policy import PolicyEngine
 from .presets import apply_preset, load_preset, preset_from_mapping, save_preset
 
@@ -47,6 +48,11 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_map.add_argument("--preset", help="apply a saved preset on top", default=None)
     p_map.add_argument(
+        "--set", metavar="ROLE=BONE[,ROLE=BONE...]",
+        help="apply manual reassignments after mapping (review UI equivalent)",
+        default=None,
+    )
+    p_map.add_argument(
         "--save-preset", metavar="PATH",
         help="save the resulting mapping as a per-rig preset",
     )
@@ -64,6 +70,21 @@ def _build_parser() -> argparse.ArgumentParser:
     p_policy = sub.add_parser("policy", help="content policy operations")
     policy_sub = p_policy.add_subparsers(dest="policy_command", required=True)
     policy_sub.add_parser("status", help="show policy status (adult module off by default)")
+
+    p_models = sub.add_parser(
+        "models", help="managed ONNX models (downloaded only on explicit command)"
+    )
+    models_sub = p_models.add_subparsers(dest="models_command", required=True)
+    m_list = models_sub.add_parser("list", help="list managed models and local status")
+    m_list.add_argument("--json", action="store_true", help="machine-readable output")
+    m_dl = models_sub.add_parser(
+        "download", help="download a model and verify its pinned checksum"
+    )
+    m_dl.add_argument("name", help="model name from the manifest, or 'all'")
+    m_ver = models_sub.add_parser("verify", help="verify stored model checksums")
+    m_ver.add_argument("name", nargs="?", default="all", help="model name, or 'all' (default)")
+    m_path = models_sub.add_parser("path", help="print the model storage location")
+    m_path.add_argument("name", nargs="?", default=None, help="model name (default: the store dir)")
 
     return parser
 
@@ -106,12 +127,42 @@ def _length(rig, name: str) -> float:
     return v_dist(b.head, b.tail)
 
 
+def _parse_set(spec: str) -> list[tuple[str, str]]:
+    """Parse ``role=bone[,role=bone...]`` into ordered pairs."""
+    pairs: list[tuple[str, str]] = []
+    for chunk in spec.split(","):
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        if "=" not in chunk:
+            raise MappingError(
+                f"invalid --set item {chunk!r}",
+                hint="expected role=bone pairs, e.g. --set hips=pelvis,spine=spine.001",
+            )
+        role, bone = (part.strip() for part in chunk.split("=", 1))
+        if not role or not bone:
+            raise MappingError(
+                f"invalid --set item {chunk!r}",
+                hint="both the role and the bone are required: role=bone",
+            )
+        pairs.append((role, bone))
+    if not pairs:
+        raise MappingError(
+            "empty --set value",
+            hint="expected role=bone pairs, e.g. --set hips=pelvis",
+        )
+    return pairs
+
+
 def cmd_map(args: argparse.Namespace) -> int:
     rig = load_rig(args.rig)
     preset_mapping = None
     if args.preset:
         preset_mapping = load_preset(args.preset).mapping
     mapping = map_rig(rig, preset_mapping=preset_mapping)
+    if args.set:
+        for role, bone in _parse_set(args.set):
+            mapping = propose_reassignment(mapping, role, bone)
     if args.save_preset:
         save_preset(preset_from_mapping(rig, mapping), args.save_preset)
     if args.json:
@@ -151,6 +202,58 @@ def cmd_policy_status(_args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def _models_target(name: str) -> list[str]:
+    from .inference.models import model_names
+
+    if name == "all":
+        return model_names()
+    return [name]
+
+
+def cmd_models_list(args: argparse.Namespace) -> int:
+    from .inference.models import list_models
+
+    rows = list_models()
+    if args.json:
+        print(json.dumps(rows, indent=2, sort_keys=True))
+        return EXIT_OK
+    print("managed models (downloaded only via `rigpose models download`):")
+    for row in rows:
+        state = "downloaded" if row["downloaded"] else "not downloaded"
+        size_mb = int(row["bytes"]) / (1024 * 1024)
+        print(f"  {row['name']:<24} {row['role']:<9} {size_mb:7.1f} MB  {state}")
+        print(f"    license: {row['license']}")
+    return EXIT_OK
+
+
+def cmd_models_download(args: argparse.Namespace) -> int:
+    from .inference.models import download_model
+
+    for name in _models_target(args.name):
+        path = download_model(name)
+        print(f"downloaded {name} -> {path} (checksum verified)")
+    return EXIT_OK
+
+
+def cmd_models_verify(args: argparse.Namespace) -> int:
+    from .inference.models import verify_model
+
+    for name in _models_target(args.name):
+        report = verify_model(name)
+        print(f"{name}: OK ({report['path']})")
+    return EXIT_OK
+
+
+def cmd_models_path(args: argparse.Namespace) -> int:
+    from .inference.models import default_root, model_path
+
+    if args.name:
+        print(model_path(args.name))
+    else:
+        print(default_root())
+    return EXIT_OK
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -166,6 +269,14 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "policy":
             if args.policy_command == "status":
                 return cmd_policy_status(args)
+        if args.command == "models":
+            if args.models_command == "list":
+                return cmd_models_list(args)
+            if args.models_command == "download":
+                return cmd_models_download(args)
+            if args.models_command == "verify":
+                return cmd_models_verify(args)
+            return cmd_models_path(args)
         parser.error(f"unknown command {args.command!r}")
         return EXIT_HANDLED_ERROR
     except RiggermortisError as exc:

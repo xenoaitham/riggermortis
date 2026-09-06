@@ -6,17 +6,21 @@ ambiguity list for the 30-second review UI, and no silent failures. A rig that
 cannot be mapped confidently is *reported* as such — silence is a bug.
 
 Algorithm (deterministic: every sort is keyed, same input -> same output):
-1. Name pass: lexicon/override evidence, role-major greedy assignment.
-2. Chain promotion: leftover same-lexicon spine bones fill chest/neck/head by
+1. Structural pre-pass: a parentless-fork bone at hip height is the hips when
+   names are silent (and its prefix duplicates are barred from ``spine``);
+   catches Rigify metarigs whose hips bone is lexicon-named ``spine``.
+2. Name pass: lexicon/override evidence, role-major greedy assignment with
+   prefix preference (unprefixed controls > ``DEF-`` > ``ORG-``).
+3. Chain promotion: leftover same-lexicon spine bones fill chest/neck/head by
    height order (handles ``spine.001``-style families and Mixamo Spine1/2).
-3. Geometry pass for still-empty roles: spine chain by ordering, limb chains
+4. Geometry pass for still-empty roles: spine chain by ordering, limb chains
    by direction/proportion, sides by x-offset. Geometry-only confidence is
    capped so it never looks more certain than it is.
-4. Quadruped/ambiguity detection and reporting.
+5. Quadruped/ambiguity detection and reporting.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from . import geometry as geo
 from . import names as names_mod
@@ -133,8 +137,12 @@ def map_rig(
 
     evidence = {name: names_mod.evidence(name) for name in rig.sorted_bone_names()}
 
+    blocked_spine: set[str] = set()
+    if use_geometry:
+        blocked_spine = _structural_hips(rig, feats, evidence, mapping, taken)
+
     if use_names:
-        _name_pass(rig, feats, evidence, mapping, taken)
+        _name_pass(rig, feats, evidence, mapping, taken, blocked_spine)
         _chain_promotion(rig, feats, evidence, mapping, taken)
     if use_geometry:
         _geometry_pass(rig, feats, evidence, mapping, taken)
@@ -146,14 +154,99 @@ def map_rig(
         n for n in rig.sorted_bone_names() if n not in assigned_bones and not evidence[n].skip
     ]
     mapping.skipped_bones = sorted(n for n in rig.sorted_bone_names() if evidence[n].skip)
-    _detect_quadruped(rig, feats, mapping, taken)
+    _detect_quadruped(rig, feats, evidence, mapping, taken)
     _flag_low_confidence(mapping)
     return mapping
 
 
 # --------------------------------------------------------------------------
+# pass 0: structure
+# --------------------------------------------------------------------------
+
+def _structural_fork(rig: RigData, feats: geo.RigFeatures) -> str | None:
+    """The textbook-hips bone: forks to downward limb chains on BOTH character
+    sides at hip height. The both-sides requirement separates a pelvis fork
+    (thigh.L + thigh.R) from a lowered hand fanning its fingers down.
+
+    Deterministic: (most down-chain children desc, name asc).
+    """
+    best_key: tuple[int, str] | None = None
+    for name in rig.sorted_bone_names():
+        down = [
+            c for c in rig.children(name)
+            if feats.bones[c].direction[2] < -0.5
+        ]
+        if len(down) < 2:
+            continue
+        if not {geo.side_sign(feats.bones[c]) for c in down} >= {"L", "R"}:
+            continue
+        if not 0.4 < feats.bones[name].head_z_frac < 0.7:
+            continue
+        key = (-len(down), name)
+        if best_key is None or key < best_key:
+            best_key = key
+    return best_key[1] if best_key is not None else None
+
+
+def _structural_hips(
+    rig: RigData,
+    feats: geo.RigFeatures,
+    evidence: dict[str, names_mod.NameEvidence],
+    mapping: RigMapping,
+    taken: dict[str, str],
+) -> set[str]:
+    """Pin the structural fork to ``hips`` when no name claims that role, and
+    bar the fork's prefix-duplicates from ``spine`` (they are the same bone in
+    another namespace: ``ORG-spine``/``DEF-spine`` of a pinned ``spine``).
+
+    Returns the set of bones barred from the ``spine`` role.
+    """
+    fork = _structural_fork(rig, feats)
+    if fork is None:
+        return set()
+    blocked = {
+        n for n in rig.sorted_bone_names()
+        if names_mod.family_signature(n) == names_mod.family_signature(fork)
+    }
+
+    hips_claimed = any(
+        e.role == "hips" for e in evidence.values() if not e.skip
+    )
+    if hips_claimed or fork in taken:
+        return blocked
+
+    _assign(
+        mapping, taken, "hips", fork,
+        geo.geometry_score(feats.bones[fork], role_def("hips")),
+        "structural fork: limb fork spanning both sides at hip height (hip-role names were silent)",
+    )
+    # A single-child parentless bone directly above the fork is the root.
+    parent = rig.bones[fork].parent
+    if (
+        parent is not None and parent in rig.bones
+        and parent not in taken
+        and rig.bones[parent].parent is None
+        and rig.children(parent) == [fork]
+    ):
+        _assign(mapping, taken, "root", parent, 0.6, "geometry: parent above torso fork")
+    return blocked
+
+
+# --------------------------------------------------------------------------
 # pass 1: names
 # --------------------------------------------------------------------------
+
+def _prefix_rank(bone: str) -> int:
+    """Pose-target preference: unprefixed controls, then DEF-, then ORG-."""
+    upper = bone.upper()
+    if upper.startswith("DEF-"):
+        return 1
+    if upper.startswith("ORG-"):
+        return 2
+    if upper.startswith("MCH-"):
+        return 3
+    return 0
+
 
 def _name_pass(
     rig: RigData,
@@ -161,7 +254,9 @@ def _name_pass(
     evidence: dict[str, names_mod.NameEvidence],
     mapping: RigMapping,
     taken: dict[str, str],
+    blocked_spine: set[str] | None = None,
 ) -> None:
+    blocked = blocked_spine or set()
     candidates: dict[str, list[tuple[float, str, str]]] = {}  # role -> [(score, bone, why)]
     for bone in rig.sorted_bone_names():
         e = evidence[bone]
@@ -174,6 +269,8 @@ def _name_pass(
             target_roles = [f"{e.role_base}.{LEFT}", f"{e.role_base}.{RIGHT}"]
         for role in target_roles:
             if role not in ALL_ROLES:
+                continue
+            if role == "spine" and bone in blocked:
                 continue
             score = e.score
             whys = [e.reason]
@@ -188,7 +285,7 @@ def _name_pass(
             candidates.setdefault(role, []).append((score, bone, "; ".join(whys)))
 
     for role in sorted(candidates):
-        entries = sorted(candidates[role], key=lambda t: (-t[0], t[1]))
+        entries = sorted(candidates[role], key=lambda t: (-t[0], _prefix_rank(t[1]), t[1]))
         for score, bone, why in entries:
             if bone in taken or role in mapping.assignments:
                 continue
@@ -268,6 +365,11 @@ def _assign(mapping: RigMapping, taken: dict[str, str], role: str, bone: str,
         evidence=[ev], ambiguous=True,
     )
     taken[bone] = role
+    # Geometry-decided roles always surface in the review checklist: honest
+    # flagging means the reviewer sees every assignment the names did not make.
+    mapping.ambiguities.append(
+        f"{role}: {bone!r} assigned by geometry ({ev}); verify in review UI"
+    )
 
 
 def _geometry_root_and_chain(
@@ -345,6 +447,29 @@ def _geometry_root_and_chain(
             )
 
 
+def _is_duplicate_leg_view(rig: RigData, name: str, mapping: RigMapping) -> bool:
+    """True if ``name`` is the same limb as an already-mapped upper leg seen
+    from another namespace or as a bendy sub-segment of it: either co-located
+    with the mapped leg's head (``ORG-thigh.L`` of mapped ``DEF-thigh.L``) or
+    descending from the mapped leg bone (Rigify ``DEF-thigh.L.001``). Such
+    bones are not genuinely extra limb chains."""
+    for role, a in mapping.assignments.items():
+        if not role.startswith("upper_leg."):
+            continue
+        other_head = rig.bones[a.bone].head
+        head = rig.bones[name].head
+        if all(abs(head[i] - other_head[i]) < 1e-3 for i in range(3)):
+            return True
+        cur = name
+        seen: set[str] = set()
+        while cur in rig.bones and cur not in seen:
+            if cur == a.bone:
+                return True
+            seen.add(cur)
+            cur = rig.bones[cur].parent or ""
+    return False
+
+
 def _leg_chain_tops(rig: RigData, feats: geo.RigFeatures, mappable: set[str]) -> list[str]:
     tops: list[str] = []
     for n in sorted(mappable):
@@ -367,7 +492,10 @@ def _geometry_legs(
     taken: dict[str, str],
     mappable: set[str],
 ) -> None:
-    tops = _leg_chain_tops(rig, feats, mappable)
+    tops = [
+        t for t in _leg_chain_tops(rig, feats, mappable)
+        if not _is_duplicate_leg_view(rig, t, mapping)
+    ]
     if not tops:
         return
     sides: dict[str, str] = {}
@@ -527,13 +655,22 @@ def _apply_preset(
 def _detect_quadruped(
     rig: RigData,
     feats: geo.RigFeatures,
+    evidence: dict[str, names_mod.NameEvidence],
     mapping: RigMapping,
     taken: dict[str, str],
 ) -> None:
-    leg_tops = _leg_chain_tops(
-        rig, feats,
-        {n for n in rig.sorted_bone_names() if n not in taken},
-    )
+    # Same mappable definition as the geometry legs pass: skipped non-pose
+    # bones (fingers, ik helpers, ...) must never suggest quadrupedism.
+    leg_tops = [
+        t for t in _leg_chain_tops(
+            rig, feats,
+            {
+                n for n in rig.sorted_bone_names()
+                if n not in taken and not evidence[n].skip
+            },
+        )
+        if not _is_duplicate_leg_view(rig, t, mapping)
+    ]
     mapped_legs = sum(1 for r in mapping.assignments if r.startswith("upper_leg."))
     if mapped_legs + len(leg_tops) > 2:
         mapping.notes.append(
@@ -550,3 +687,114 @@ def _flag_low_confidence(mapping: RigMapping) -> None:
             mapping.ambiguities.append(
                 f"{role}: {a.bone!r} confidence {a.confidence:.2f} is low; verify in review UI"
             )
+
+
+# --------------------------------------------------------------------------
+# review UI API (30-second review)
+# --------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class ReviewItem:
+    """One entry of the review checklist, in the order a human should see it."""
+
+    kind: str  # "missing" | "low-conf" | "side-conflict"
+    role: str
+    detail: str
+
+    def __str__(self) -> str:
+        return f"[{self.kind}] {self.role}: {self.detail}"
+
+
+def propose_reassignment(mapping: RigMapping, role: str, bone: str) -> RigMapping:
+    """Return a copy of ``mapping`` with ``role`` assigned to ``bone``.
+
+    Pure function: the input mapping is never mutated — the review UI shows
+    the proposal and only writes it back (e.g. as a preset) when confirmed.
+
+    The bone is freed from any role it currently holds (that role becomes
+    unassigned and resurfaces in the checklist), the role's previous bone
+    returns to the unmapped list, and the new assignment carries confidence
+    1.0 with evidence ``["manual reassignment"]``: a human decision outranks
+    the heuristics, and the mapping says so honestly.
+    """
+    if role not in ALL_ROLES:
+        raise MappingError(
+            f"unknown canonical role {role!r}",
+            hint=f"canonical roles: {', '.join(ALL_ROLES)}",
+        )
+    known = {a.bone for a in mapping.assignments.values()}
+    known |= set(mapping.unmapped_bones) | set(mapping.skipped_bones)
+    if bone not in known:
+        raise MappingError(
+            f"bone {bone!r} is not part of rig {mapping.rig_name!r}",
+            hint="run `rigpose inspect` for the exact bone names",
+        )
+
+    new = RigMapping(
+        rig_name=mapping.rig_name,
+        fingerprint=mapping.fingerprint,
+        assignments={r: replace(a, evidence=list(a.evidence)) for r, a in mapping.assignments.items()},
+        unmapped_bones=list(mapping.unmapped_bones),
+        skipped_bones=list(mapping.skipped_bones),
+        ambiguities=list(mapping.ambiguities),
+        notes=list(mapping.notes),
+    )
+
+    freed_role: str | None = None
+    for r in [r for r, a in new.assignments.items() if a.bone == bone]:
+        if r != role:
+            del new.assignments[r]
+            freed_role = r
+    old = new.assignments.pop(role, None)
+
+    new.assignments[role] = RoleAssignment(
+        role=role, bone=bone, confidence=1.0, side=role_def(role).side,
+        evidence=["manual reassignment"],
+    )
+    new.unmapped_bones = sorted(
+        {n for n in new.unmapped_bones if n != bone}
+        | ({old.bone} if old is not None and old.bone != bone else set())
+    )
+    stale = {f"{role}:", f"{freed_role}:"} if freed_role else {f"{role}:"}
+    new.ambiguities = [a for a in new.ambiguities if not a.startswith(tuple(stale))]
+    new.notes.append(f"manual reassignment: {role} -> {bone}" +
+                     (f" (freed {freed_role})" if freed_role else ""))
+    return new
+
+
+def ambiguity_rank(mapping: RigMapping) -> list[ReviewItem]:
+    """The review UI's checklist order.
+
+    Unresolved core roles first (posing is impossible without them), then
+    assignments by ascending confidence (most suspect first), then remaining
+    side-conflicts. Each role appears at most once. Deterministic: ties break
+    by canonical role order.
+    """
+    items: list[ReviewItem] = []
+    seen: set[str] = set()
+
+    for role in mapping.core_missing():
+        items.append(ReviewItem("missing", role, "core role has no bone; posing is blocked"))
+        seen.add(role)
+
+    conf_items = [
+        (a.confidence, role) for role, a in mapping.assignments.items()
+        if a.ambiguous and role not in seen
+    ]
+    conf_items.sort(key=lambda t: (t[0], ALL_ROLES.index(t[1])))
+    for conf, role in conf_items:
+        a = mapping.assignments[role]
+        items.append(ReviewItem("low-conf", role, f"{a.bone!r} at confidence {conf:.2f}; verify"))
+        seen.add(role)
+
+    side_items = [
+        role for role, a in mapping.assignments.items()
+        if role not in seen and any("side mismatch" in ev for ev in a.evidence)
+    ]
+    side_items.sort(key=ALL_ROLES.index)
+    for role in side_items:
+        a = mapping.assignments[role]
+        items.append(ReviewItem("side-conflict", role, f"{a.bone!r} name side contradicts the role"))
+        seen.add(role)
+
+    return items

@@ -19,11 +19,14 @@ _SIDE_TOKENS: dict[str, set[str]] = {
 }
 
 #: Tokens that mark infrastructure or non-pose bones: never map them.
+#: ``mch`` is Rigify mechanism bone prefix (never a pose target); ``parent``
+#: marks Rigify IK/FK parenting helpers.
 _SKIP_TOKENS: set[str] = {
     "twist", "roll", "ik", "fk", "target", "pole", "prop", "gizmo", "helper",
     "placeholder", "tweak", "eye", "eyelid", "eyes", "jaw", "teeth", "tongue",
     "thumb", "index", "middle", "ring", "pinky", "finger", "fingers", "breast",
     "hair", "skirt", "cloth", "slot", "camera", "light", "wheel", "door",
+    "mch", "parent",
 }
 
 #: Noise tokens from structured families (VRM's ``J_Bip_`` etc).
@@ -105,9 +108,14 @@ def evidence(name: str) -> NameEvidence:
 
     side, remaining = _extract_side(kept)
 
-    if any(t in _SKIP_TOKENS for t in remaining):
-        bad = next(t for t in remaining if t in _SKIP_TOKENS)
-        return NameEvidence(None, None, 0.0, side, chain_index, f"non-pose token {bad!r}", skip=True)
+    # Skip tokens are checked against the pre-strip tokens too, so prefixed
+    # mechanism bones (``MCH-spine``) are caught even though the prefix itself
+    # is normally stripped as noise.
+    skip_hit = next((t for t in raw if t in _SKIP_TOKENS), None)
+    if skip_hit is None:
+        skip_hit = next((t for t in remaining if t in _SKIP_TOKENS), None)
+    if skip_hit is not None:
+        return NameEvidence(None, None, 0.0, side, chain_index, f"non-pose token {skip_hit!r}", skip=True)
 
     if joined_all in _EXACT_OVERRIDES:
         base, score = _EXACT_OVERRIDES[joined_all]
@@ -121,10 +129,28 @@ def evidence(name: str) -> NameEvidence:
     if hit is None:
         return NameEvidence(None, None, 0.0, side, chain_index, "no lexicon match")
     base, score, why = hit
+    if base == "hips" and side != CENTER:
+        # e.g. Rigify's pelvis.L/.R flanks: half a pelvis, not the center hips.
+        return NameEvidence(None, None, 0.0, side, chain_index, "side-marked pelvis/hips flank is not the center hips")
     role = _attach_side(base, side)
     if role is None:
         return NameEvidence(None, base, score, side, chain_index, why)
     return NameEvidence(role, None, score, side, chain_index, why)
+
+
+def family_signature(name: str) -> tuple[str, int | None]:
+    """Prefix- and side-insensitive family identity: (joined base, chain index).
+
+    ``DEF-spine``, ``ORG-spine`` and ``spine`` share ``("spine", None)``;
+    ``spine.001`` is ``("spine", 1)``. Used to keep duplicate-namespace copies
+    of a bone from taking a role already claimed by the original.
+    """
+    raw = [t for t in split_tokens(name) if t not in _NOISE_TOKENS]
+    digits = [t for t in raw if t.isdigit()]
+    chain_index = int(digits[-1]) if digits else None
+    kept = [t for t in raw if not t.isdigit()]
+    _, remaining = _extract_side(kept)
+    return "".join(remaining), chain_index
 
 
 def _extract_side(tokens: list[str]) -> tuple[str, list[str]]:

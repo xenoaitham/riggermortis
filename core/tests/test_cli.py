@@ -57,6 +57,49 @@ def test_map_save_preset_then_load(rig_json, tmp_path, capsys):
     assert "preset override" in capsys.readouterr().out
 
 
+def test_map_set_applies_manual_reassignment(rig_json, capsys):
+    assert main(["map", str(rig_json), "--json", "--set", "hips=spine"]) == EXIT_OK
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["assignments"]["hips"]["bone"] == "spine"
+    assert payload["assignments"]["hips"]["confidence"] == 1.0
+    assert payload["assignments"]["hips"]["evidence"] == ["manual reassignment"]
+    # the spine bone's previous role (spine) was freed and is reported
+    assert "spine" in payload["core_missing"]
+    assert any("manual reassignment: hips -> spine" in n for n in payload["notes"])
+
+
+def test_map_set_multiple_pairs_in_order(rig_json, capsys):
+    assert main([
+        "map", str(rig_json), "--json", "--set", "hips=spine,root=pelvis",
+    ]) == EXIT_OK
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["assignments"]["hips"]["bone"] == "spine"
+    assert payload["assignments"]["root"]["bone"] == "pelvis"
+
+
+def test_map_set_bad_format_is_actionable(rig_json, capsys):
+    code = main(["map", str(rig_json), "--set", "nonsense"])
+    assert code == EXIT_HANDLED_ERROR
+    err = capsys.readouterr().err
+    assert err.startswith("error:")
+    assert "hint:" in err
+    assert "Traceback" not in err
+
+
+def test_map_set_unknown_bone_is_actionable(rig_json, capsys):
+    code = main(["map", str(rig_json), "--set", "hips=not_a_bone"])
+    assert code == EXIT_HANDLED_ERROR
+    err = capsys.readouterr().err
+    assert "not_a_bone" in err and "hint:" in err
+
+
+def test_map_set_unknown_role_is_actionable(rig_json, capsys):
+    code = main(["map", str(rig_json), "--set", "not_a_role=spine"])
+    assert code == EXIT_HANDLED_ERROR
+    err = capsys.readouterr().err
+    assert "not_a_role" in err and "hint:" in err
+
+
 def test_policy_status_default_off(capsys):
     assert main(["policy", "status"]) == EXIT_OK
     status = json.loads(capsys.readouterr().out)

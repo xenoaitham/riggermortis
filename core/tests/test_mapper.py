@@ -12,7 +12,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from riggermortis.mapper import map_rig  # noqa: E402
+import pytest  # noqa: E402
+
+from riggermortis.errors import MappingError  # noqa: E402
+from riggermortis.mapper import (  # noqa: E402
+    RigMapping,
+    RoleAssignment,
+    ambiguity_rank,
+    map_rig,
+    propose_reassignment,
+)
 from rigs import (  # noqa: E402
     MIXAMO_NAMES,
     mixamo_rig,
@@ -131,3 +140,120 @@ def test_confidences_in_range_and_assignments_unique():
         assert len(bones) == len(set(bones)), "one bone mapped to two roles"
         for a in m.assignments.values():
             assert 0.0 <= a.confidence <= 1.0
+
+
+# --------------------------------------------------------------------------
+# real-rig gate regressions (P0-15 findings, DECISIONS D-007)
+# --------------------------------------------------------------------------
+
+def test_gate_rigify_metarig_real_structure():
+    from rigs import rigify_metarig_like
+
+    m = map_rig(rigify_metarig_like())
+    # hips = the structural fork (named "spine"), NOT the pelvis.L flank.
+    assert _bone(m, "hips") == "spine", m.table()
+    # Torso chain lands one vertebra per role, in height order.
+    assert _bone(m, "spine") == "spine.001"
+    assert _bone(m, "chest") == "spine.002"
+    assert _bone(m, "neck") == "spine.003"
+    assert _bone(m, "head") == "spine.004"
+    for side in ("L", "R"):
+        assert _bone(m, f"upper_arm.{side}") == f"upper_arm.{side}"
+        assert _bone(m, f"upper_leg.{side}") == f"thigh.{side}"
+        assert _bone(m, f"lower_leg.{side}") == f"shin.{side}"
+    assert m.core_missing() == []
+    # pelvis flanks: honestly unmapped, never silently eaten.
+    assert "pelvis.L" in m.unmapped_bones and "pelvis.R" in m.unmapped_bones
+
+
+# --------------------------------------------------------------------------
+# review UI API: propose_reassignment + ambiguity_rank (P0-17)
+# --------------------------------------------------------------------------
+
+def _review_mapping() -> RigMapping:
+    """Hand-built mapping covering all three checklist tiers deterministically."""
+    m = RigMapping(rig_name="review_test", fingerprint="fp")
+    m.assignments["head"] = RoleAssignment(
+        role="head", bone="hd", confidence=0.92, side="C", evidence=["lexicon:head"])
+    m.assignments["shoulder.L"] = RoleAssignment(
+        role="shoulder.L", bone="shld_l", confidence=0.80, side="L",
+        evidence=["lexicon:shoulder", "side mismatch vs name"])
+    m.assignments["forearm.L"] = RoleAssignment(
+        role="forearm.L", bone="frm_l", confidence=0.48, side="L",
+        evidence=["lexicon:forearm"], ambiguous=True)
+    m.assignments["forearm.R"] = RoleAssignment(
+        role="forearm.R", bone="frm_r", confidence=0.60, side="R",
+        evidence=["lexicon:forearm"], ambiguous=True)
+    return m
+
+
+def test_propose_reassignment_is_pure_and_honest():
+    from rigs import rigify_rig
+
+    m = map_rig(rigify_rig())
+    before = json.dumps(m.to_dict(), sort_keys=True)
+    proposal = propose_reassignment(m, "head", "neck")
+    after = json.dumps(m.to_dict(), sort_keys=True)
+    assert before == after, "propose_reassignment mutated the original mapping"
+    a = proposal.assignments["head"]
+    assert a.bone == "neck" and a.confidence == 1.0
+    assert a.evidence == ["manual reassignment"] and a.ambiguous is False
+    # the old head bone returns to the unmapped list, loudly
+    assert "head" in proposal.unmapped_bones
+    # the freed role (neck bone used to be the neck) resurfaces as missing
+    assert "neck" in proposal.core_missing()
+
+
+def test_propose_reassignment_same_bone_is_stable():
+    from rigs import rigify_rig
+
+    m = map_rig(rigify_rig())
+    bone = m.assignments["hips"].bone
+    proposal = propose_reassignment(m, "hips", bone)
+    assert proposal.assignments["hips"].bone == bone
+    assert proposal.assignments["hips"].confidence == 1.0
+    assert bone not in proposal.unmapped_bones
+    assert len([r for r, a in proposal.assignments.items() if a.bone == bone]) == 1
+
+
+def test_propose_reassignment_rejects_unknowns_with_hints():
+    from rigs import rigify_rig
+
+    m = map_rig(rigify_rig())
+    with pytest.raises(MappingError) as exc:
+        propose_reassignment(m, "not_a_role", "spine")
+    assert "hint:" in str(exc.value)
+    with pytest.raises(MappingError) as exc:
+        propose_reassignment(m, "hips", "no_such_bone")
+    assert "hint:" in str(exc.value) and "inspect" in str(exc.value)
+
+
+def test_ambiguity_rank_orders_missing_then_confidence_then_side():
+    # head/shoulder/forearm assigned; every other core role (root, hips,
+    # spine, chest, neck, ...) is unresolved, which is tier zero.
+    m = _review_mapping()
+    items = ambiguity_rank(m)
+    roles = [i.role for i in items]
+    missing = m.core_missing()
+    assert missing, "test mapping must leave core roles unresolved"
+    assert roles[: len(missing)] == missing
+    assert all(i.kind == "missing" for i in items[: len(missing)])
+    # ambiguous assignments follow, ascending confidence (0.48 before 0.60)
+    assert [i.kind for i in items[len(missing): len(missing) + 2]] == ["low-conf", "low-conf"]
+    assert roles[len(missing): len(missing) + 2] == ["forearm.L", "forearm.R"]
+    # the side-conflict-only assignment comes last
+    assert items[-1].kind == "side-conflict" and items[-1].role == "shoulder.L"
+    assert len(items) == len(set(roles)), "a role appeared twice in the checklist"
+    # deterministic
+    assert roles == [i.role for i in ambiguity_rank(m)]
+
+
+def test_ambiguity_rank_missing_core_comes_first_on_real_maps():
+    from rigs import quadruped_rig
+
+    m = map_rig(quadruped_rig())
+    items = ambiguity_rank(m)
+    missing = m.core_missing()
+    if missing:
+        assert items[0].kind == "missing"
+        assert items[0].role == missing[0]

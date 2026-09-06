@@ -1,32 +1,32 @@
 # NEXT SESSION SHOULD …
 
-1. **P0-15 — real-rig gate (top priority).** The 5-rig gate currently runs on
-   synthetic rigs. Close it with real files:
-   - Generate a real Rigify meta-rig headlessly:
-     `blender -b --python-expr "import bpy; bpy.ops.wm.read_factory_settings(use_empty=True); bpy.ops.object.armature_human_metarig_add(); bpy.ops.wm.save_as_mainfile(filepath='out/real_rigs/metarig.blend')"`
-     (verify the operator name on 4.0: `bpy.ops.object.armature_human_metarig_add`).
-   - Download one Mixamo GLTF/FBX export and one VRM sample (needs network;
-     keep them in `out/real_rigs/`, git-ignored; document sources + licenses in
-     `docs/BENCHMARKS.md`). Convert via `xtask/extract_blend.sh` or a GLTF
-     import script, then `rigpose map --strict` each.
-   - Target: ≤2 corrections each; record results in `docs/BENCHMARKS.md`.
-2. **P0-16 — CI skeleton.** GitHub Actions: `ruff`, `pytest`, `blender_verify.sh`
-   (install Blender via blender-org CI action or apt), plus the **network-audit
-   test** (assert zero outbound connections during `rigpose map` on a fixture —
-   run under `unshare -n` or a socket-audit wrapper; test the test).
-3. **P0-17 — review data model.** `RoleAssignment.ambiguous` + `ambiguities[]`
-   exist; add a `propose_reassignment(role, bone)` helper that mutates a
-   mapping and re-serializes it, so the add-on's click-to-reassign UI has a
-   one-call API.
-4. If time remains: start **Phase 1 P1-1** — checksum-pinned model manager
-   (`core/src/riggermortis/inference/models.py`): manifest of DWPose ONNX
-   URLs+SHA256s, one-time local download **only on explicit user action**,
-   offline verification. Keep numpy/onnxruntime OUT of core's hard deps
-   (optional extra `riggermortis-core[inference]`; see DECISIONS D-005).
+1. **P1-2 — DWPose ONNX wrapper** (the engine start of Phase 1). The model
+   manager (P1-1) is done: `rigpose models download|verify|list` works against
+   the real pinned manifest. Next:
+   - `core/src/riggermortis/inference/dwpose.py`: lazy-import `onnxruntime` +
+     `numpy` (CORE_MISSING_HINT-style error pointing at
+     `pip install riggermortis-core[inference]`); run the two-stage pipeline
+     (yolox_l detector → dw-ll_ucoco_384, 133 keypoints), CPU first.
+   - accept: <2 s CPU per image; test with a tiny synthetic raster (no real
+     model download in tests — mock the session objects).
+   - models are stored via `riggermortis.inference.models.model_path()`;
+     never auto-download.
+2. **P1-4 — keypoints → canonical pose solve** (2D→3D lift, symmetry,
+   smoothing, elbow/knee flip disambiguation; accept: flip test on 20 poses).
+3. **P1-5 — FK apply engine** (canonical pose → any mapped rig, rest-offset
+   aware, undo-friendly; accept: same pose on 3 rigs).
+4. Optional prep for P1-3 (multi-figure detection data model) if the wrapper
+   lands early.
+
+Also worth 10 minutes:
+- Add a CI badge + the real-rig gate table link to README once publishing
+  (NEEDS-HUMAN) unblocks.
+- `rigpose models download all` currently serializes; parallel downloads are
+  unnecessary (two models, rare event) — leave as-is unless P1-2 wants it.
 
 Blocked / deferred:
-- Publishing (GitHub repo, PyPI, Blender Extensions) needs LO's accounts —
-  registration is a human step; everything is prepared for it.
-- No `subprocess` anywhere in core library code (workspace security gate +
-  embeddability; see DECISIONS D-004). Blender process interop lives in
-  `xtask/*.sh`, the add-on (already inside Blender), and CI.
+- Mixamo real export (Adobe login) — P0-15 recorded the gap honestly;
+  synthetic Mixamo fixture covers the naming traps.
+- Publishing (GitHub repo, PyPI, Blender Extensions) — NEEDS-HUMAN accounts.
+- Session 2's CI yml has NOT run yet (no remote); first push will be its
+  first run — expect Blender-gate tuning (apt package name / runtime deps).

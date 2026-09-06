@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install core (editable, with dev tools)
+        run: make install PY=python
+      - name: Lint (ruff)
+        run: make lint PY=python
+      - name: Test suite
+        run: make test PY=python
+      - name: Network audit under kernel-level isolation (3.11 only, best-effort)
+        if: matrix.python == '3.11'
+        run: |
+          if sudo unshare -n true 2>/dev/null; then
+            sudo unshare -n -- env PATH="$PATH" bash -c \
+              "cd core && python -m pytest tests/test_network_audit.py -q"
+            echo "unshare -n: network-audit PASS (no interfaces available at all)"
+          else
+            echo "unshare -n unavailable in this environment; the in-process audit-hook test (run above) is the enforcement"
+          fi
+
+  blender-gate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"  # matches Blender 4.x bundled Python
+      - name: Install Blender (ubuntu-24.04 ships 4.0.2 — same as the local gate)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y blender
+          blender --version | head -1
+      - name: Install core
+        run: make install PY=python
+      - name: Blender end-to-end gate (bridge → strict map → add-on registers)
+        run: make blender-verify
+
+  media-guard:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: No hand-made media committed (demo media is generated headlessly)
+        run: make media-guard
