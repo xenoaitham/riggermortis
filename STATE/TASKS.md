@@ -35,10 +35,10 @@ quadruped) with ≤2 manual corrections each, proven headless.
 **Gate:** 20-image benchmark (10 photo / 10 anime), ≥90% usable-straight-away; BOOM GIF via pipeline; polish pass.
 
 - [x] P1-1 [S2] Checksum-pinned model manager: manifest → one-time local download on explicit action, offline verify. media: n/a.
-- [ ] P1-2 DWPose/RTMPose ONNX wrapper (133 keypoints, CPU+GPU via onnxruntime, optional extra). accept: <2s CPU per image.
-- [ ] P1-3 Multi-figure detection + figure selection data model.
-- [ ] P1-4 Keypoints → canonical 3D pose solve (2D→3D lift, symmetry, smoothing, elbow/knee flip disambiguation). accept: flip test on 20 poses.
-- [ ] P1-5 FK apply engine: canonical pose → any mapped rig, rest-offset aware, undo-friendly. accept: same pose on 3 rigs passes eyeball + angle tolerance.
+- [x] P1-2 [S3] DWPose/RTMPose ONNX wrapper (133 keypoints, CPU+GPU via onnxruntime, optional extra). accept: <2s CPU per image. — DONE: 0.85 s mean (4-figure 3060x1721), official-demo-faithful numpy re-implementation (no cv2), `rigpose detect [--json --figure N --gpu]`, 17 tests (faked sessions, no downloads).
+- [x] P1-3 [S3] Multi-figure detection + figure selection data model. — DONE: `inference/figures.py` FigureBoard (stable labels, select/primary/largest), 3 tests.
+- [x] P1-4 [S3] Keypoints → canonical 3D pose solve (2D→3D lift, symmetry, smoothing, elbow/knee flip disambiguation). accept: flip test on 20 poses. — DONE: pure-stdlib solver (`canonical_pose.py`, D-008), 18/20 flips correct; 2 misses are documented single-view limitations (kick, arms-back).
+- [x] P1-5 [S3] FK apply engine: canonical pose → any mapped rig, rest-offset aware, undo-friendly. accept: same pose on 3 rigs passes eyeball + angle tolerance. — DONE: pure-stdlib quaternions (`fk_apply.py`), 3 real rigs at worst error 0.0000° (0.5° asserted); payload ordered (depth, name); end-to-end smoke detect→solve→FK on metarig green.
 - [ ] P1-6 Add-on pose UX: image picker, figure thumbnails, mirror toggle, confidence readout. media: UI screenshot.
 - [ ] P1-7 Viewport review overlay: ghost skeleton over image, per-joint confidence heat.
 - [ ] P1-8 Anime-art robustness: fallback estimator plan if DWPose <90% on anime set. accept: benchmark decides.

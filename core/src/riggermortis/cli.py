@@ -86,6 +86,20 @@ def _build_parser() -> argparse.ArgumentParser:
     m_path = models_sub.add_parser("path", help="print the model storage location")
     m_path.add_argument("name", nargs="?", default=None, help="model name (default: the store dir)")
 
+    p_detect = sub.add_parser(
+        "detect", help="DWPose person detection + 133 keypoints (models must be downloaded)"
+    )
+    p_detect.add_argument("image", help="path to an image file")
+    p_detect.add_argument("--json", action="store_true", help="machine-readable output")
+    p_detect.add_argument(
+        "--figure", type=int, default=None, metavar="N",
+        help="only report figure N (deterministic order: score desc, then leftmost)",
+    )
+    p_detect.add_argument(
+        "--gpu", action="store_true",
+        help="opt in to the CUDA onnxruntime provider (CPU is the default)",
+    )
+
     return parser
 
 
@@ -254,6 +268,39 @@ def cmd_models_path(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def cmd_detect(args: argparse.Namespace) -> int:
+    # Lazy import: importing the CLI must never require numpy/onnxruntime.
+    from .inference.dwpose import detect_keypoints
+
+    providers = ["CUDAExecutionProvider", "CPUExecutionProvider"] if args.gpu else None
+    detection = detect_keypoints(args.image, providers=providers)
+    figures = detection.sorted_figures()
+    if args.figure is not None:
+        if args.figure < 0 or args.figure >= len(figures):
+            print(
+                f"error: figure {args.figure} does not exist "
+                f"(hint: {len(figures)} figure(s) detected)",
+                file=sys.stderr,
+            )
+            return EXIT_HANDLED_ERROR
+        figures = [figures[args.figure]]
+    if args.json:
+        payload = {"width": detection.width, "height": detection.height,
+                   "figures": [f.to_dict() for f in figures]}
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return EXIT_OK
+    print(f"image: {args.image} ({detection.width}x{detection.height})")
+    print(f"figures: {len(figures)}")
+    for f in figures:
+        mean_conf = sum(f.confidences) / len(f.confidences)
+        print(
+            f"  figure {f.index}: score={f.score:.2f} "
+            f"bbox=({f.bbox[0]:.0f},{f.bbox[1]:.0f},{f.bbox[2]:.0f},{f.bbox[3]:.0f}) "
+            f"mean_conf={mean_conf:.2f}"
+        )
+    return EXIT_OK
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -277,6 +324,8 @@ def main(argv: list[str] | None = None) -> int:
             if args.models_command == "verify":
                 return cmd_models_verify(args)
             return cmd_models_path(args)
+        if args.command == "detect":
+            return cmd_detect(args)
         parser.error(f"unknown command {args.command!r}")
         return EXIT_HANDLED_ERROR
     except RiggermortisError as exc:

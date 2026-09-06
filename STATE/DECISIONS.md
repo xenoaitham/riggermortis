@@ -112,6 +112,37 @@ Gate results after v2 (see docs/BENCHMARKS.md): metarig 21 roles, core
 complete, 0 corrections + 1 review-confirm (structural hips); generated 22/22
 roles, core complete, 0 corrections, 0 flags.
 
+## D-008 Pose-solve v1 design (locked for Phase 1, S3)
+
+The 2D→3D lift is 2.5D by construction: in-plane (x, z) come from the image,
+depth (y) is solved per joint under rigid canonical bone lengths.
+
+- **Role-position semantics**: a role's position = the joint at the HEAD of
+  that role's bone. Keypoints map: shoulder→`upper_arm.*`, elbow→`forearm.*`,
+  wrist→`hand.*`, hip→`upper_leg.*`, knee→`lower_leg.*`, ankle→`foot.*`;
+  neck/hips/toes are midpoint observations. The torso line hips→mid-shoulders
+  spans 0.45 canonical units and hosts spine/chest by proportion.
+- **Anchors**: shoulder/hip girdles are rigid at y = 0 (structural symmetry).
+- **Proximal segments** (upper arm, thigh) take a FIXED forward prior
+  (limbs hang slightly in front of the torso plane). A whole limb's global
+  front/back mirror is underdetermined from one view; the prior resolves it.
+  Known cost: limbs genuinely swung behind the torso plane get proximal
+  depth error while flips stay correct.
+- **Distal flips** (forearm, shank; 4 bits = 16 combos) are enumerated and
+  scored by E = Σ conf·(0.5·y² + flexion terms). Flexion terms encode that
+  elbows only bend forward (forearm behind elbow penalized ×4) and knees
+  backward (shank > 0.05 forward of knee penalized ×2). Weights are
+  order-of-magnitude choices, NOT fitted to the fixture set.
+- **Known misses (accepted, reported, never hidden)**: deep forward kicks
+  (2D-identical to a standing pose under the prior) and wrists held behind
+  the back. The 20-pose accept is 18/20 with these two; the review UI
+  (P1-6/P1-7) exposes per-flip manual override as the designed remedy.
+- **Roll**: from-to rotations are roll-free (minimal rotation). v1 accepts
+  twisted forearms in extreme poses; P1-11 polish may add roll alignment.
+- **Torso**: modeled as the rigid hips→mid-shoulders line (spine/chest ride
+  it proportionally); bows/leans tilt the line but spine articulation is not
+  solved in v1.
+
 ## NEEDS-HUMAN queue
 - GitHub org/repo + PyPI registration + Blender Extensions account (D-001).
 - Decide public repo name string exactly (`riggermortis` recommended).

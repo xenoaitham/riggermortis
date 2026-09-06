@@ -22,3 +22,6 @@ out/
 .vscode/
 .idea/
 .DS_Store
+
+# Mimosa scanner working state (ephemeral, never ship)
+.mimosa/
