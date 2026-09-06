@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "mimosa-hook-status/v1",
+  "recordedAt": "2026-09-06T16:16:23.154Z",
+  "sessionId": "sess_1362e89c-4a67-4de4-99ad-e2150c48cc33",
+  "event": "PostToolUse",
+  "toolName": "Write",
+  "file": "/home/potato/osint/riggermortis/STATE/PROGRESS.md",
+  "outcome": "clear",
+  "coverage": "complete",
+  "findingCount": 0,
+  "durationMs": 2,
+  "hostState": "hook_complete",
+  "reportHint": ".mimosa/reports/"
+}

@@ -1,0 +1,21 @@
+schema_version = "1.0.0"
+
+# Blender Extensions platform manifest (blender 4.2+). Classic bl_info in
+# __init__.py keeps the same add-on loadable on 4.0.x.
+id = "riggermortis"
+version = "0.0.1"
+name = "Riggermortis"
+tagline = "Local rig-agnostic posing & animation from images and video"
+maintainer = "Riggermortis contributors"
+type = "add-on"
+
+blender_version_min = "4.2.0"
+
+license = [
+  "SPDX:MIT",
+]
+
+tags = [
+  "Animation",
+  "Pipeline",
+]

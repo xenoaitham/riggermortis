@@ -1,0 +1,168 @@
+"""The canonical skeleton: the rig-agnostic reference humanoid.
+
+Every pose, animation, and mapping passes through this skeleton. Role names
+are stable API (used in presets, MCP tool schemas, and the review UI), so they
+live here as constants. ``.L``/``.R`` suffixes mark paired roles.
+
+Length ratios are fractions of *hip height* (0.55 x total height by default),
+which keeps priors meaningful across child/chibi/heroic proportions.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from .linalg import Vec3
+
+CENTER = "C"
+LEFT = "L"
+RIGHT = "R"
+
+
+@dataclass(frozen=True)
+class RoleDef:
+    role: str
+    side: str
+    parent: str | None
+    direction: Vec3  # unit rest direction (character-left = +X, down = -Z)
+    length_ratio: float  # expected bone length / hip height
+    height_band: tuple[float, float] | None  # head-Z as fraction of rig height
+
+
+_CENTER: list[tuple[str, str | None, Vec3, float, tuple[float, float] | None]] = [
+    ("root", None, (0.0, 0.0, 0.0), 0.03, None),
+    ("hips", "root", (0.0, 0.0, 1.0), 0.09, (0.45, 0.68)),
+    ("spine", "hips", (0.0, 0.0, 1.0), 0.17, (0.55, 0.78)),
+    ("chest", "spine", (0.0, 0.0, 1.0), 0.19, (0.65, 0.88)),
+    ("neck", "chest", (0.0, 0.0, 1.0), 0.11, (0.80, 0.95)),
+    ("head", "neck", (0.0, 0.0, 1.0), 0.21, (0.85, 1.05)),
+]
+
+_LIMBS: list[tuple[str, str, Vec3, float, tuple[float, float] | None]] = [
+    # (base role, parent, direction, length ratio, height band)
+    ("shoulder", "chest", (1.0, 0.0, 0.0), 0.13, (0.75, 0.95)),
+    ("upper_arm", "shoulder", (1.0, 0.0, 0.0), 0.32, (0.70, 0.95)),
+    ("forearm", "upper_arm", (1.0, 0.0, 0.0), 0.28, (0.68, 0.95)),
+    ("hand", "forearm", (1.0, 0.0, 0.0), 0.11, (0.68, 0.95)),
+    ("upper_leg", "hips", (0.0, 0.0, -1.0), 0.50, (0.35, 0.75)),
+    ("lower_leg", "upper_leg", (0.0, 0.0, -1.0), 0.47, (0.02, 0.52)),
+    ("foot", "lower_leg", (0.0, -1.0, 0.0), 0.17, (0.00, 0.16)),
+    ("toe", "foot", (0.0, -1.0, 0.0), 0.12, (0.00, 0.12)),
+]
+
+
+def _build() -> dict[str, RoleDef]:
+    out: dict[str, RoleDef] = {}
+    for role, parent, d, ratio, band in _CENTER:
+        out[role] = RoleDef(role, CENTER, parent, d, ratio, band)
+    paired_bases = {base for base, _, _, _, _ in _LIMBS}
+    for base, parent, d, ratio, band in _LIMBS:
+        for side in (LEFT, RIGHT):
+            sx = d[0] if side == LEFT else -d[0]
+            parent_role = f"{parent}.{side}" if parent in paired_bases else parent
+            full = f"{base}.{side}"
+            out[full] = RoleDef(full, side, parent_role, (sx, d[1], d[2]), ratio, band)
+    return out
+
+
+CANONICAL: dict[str, RoleDef] = _build()
+ALL_ROLES: tuple[str, ...] = tuple(CANONICAL)
+
+#: Roles required for FK posing v1; the mapper must report any of these it
+#: could not fill so the review UI can route the user straight to them.
+CORE_ROLES: frozenset[str] = frozenset(
+    ["hips", "spine", "chest", "neck", "head"]
+    + [
+        f"{base}.{side}"
+        for base in ("upper_arm", "forearm", "hand", "upper_leg", "lower_leg", "foot")
+        for side in (LEFT, RIGHT)
+    ]
+)
+
+#: Ordered spine chain used for chain-order resolution (bottom -> top).
+SPINE_CHAIN: tuple[str, ...] = ("hips", "spine", "chest", "neck", "head")
+
+ROLE_GROUPS: dict[str, tuple[str, ...]] = {
+    "spine_chain": SPINE_CHAIN,
+    "arm": ("shoulder", "upper_arm", "forearm", "hand"),
+    "leg": ("upper_leg", "lower_leg", "foot", "toe"),
+}
+
+
+def role_def(role: str) -> RoleDef:
+    try:
+        return CANONICAL[role]
+    except KeyError as exc:
+        raise KeyError(f"unknown canonical role {role!r}") from exc
+
+
+def base_role(role: str) -> str:
+    return role.rsplit(".", 1)[0] if "." in role else role
+
+
+def side_of(role: str) -> str:
+    return CANONICAL[role].side if role in CANONICAL else CENTER
+
+
+def mirror_role(role: str) -> str:
+    if role.endswith(f".{LEFT}"):
+        return role[: -len(LEFT)] + RIGHT
+    if role.endswith(f".{RIGHT}"):
+        return role[: -len(RIGHT)] + LEFT
+    return role
+
+
+def children_of(role: str) -> list[str]:
+    return [r for r in ALL_ROLES if CANONICAL[r].parent == role]
+
+
+def is_paired(role: str) -> bool:
+    return CANONICAL[role].side != CENTER
+
+
+def rest_skeleton(height: float = 1.7, hip_height_frac: float = 0.55) -> dict[str, tuple[Vec3, Vec3]]:
+    """Generate the canonical rest pose at a given total height (meters).
+
+    Used by the review UI (ghost skeleton overlay), tests, and documentation.
+    Root sits at the hip; legs descend from the hips joint, arms extend along
+    the character-left/right axes (T-pose).
+    """
+    hip = height * hip_height_frac
+    out: dict[str, tuple[Vec3, Vec3]] = {}
+    out["root"] = ((0.0, 0.0, hip), (0.0, 0.0, hip + 0.02))
+    hips_tail = (0.0, 0.0, hip + 0.09 * hip)
+    out["hips"] = ((0.0, 0.0, hip), hips_tail)
+    spine_head = hips_tail
+    for role in ("spine", "chest", "neck", "head"):
+        ln = CANONICAL[role].length_ratio * hip
+        tail = (spine_head[0], spine_head[1], spine_head[2] + ln)
+        out[role] = (spine_head, tail)
+        spine_head = tail
+    for base in ("shoulder", "upper_arm", "forearm", "hand"):
+        for side in (LEFT, RIGHT):
+            sx = 1.0 if side == LEFT else -1.0
+            ln = CANONICAL[f"{base}.{side}"].length_ratio * hip
+            head = out["chest" if base == "shoulder" else f"{_prev(base)}.{side}"][1]
+            tail = (head[0] + sx * ln, head[1], head[2])
+            out[f"{base}.{side}"] = (head, tail)
+    for side in (LEFT, RIGHT):
+        ux = 0.08 if side == LEFT else -0.08
+        ln_up = CANONICAL[f"upper_leg.{side}"].length_ratio * hip
+        ln_lo = CANONICAL[f"lower_leg.{side}"].length_ratio * hip
+        ln_ft = CANONICAL[f"foot.{side}"].length_ratio * hip
+        ln_to = CANONICAL[f"toe.{side}"].length_ratio * hip
+        up_head = (ux, 0.0, hip)
+        up_tail = (ux, 0.0, hip - ln_up)
+        lo_tail = (ux, 0.0, hip - ln_up - ln_lo)
+        ft_tail = (ux, -ln_ft, lo_tail[2])
+        to_tail = (ux, ft_tail[1] - ln_to, ft_tail[2])
+        out[f"upper_leg.{side}"] = (up_head, up_tail)
+        out[f"lower_leg.{side}"] = (up_tail, lo_tail)
+        out[f"foot.{side}"] = (lo_tail, ft_tail)
+        out[f"toe.{side}"] = (ft_tail, to_tail)
+    return out
+
+
+def _prev(base: str) -> str:
+    order = ["shoulder", "upper_arm", "forearm", "hand"]
+    i = order.index(base)
+    return order[i - 1] if i > 0 else "chest"
