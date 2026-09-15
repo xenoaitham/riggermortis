@@ -56,8 +56,8 @@ quadruped) with ≤2 manual corrections each, proven headless.
 ## Phase 2 — Video → animation
 **Gate:** dance + fight clips playable on 3 rigs; honest side-by-side GIFs; foot-slide metric published.
 
-- [ ] P2-1 [S5] Video reader + per-frame pose detection (progress, resume).
-- [ ] P2-2 [S5] Temporal smoothing: 1€ filter-class + keyframe reduction.
+- [x] P2-1 [S5] Video reader + per-frame pose detection — DONE: core `video.py` job container (deterministic stride planning, per-frame detect->solve->FK payloads, crash-safe `job.json` state after EVERY frame, resume skips done frames, plan-mismatch restarts, failures recorded honestly with re-attempt on resume); `rigpose pose-video` CLI (progress prints); decode lives in `xtask/extract_frames.sh` (ffmpeg, confined paths, D-009). LIVE-VERIFIED with real models: person video -> 5/5 reliable payloads (conf 0.70, 16 rotations); person-less frames -> honest failures; resume re-attempts failures. 7 CI tests with faked detection.
+- [x] P2-2 [S5] Temporal smoothing — DONE: core `smoothing.py` — `OneEuroFilter` (Casiez 2012, adaptive cutoff via beta, timestamp-aware freq), `smooth_channel`/`smooth_pose_frames` (per-role, partial observation preserved), `reduce_keyframes` (greedy error-driven decimation sketch; endpoints kept, deterministic; P2-3 wires it into actions). 6 CI tests on synthetic jitter: variance cut >4x on stationary, fast-step tracking with beta, spike preservation, tolerance monotonicity.
 - [ ] P2-3 Keyframed retarget: canonical action → rig action (FK), root motion option.
 - [ ] P2-4 Foot contact detection (velocity + height heuristic).
 - [ ] P2-5 Cleanup v1: IK foot lock during contact, ground-plane fit. accept: foot-slide metric improves ≥5×.

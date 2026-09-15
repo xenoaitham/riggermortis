@@ -138,6 +138,27 @@ def _build_parser() -> argparse.ArgumentParser:
         help="opt in to the CUDA onnxruntime provider (CPU is the default)",
     )
 
+    p_video = sub.add_parser(
+        "pose-video",
+        help="per-frame posing over an extracted-frames dir: detect -> solve -> "
+             "FK -> one payload per frame + resumable job.json (P2-1; decode "
+             "lives in xtask/extract_frames.sh per D-009)",
+    )
+    p_video.add_argument("frames_dir", help="directory of extracted still frames")
+    p_video.add_argument("rig", help="rig JSON file to apply poses to")
+    p_video.add_argument("--out", required=True, metavar="JOB_DIR",
+                         help="job directory (payloads/ + job.json)")
+    p_video.add_argument("--stride", type=int, default=1, metavar="N",
+                         help="solve every Nth frame (default 1 = all)")
+    p_video.add_argument("--max-frames", type=int, default=None, metavar="N",
+                         help="cap the plan length (smoke tests)")
+    p_video.add_argument("--fresh", action="store_true",
+                         help="ignore any existing job.json and restart the plan")
+    p_video.add_argument(
+        "--gpu", action="store_true",
+        help="opt in to the CUDA onnxruntime provider (CPU is the default)",
+    )
+
     return parser
 
 
@@ -505,6 +526,37 @@ def cmd_pose(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def cmd_pose_video(args: argparse.Namespace) -> int:
+    """P2-1: per-frame posing over extracted frames, resumable (D-009-safe)."""
+    from .video import run_video_job
+
+    frames_dir = Path(args.frames_dir)
+    if not frames_dir.is_dir():
+        raise RiggermortisError(
+            f"frames directory not found: {frames_dir}",
+            hint="extract frames first: bash xtask/extract_frames.sh <video> <dir>",
+        )
+    providers = ["CUDAExecutionProvider", "CPUExecutionProvider"] if args.gpu else None
+
+    def detect_fn(path: str, _providers=providers):
+        from .inference.dwpose import detect_keypoints  # noqa: PLC0415
+
+        return detect_keypoints(path, providers=_providers)
+
+    report = run_video_job(
+        frames_dir,
+        Path(args.rig),
+        Path(args.out),
+        stride=args.stride,
+        max_frames=args.max_frames,
+        resume=not args.fresh,
+        detect_fn=detect_fn,
+        progress=lambda done, total: print(f"progress: {done}/{total} frames"),
+    )
+    print(report.summary())
+    return EXIT_OK
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -532,6 +584,8 @@ def main(argv: list[str] | None = None) -> int:
             return cmd_detect(args)
         if args.command == "pose":
             return cmd_pose(args)
+        if args.command == "pose-video":
+            return cmd_pose_video(args)
         parser.error(f"unknown command {args.command!r}")
         return EXIT_HANDLED_ERROR
     except RiggermortisError as exc:
