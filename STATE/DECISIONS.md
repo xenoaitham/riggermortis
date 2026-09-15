@@ -262,12 +262,10 @@ need — the review UI is its remedy, not a second detector). Therefore:
   creation + push unblocked (CI's first run). PyPI upload still requires
   LO's account credentials (prep-only: build + twine check + runbook).
 
-## NEEDS-HUMAN queue
-- Benchmark anime sourcing: 3 of 10 anime slots open — drop LO-owned/CC0 art
-  into `out/benchmark/images/anime/`, record in out/benchmark/SOURCES.md,
-  rerun `python3 xtask/benchmark_poses.py` (SOURCES.md documents the bar).
-- GitHub org/repo + PyPI registration + Blender Extensions account (D-001).
-- Decide public repo name string exactly (`riggermortis` recommended).
-- Sample-rig sourcing for P0-15 needs network access in the next session
-  (Mixamo export requires an Adobe login — NEEDS-HUMAN to obtain a
-  redistributable-license sample or use a CC0 VRM + Rigify-generated rigs).
+## NEEDS-HUMAN queue (updated 2026-09-15 NEEDS-HUMAN-clearing run)
+- RETIRED — anime sourcing: set complete at 10/10 (SOURCES.md; Commons CC BY-SA crop provenance).
+- RETIRED — real Mixamo gate: closed via three.js Xbot.glb (0 corrections, D-012).
+- RETIRED — full Mimosa audit: completed CLEAN (findingCount=0, seal sha256:7c594eb7..., static-only evidence boundary).
+- DONE — GitHub repo: https://github.com/xenoaitham/riggermortis (public, main, CI green).
+- REMAINS — PyPI upload: needs LO's PyPI account/token (docs/PUBLISHING.md, one command).
+- REMAINS — Blender Extensions upload: needs LO's blender.org account (docs/PUBLISHING.md).

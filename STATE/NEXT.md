@@ -34,10 +34,12 @@ Watch out for:
 - Windowed Blender under this box's GL segfaults on `space.show_region_ui`
   assignment from Python — do not reintroduce that in ui_screenshot.py.
 
-Blocked / deferred (unchanged):
-- Publishing (GitHub repo, PyPI, Blender Extensions) — NEEDS-HUMAN; CI yml
-  has still never run (first push will be its first run).
-- Mixamo real export (Adobe login) — NEEDS-HUMAN.
-- Full Mimosa audit run — queued since S2 for an explicit human ask
-  (pre-commit runs on partial-callgraph compatibility; one false-positive
-  "SQL injection" on the addon UI file was grep-proven clean in S5).
+Blocked / deferred (UPDATED 2026-09-15 NEEDS-HUMAN-clearing run):
+- GitHub repo LIVE: https://github.com/xenoaitham/riggermortis — CI IS GREEN
+  (first-ever run + fixes: ruff 0.16 semantics, env-coupled onnxruntime test).
+- Full Mimosa audit DONE, CLEAN (findingCount=0, seal sha256:7c594eb7...).
+- Real Mixamo gate DONE via three.js Xbot (0 corrections; no Adobe login).
+- Anime benchmark set at 10/10 (SOURCES.md); P1-8 re-decided at full n (D-012).
+- PyPI: dist builds + twine PASSED; ONLY the upload needs LO's PyPI account
+  (docs/PUBLISHING.md runbook). Blender Extensions needs LO's blender.org
+  account (same runbook).
