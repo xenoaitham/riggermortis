@@ -326,3 +326,88 @@ def test_skeleton_segments_follow_fk_chains_and_are_deterministic() -> None:
     # Parents come from the FK chain map only — no invented segments.
     for parent, child in segments:
         assert child.endswith((".L", ".R")) or parent in ("hips", "spine", "chest", "neck")
+
+
+# -- review interactivity (P1-11 / D-008 rescue): toggle + pick -----------------------
+
+
+def test_toggled_flip_moves_distal_joint_and_marks_verified() -> None:
+    from riggermortis.review import review_items
+
+    fx = next(p for p in POSES if p.name == "kneel")  # shanks clearly bent backward
+    pose = _solve_fixture(fx)
+    y_knee = pose.positions["lower_leg.L"][1]
+    y_foot = pose.positions["foot.L"][1]
+    assert y_foot != y_knee
+
+    toggled = pose.toggled("lower_leg.L")
+    assert toggled is not pose
+    assert toggled.positions["foot.L"][1] == pytest.approx(2 * y_knee - y_foot)
+    assert toggled.flips["lower_leg.L"] == -pose.flips["lower_leg.L"]
+    assert toggled.joint_confidence["lower_leg.L"] == 1.0  # human-verified
+    assert any("manually toggled" in n for n in toggled.notes)
+    assert "lower_leg.L" not in [i.role for i in review_items(toggled)
+                                 if i.kind == "flip"]
+    # untouched roles stay put; the original pose is never mutated
+    assert pose.positions["foot.L"][1] == y_foot
+    assert toggled.positions["hips"] == pose.positions["hips"]
+    # toe rides the foot rigidly when present
+    if "toe.L" in pose.positions and "toe.L" in toggled.positions:
+        assert toggled.positions["toe.L"][1] == pytest.approx(
+            pose.positions["toe.L"][1] + (toggled.positions["foot.L"][1] - y_foot)
+        )
+
+
+def test_toggled_is_idempotent_and_mirror_safe() -> None:
+    fx = next(p for p in POSES if p.name == "kneel")
+    pose = _solve_fixture(fx)
+    once = pose.toggled("lower_leg.L")
+    twice = once.toggled("lower_leg.L")
+    assert twice.positions.keys() == pose.positions.keys()
+    for role in pose.positions:
+        assert twice.positions[role] == pytest.approx(pose.positions[role], abs=1e-9), role
+    assert twice.flips["lower_leg.L"] == pose.flips["lower_leg.L"]
+    # mirror never touches y, so toggling commutes with mirroring — but the
+    # key mirrors with the limb: toggling lower_leg.L pre-mirror == toggling
+    # lower_leg.R post-mirror.
+    a = pose.toggled("lower_leg.L").mirrored()
+    b = pose.mirrored().toggled("lower_leg.R")
+    assert a.positions["foot.R"] == pytest.approx(b.positions["foot.R"])
+    # unknown key / distal absent from the pose: harmless no-op
+    assert pose.toggled("nope.X") is pose
+    import dataclasses
+
+    no_hands = dataclasses.replace(
+        pose, positions={r: p for r, p in pose.positions.items() if r != "hand.L"}
+    )
+    assert no_hands.toggled("forearm.L") is no_hands
+
+
+def test_pick_joint_ray_cast_and_determinism() -> None:
+    from riggermortis.review import joint_points, pick_joint
+
+    fx = next(p for p in POSES if p.name == "arms_down_relaxed")
+    pose = _solve_fixture(fx)
+    origin = (0.0, 0.0, 0.0)
+    scale = 2.0
+    points = joint_points(pose, origin=origin, scale=scale)
+
+    target = "hand.L" if "hand.L" in points else "forearm.L"
+    p = points[target]
+    # camera at +y looking down -y straight at the joint
+    role = pick_joint(points, (p[0], p[1] + 10.0, p[2]), (0.0, -1.0, 0.0), radius=0.5)
+    assert role == target
+
+    # a ray passing between two joints picks the closer one, deterministically
+    a, b = points["hips"], points["neck"]
+    mid = tuple((a[i] + b[i]) / 2 for i in range(3))
+    role_mid = pick_joint(points, (mid[0], mid[1] + 5.0, mid[2]), (0.0, -1.0, 0.0), radius=1.0)
+    assert role_mid in ("hips", "neck", "spine", "chest", "upper_leg.L", "upper_leg.R")
+    assert pick_joint(points, (mid[0], mid[1] + 5.0, mid[2]), (0.0, -1.0, 0.0), radius=1.0) == role_mid
+
+    # miss -> None; everything behind the camera -> None; zero radius/direction -> None
+    assert pick_joint(points, (p[0] + 100.0, p[1] + 10.0, p[2]), (0.0, -1.0, 0.0), radius=0.5) is None
+    below_all = (0.0, min(pt[1] for pt in points.values()) - 50.0, 0.0)
+    assert pick_joint(points, below_all, (0.0, -1.0, 0.0), radius=0.5) is None
+    assert pick_joint(points, (p[0], p[1] + 1.0, p[2]), (0.0, -1.0, 0.0), radius=0.0) is None
+    assert pick_joint(points, (p[0], p[1] + 1.0, p[2]), (0.0, 0.0, 0.0), radius=0.5) is None

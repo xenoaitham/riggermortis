@@ -69,13 +69,13 @@ def _draw_callback() -> None:
     core = _core()
     if core is None:
         return
-    payload = _cached_pose(settings)
-    if payload is None:
+    pose = effective_pose(settings, core)
+    if pose is None:
         return
 
     origin, scale = _anchor(context)
-    segments = core.skeleton_segments(payload)
-    data = line_data(payload, segments, scale, origin)
+    segments = core.skeleton_segments(pose)
+    data = line_data(pose, segments, scale, origin)
     if not data:
         return
 
@@ -91,6 +91,21 @@ def _draw_callback() -> None:
         batch.draw(shader)
     gpu.state.line_width_set(1.0)
 
+    # joint dots (P1-11): same confidence bands, drawn as POINTS so picks make sense
+    points = core.joint_points(pose, origin=origin, scale=scale)
+    gpu.state.point_size_set(7.0)
+    for color in (COLOR_LOW, COLOR_MID, COLOR_OK):
+        verts = [
+            p for role, p in points.items()
+            if color_for_conf(pose.joint_confidence.get(role)) == color
+        ]
+        if not verts:
+            continue
+        batch = batch_for_shader(shader, "POINTS", {"pos": verts})
+        shader.uniform_float("color", color)
+        batch.draw(shader)
+    gpu.state.point_size_set(1.0)
+
 
 def _core():
     try:
@@ -102,7 +117,7 @@ def _core():
 
 
 def _cached_pose(settings: Any):
-    """Parse the payload pose once per (path, mtime); None when unavailable."""
+    """Parse the payload's selected-figure pose once per (path, mtime); None when unavailable."""
     import json
     import os
 
@@ -117,15 +132,52 @@ def _cached_pose(settings: Any):
         with open(path, encoding="utf-8") as fh:
             payload = json.load(fh)
         core = _core()
-        if core is None or "pose" not in payload:
+        if core is None:
             return None
-        pose = core.CanonicalPose.from_dict(payload["pose"])
+        pose_dict = _payload_module().pose_for_figure(payload, None)
+        pose = core.CanonicalPose.from_dict(pose_dict)
         if settings.mirror:
             pose = pose.mirrored()
         _cached_pose._cache = (path, mtime, pose)  # type: ignore[attr-defined]
         return pose
-    except (OSError, json.JSONDecodeError, KeyError, ValueError):
+    except (OSError, json.JSONDecodeError, KeyError, ValueError, TypeError):
         return None
+
+
+def _payload_module() -> Any:
+    import riggermortis.payload as payload_mod  # noqa: PLC0415
+
+    return payload_mod
+
+
+def effective_pose(settings: Any, core: Any) -> Any:
+    """Cached pose with the session's manual flips composed (P1-11 review state).
+
+    Cache key = (path, mtime, mirror, manual_flips): toggling a flip recomputes
+    once, then draws stay cheap. None when no readable pose exists.
+    """
+    base = _cached_pose(settings)
+    if base is None:
+        return None
+    flips = tuple(sorted(f for f in str(settings.manual_flips).split(",") if f))
+    key = (settings.payload_path, _mtime_of(settings.payload_path), settings.mirror, flips)
+    cache = getattr(effective_pose, "_cache", None)
+    if cache and cache[0] == key:
+        return cache[1]
+    pose = base
+    for flip in flips:
+        pose = pose.toggled(flip)
+    effective_pose._cache = (key, pose)  # type: ignore[attr-defined]
+    return pose
+
+
+def _mtime_of(path: str) -> float:
+    import os
+
+    try:
+        return os.path.getmtime(path)
+    except OSError:
+        return 0.0
 
 
 def register() -> None:

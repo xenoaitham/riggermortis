@@ -11,10 +11,11 @@ surface as low flip margins / low joint confidence here, never silently.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
+from .canonical import PRIMARY_CHILD
 from .canonical_pose import CanonicalPose
-from .fk_apply import PRIMARY_CHILD
 
 #: Confidence below which a joint/flip is flagged for human review.
 #: Mirrors the mapper's ambiguity bar (CONVENTIONS.md).
@@ -94,3 +95,54 @@ def skeleton_segments(pose: CanonicalPose) -> list[tuple[str, str]]:
         if child is not None and child in pose.positions:
             segments.append((role, child))
     return segments
+
+
+# -- interactivity (P1-11): joint dots + ray-cast picking -----------------------------
+
+
+def joint_points(
+    pose: CanonicalPose, origin: tuple[float, float, float] = (0.0, 0.0, 0.0),
+    scale: float = 1.0,
+) -> dict[str, tuple[float, float, float]]:
+    """World-space joint positions for overlay dots and picking (pure math)."""
+    return {
+        role: (
+            origin[0] + p[0] * scale,
+            origin[1] + p[1] * scale,
+            origin[2] + p[2] * scale,
+        )
+        for role, p in sorted(pose.positions.items())
+    }
+
+
+def pick_joint(
+    points: dict[str, tuple[float, float, float]],
+    ray_origin: tuple[float, float, float],
+    ray_direction: tuple[float, float, float],
+    radius: float,
+) -> str | None:
+    """The joint nearest a picking ray within ``radius`` world units, or None.
+
+    Pure ray/point math so the add-on's viewport click and any future MCP
+    pick tool share one implementation. Deterministic: ties break by ray
+    distance (nearer first), then role name. Joints behind the ray origin
+    are never picked.
+    """
+    n = math.sqrt(sum(c * c for c in ray_direction))
+    if n <= 1e-12 or radius <= 0.0:
+        return None
+    rd = tuple(c / n for c in ray_direction)
+    best: tuple[float, float, str] | None = None  # (dist, t, role)
+    for role in sorted(points):
+        p = points[role]
+        rel = (p[0] - ray_origin[0], p[1] - ray_origin[1], p[2] - ray_origin[2])
+        t = sum(rel[i] * rd[i] for i in range(3))
+        if t <= 0.0:
+            continue  # behind the camera
+        closest = tuple(ray_origin[i] + t * rd[i] for i in range(3))
+        d = math.sqrt(sum((p[i] - closest[i]) ** 2 for i in range(3)))
+        if d > radius:
+            continue
+        if best is None or (d, t, role) < best:
+            best = (d, t, role)
+    return best[2] if best else None

@@ -31,11 +31,14 @@ PAYLOAD_FORMAT = 2
 READABLE_FORMATS = (1, 2)
 
 
-def _payload_module() -> Any:
+def payload_module() -> Any:
     """The core payload contract module (shared with CLI / MCP; D-009)."""
     import riggermortis.payload as payload_mod  # noqa: PLC0415 (lazy, keeps load light)
 
     return payload_mod
+
+# alias kept for the original private name
+_payload_module = payload_module
 
 
 def mapping_from_props(obj: Any, core: Any) -> Any | None:
@@ -68,6 +71,56 @@ def _bone_local_basis(pb: Any, world_axis: Any, world_angle: float) -> Any:
     rest = pb.bone.matrix_local.to_3x3()
     world = Matrix.Rotation(float(world_angle), 3, Vector(world_axis))
     return rest.inverted() @ world @ rest
+
+
+def apply_pose_object(
+    obj: Any, pose: Any, core: Any
+) -> dict[str, Any]:
+    """Write a ``CanonicalPose`` (already mirrored/toggled as needed) to pose bones.
+
+    Shared by payload application and the review flip toggle (P1-11): the FK
+    pass, bone-space conversion, and report shape are identical either way.
+    """
+    rig = core.RigData.from_dict(bpy_bridge.rig_data_from_armature(obj))
+    mapping = mapping_from_props(obj, core)
+    mapping_source = "rm_role_* props"
+    if mapping is None:
+        mapping = core.map_rig(rig)
+        mapping_source = "live map_rig"
+    core_missing = ", ".join(mapping.core_missing()) if mapping.core_missing() else ""
+
+    application = core.apply_canonical_pose(rig, mapping, pose)
+
+    applied: list[str] = []
+    missing: list[str] = []
+    for rot in application.rotations:
+        pb = obj.pose.bones.get(rot.bone)
+        if pb is None:
+            missing.append(rot.bone)
+            continue
+        basis = _bone_local_basis(pb, rot.axis, rot.angle_rad)
+        axis, angle = basis.to_quaternion().to_axis_angle()
+        if pb.rotation_mode != "AXIS_ANGLE":
+            pb.rotation_mode = "AXIS_ANGLE"
+        pb.rotation_axis_angle = (angle, axis.x, axis.y, axis.z)
+        applied.append(rot.bone)
+
+    errors = core.verify_application(rig, application, pose)
+    worst_role, worst_rad = max(errors.items(), key=lambda kv: kv[1]) if errors else ("", 0.0)
+    worst_deg = worst_rad * 57.29577951308232
+
+    return {
+        "applied": applied,
+        "missing_pose_bones": missing,
+        "skipped": list(application.skipped),
+        "notes": list(application.notes),
+        "mapping_source": mapping_source,
+        "core_missing": core_missing,
+        "confidence": pose.confidence,
+        "reliable": pose.reliable,
+        "worst_role": worst_role,
+        "worst_deg": worst_deg,
+    }
 
 
 def apply_payload(
@@ -104,52 +157,11 @@ def apply_payload(
     if mirror:
         pose = pose.mirrored()
 
-    rig = core.RigData.from_dict(bpy_bridge.rig_data_from_armature(obj))
-    mapping = mapping_from_props(obj, core)
-    mapping_source = "rm_role_* props"
-    if mapping is None:
-        mapping = core.map_rig(rig)
-        mapping_source = "live map_rig"
-    if mapping.core_missing():
-        core_missing = ", ".join(mapping.core_missing())
-    else:
-        core_missing = ""
-
-    application = core.apply_canonical_pose(rig, mapping, pose)
-
-    applied: list[str] = []
-    missing: list[str] = []
-    for rot in application.rotations:
-        pb = obj.pose.bones.get(rot.bone)
-        if pb is None:
-            missing.append(rot.bone)
-            continue
-        basis = _bone_local_basis(pb, rot.axis, rot.angle_rad)
-        axis, angle = basis.to_quaternion().to_axis_angle()
-        if pb.rotation_mode != "AXIS_ANGLE":
-            pb.rotation_mode = "AXIS_ANGLE"
-        pb.rotation_axis_angle = (angle, axis.x, axis.y, axis.z)
-        applied.append(rot.bone)
-
-    errors = core.verify_application(rig, application, pose)
-    worst_role, worst_rad = max(errors.items(), key=lambda kv: kv[1]) if errors else ("", 0.0)
-    worst_deg = worst_rad * 57.29577951308232
-
+    report = apply_pose_object(obj, pose, core)
+    report["mirrored"] = mirror
     applied_label = payload_mod.entry_for_label(payload, figure).get("label", "?")
-    return {
-        "figure": str(applied_label),
-        "applied": applied,
-        "missing_pose_bones": missing,
-        "skipped": list(application.skipped),
-        "notes": list(application.notes),
-        "mapping_source": mapping_source,
-        "core_missing": core_missing,
-        "mirrored": mirror,
-        "confidence": pose.confidence,
-        "reliable": pose.reliable,
-        "worst_role": worst_role,
-        "worst_deg": worst_deg,
-    }
+    report["figure"] = str(applied_label)
+    return report
 
 
 def clear_pose(obj: Any) -> str:

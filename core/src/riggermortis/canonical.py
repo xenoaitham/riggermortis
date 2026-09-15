@@ -166,3 +166,24 @@ def _prev(base: str) -> str:
     order = ["shoulder", "upper_arm", "forearm", "hand"]
     i = order.index(base)
     return order[i - 1] if i > 0 else "chest"
+
+
+#: The primary child each role drives in the FK chain topology (hips->spine->
+#: chest->neck->head; shoulder->upper_arm->...->toe per side). Lives here so
+#: solver, FK, and review share one topology table without import cycles.
+PRIMARY_CHILD: dict[str, str] = {
+    "hips": "spine",
+    "spine": "chest",
+    "chest": "neck",
+    "neck": "head",
+}
+for _base, _child in (
+    ("shoulder", "upper_arm"),
+    ("upper_arm", "forearm"),
+    ("forearm", "hand"),
+    ("upper_leg", "lower_leg"),
+    ("lower_leg", "foot"),
+    ("foot", "toe"),
+):
+    for _side in (".L", ".R"):
+        PRIMARY_CHILD[f"{_base}{_side}"] = f"{_child}{_side}"

@@ -19,31 +19,14 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
-from .canonical import ALL_ROLES
+from .canonical import ALL_ROLES, PRIMARY_CHILD  # noqa: F401  (re-exported API)
 from .canonical_pose import CanonicalPose, Vec3
 from .linalg import v_dist, v_sub
 
 Quaternion = tuple[float, float, float, float]  # (w, x, y, z)
 
-#: The canonical chain child that defines each role's bone direction. Roles
-#: without an entry (hands, toes, head) are leaves — their orientation comes
-#: from their parent's rotation; the review overlay can refine later.
-PRIMARY_CHILD: dict[str, str] = {
-    "hips": "spine",
-    "spine": "chest",
-    "chest": "neck",
-    "neck": "head",
-}
-for _base, _child in (
-    ("shoulder", "upper_arm"),
-    ("upper_arm", "forearm"),
-    ("forearm", "hand"),
-    ("upper_leg", "lower_leg"),
-    ("lower_leg", "foot"),
-    ("foot", "toe"),
-):
-    for _side in (".L", ".R"):
-        PRIMARY_CHILD[f"{_base}{_side}"] = f"{_child}{_side}"
+# PRIMARY_CHILD lives in canonical.py (shared topology for solver/FK/review)
+# and is re-exported here for compatibility with existing importers.
 
 
 # -- quaternion helpers (stdlib) -------------------------------------------------

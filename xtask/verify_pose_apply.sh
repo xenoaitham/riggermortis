@@ -220,6 +220,42 @@ else:
 # -- P1-7 review overlay: handler registers, line data builds, offscreen attempt
 ok &= run_overlay(os.path.join(os.environ["RM_PAYLOADS"], "metarig_payload.json"))
 
+# -- P1-11 B2: review interactivity — pick ray + flip toggle re-applied --------
+def run_review(payload_path):
+    try:
+        with open(payload_path, encoding="utf-8") as fh:
+            payload = json.load(fh)
+        pose = core.CanonicalPose.from_dict(payload["pose"])
+        points = core.joint_points(pose, origin=(0.0, 0.0, 0.0), scale=1.0)
+        target = "lower_leg.L" if "lower_leg.L" in points else None
+        if target is None:
+            print("RM_REVIEW PICK: SKIP (no lower_leg.L in payload pose)")
+            return True
+        p = points[target]
+        role = core.pick_joint(points, (p[0], p[1] + 5.0, p[2]), (0.0, -1.0, 0.0), radius=0.25)
+        pick_ok = role == target
+        print(f"RM_REVIEW PICK: {'PASS' if pick_ok else 'FAIL'} picked={role} expected={target}")
+        toggled = pose.toggled("lower_leg.L")
+        toggle_ok = (
+            toggled is not pose
+            and toggled.joint_confidence["lower_leg.L"] == 1.0
+            and abs(toggled.positions["foot.L"][1] - pose.positions["foot.L"][1]) > 1e-6
+        )
+        print(f"RM_REVIEW TOGGLE: {'PASS' if toggle_ok else 'FAIL'}")
+        report = pose_apply.apply_pose_object(first_armature(), toggled, core)
+        apply_ok = report["worst_deg"] <= TOL_DEG and len(report["applied"]) >= 12
+        print(
+            f"RM_REVIEW TOGGLE_APPLY: {'PASS' if apply_ok else 'FAIL'} "
+            f"worst={report['worst_deg']:.4f}deg applied={len(report['applied'])}"
+        )
+        return pick_ok and toggle_ok and apply_ok
+    except Exception as exc:  # noqa: BLE001
+        print(f"RM_REVIEW B2: FAIL ({exc.__class__.__name__}: {exc})")
+        return False
+
+
+ok &= run_review(os.path.join(os.environ["RM_PAYLOADS"], "metarig_payload.json"))
+
 print("RM_POSE_APPLY GATE:", "PASS" if ok else "FAIL")
 PY
 
@@ -237,6 +273,9 @@ grep -q "RM_POSE_APPLY CLEAR: PASS" "$TMP/probe.log"
 grep -q "RM_POSE_APPLY SEEDSAN: PASS" "$TMP/probe.log"
 grep -q "RM_POSE_APPLY MULTI_FIGURE_SWITCH: PASS" "$TMP/probe.log"
 grep -q "RM_MULTI_FIGURE: labels=" "$TMP/probe.log"
+grep -q "RM_REVIEW PICK: PASS" "$TMP/probe.log"
+grep -q "RM_REVIEW TOGGLE: PASS" "$TMP/probe.log"
+grep -q "RM_REVIEW TOGGLE_APPLY: PASS" "$TMP/probe.log"
 grep -q "RM_OVERLAY HANDLER: PASS" "$TMP/probe.log"
 grep -qE "RM_OVERLAY OFFSCREEN: (PASS|SKIPPED)" "$TMP/probe.log"
 grep -q "RM_POSE_APPLY GATE: PASS" "$TMP/probe.log"

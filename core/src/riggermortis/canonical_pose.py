@@ -45,7 +45,14 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
-from .canonical import CANONICAL, LEFT, RIGHT, mirror_role, rest_skeleton
+from .canonical import (
+    CANONICAL,
+    LEFT,
+    PRIMARY_CHILD,
+    RIGHT,
+    mirror_role,
+    rest_skeleton,
+)
 from .inference.poses import (
     ANKLE_L,
     ANKLE_R,
@@ -204,6 +211,50 @@ class CanonicalPose:
             joint_confidence={
                 mirror_role(k): v for k, v in self.joint_confidence.items()
             },
+        )
+
+    def toggled(self, flip_key: str) -> CanonicalPose:
+        """The pose with one distal flip manually overridden (the D-008 rescue).
+
+        The distal joint (and anything riding it, e.g. the toe) moves to the
+        opposite side of its mid joint in depth; the flip sign flips; the flip's
+        verification becomes 1.0 because a human just decided it. This is a
+        geometry operation, not a re-solve — mirror-compatible (mirroring never
+        touches y). Returns ``self`` unchanged when the flip key is unknown or
+        its distal joint is absent from the pose.
+        """
+        chain = _FLIP_CHAINS.get(flip_key)
+        if chain is None:
+            return self
+        _girdle, mid, end, _l_prox, _l_dist = chain
+        if mid not in self.positions or end not in self.positions:
+            return self
+        delta = self.positions[end][1] - self.positions[mid][1]
+        if delta == 0.0:
+            return self  # zero-length swing: nothing to rescue
+        shift = {end: -2.0 * delta}
+        # descendants ride rigidly (foot->toe)
+        child = PRIMARY_CHILD.get(end)
+        while child is not None and child in self.positions:
+            shift[child] = -2.0 * delta
+            child = PRIMARY_CHILD.get(child)
+        positions = {
+            role: (p[0], p[1] + shift.get(role, 0.0), p[2])
+            for role, p in self.positions.items()
+        }
+        flips = dict(self.flips)
+        flips[flip_key] = -flips.get(flip_key, -1)
+        joint_confidence = dict(self.joint_confidence)
+        joint_confidence[flip_key] = 1.0  # human-verified
+        return CanonicalPose(
+            positions=positions,
+            flips=flips,
+            confidence=self.confidence,
+            reliable=self.reliable,
+            scale=self.scale,
+            anchor=self.anchor,
+            notes=[*self.notes, f"{flip_key}: flip manually toggled in review"],
+            joint_confidence=joint_confidence,
         )
 
 

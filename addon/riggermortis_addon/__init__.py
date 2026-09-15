@@ -33,7 +33,7 @@ from bpy.props import (  # noqa: E402
 from bpy.types import AddonPreferences, Operator, Panel, PropertyGroup  # noqa: E402
 from typing import Any  # noqa: E402
 
-from . import bpy_bridge, pose_apply  # noqa: E402
+from . import bpy_bridge, overlay, pose_apply  # noqa: E402
 
 POLICY_NOTICE = (
     "Default build is SFW. An opt-in adult module (off by default, requires "
@@ -147,6 +147,12 @@ class RM_SceneSettings(PropertyGroup):
     last_report: StringProperty(  # type: ignore[valid-type]
         name="Last report",
         description="Output of the most recent rig operation",
+        default="",
+    )
+    manual_flips: StringProperty(  # type: ignore[valid-type]
+        name="Manual flips",
+        description="Flip keys toggled in review this session (comma-separated). "
+                    "Session state: the payload file itself stays untouched.",
         default="",
     )
 
@@ -274,6 +280,165 @@ class RM_OT_apply_pose(Operator):
         return {"REGISTER"}
 
 
+class RM_OT_flip_toggle(Operator):
+    """Toggle one distal flip (elbow/knee bend) and re-apply in-process — the D-008 rescue"""
+
+    bl_idname = "rm.flip_toggle"
+    bl_label = "Toggle Flip"
+    bl_options = {"REGISTER", "UNDO"}
+
+    flip_key: StringProperty(  # type: ignore[valid-type]
+        name="Flip key",
+        description="Distal flip to override (e.g. forearm.L, lower_leg.R)",
+    )
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        obj = context.active_object
+        return (
+            obj is not None and obj.type == "ARMATURE"
+            and bool(context.scene.rm_settings.payload_path)
+        )
+
+    def execute(self, context: bpy.types.Context) -> set[str]:
+        settings = context.scene.rm_settings
+        key = self.flip_key.strip()
+        try:
+            core = bpy_bridge.import_core()
+            payload = _load_payload(settings.payload_path)
+            pose = core.CanonicalPose.from_dict(
+                pose_apply.payload_module().pose_for_figure(payload, settings.figure or None)
+            )
+            if settings.mirror:
+                pose = pose.mirrored()
+            toggled = pose.toggled(key)
+            if toggled is pose:
+                self.report(
+                    {"WARNING"},
+                    f"{key}: nothing to toggle (unknown key, or the distal joint "
+                    "is not in this figure's pose)",
+                )
+                return {"CANCELLED"}
+            report = pose_apply.apply_pose_object(context.active_object, toggled, core)
+        except (ValueError, ImportError) as exc:
+            self.report({"ERROR"}, str(exc))
+            return {"CANCELLED"}
+        pose_apply.push_undo()
+
+        flips = [f for f in settings.manual_flips.split(",") if f]
+        if key in flips:
+            flips.remove(key)
+        else:
+            flips.append(key)
+        flips.sort()
+        settings.manual_flips = ",".join(flips)
+        settings.last_report = (
+            f"flip {key} {'ON' if key in flips else 'OFF (back to solver choice)'} — "
+            f"{len(report['applied'])} bone(s) re-applied, "
+            f"self-check worst {report['worst_deg']:.3f} deg on {report['worst_role']}"
+        )
+        self.report({"INFO"}, settings.last_report)
+        return {"REGISTER"}
+
+
+class RM_OT_pick_joint(Operator):
+    """Click a joint in the viewport to pick it; flip keys toggle, others report confidence"""
+
+    bl_idname = "rm.pick_joint"
+    bl_label = "Pick Joint (click in viewport)"
+    bl_options = {"REGISTER"}
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        obj = context.active_object
+        return (
+            obj is not None and obj.type == "ARMATURE"
+            and context.scene.rm_settings.overlay_enabled
+        )
+
+    def invoke(self, context: bpy.types.Context, _event: bpy.types.Event) -> set[str]:
+        if context.area and context.area.type != "VIEW_3D":
+            self.report({"WARNING"}, "run from the 3D viewport")
+            return {"CANCELLED"}
+        context.window_manager.modal_handler_add(self)
+        return {"RUNNING_MODAL"}
+
+    def modal(self, context: bpy.types.Context, event: bpy.types.Event) -> set[str]:
+        if event.type == "RIGHTMOUSE" or event.type in {"ESC", "RET"}:
+            return {"FINISHED"}
+        if event.type != "LEFTMOUSE" or event.value != "PRESS":
+            return {"PASS_THROUGH"}
+        from bpy_extras import view3d_utils
+
+        region = context.region
+        rv3d = context.region_data
+        if region is None or rv3d is None:
+            return {"PASS_THROUGH"}
+        try:
+            core = bpy_bridge.import_core()
+        except ImportError as exc:
+            self.report({"ERROR"}, str(exc))
+            return {"FINISHED"}
+        settings = context.scene.rm_settings
+        pose = overlay.effective_pose(settings, core)
+        if pose is None:
+            self.report({"WARNING"}, "no pose to pick (load a payload, enable the overlay)")
+            return {"FINISHED"}
+        coord = (event.mouse_region_x, event.mouse_region_y)
+        ray_origin = view3d_utils.region_2d_to_origin_3d(region, rv3d, coord)
+        ray_dir = view3d_utils.region_2d_to_vector_3d(region, rv3d, coord)
+        scale_origin = overlay._anchor(context)
+        points = core.joint_points(pose, origin=scale_origin[0], scale=scale_origin[1])
+        role = core.pick_joint(points, ray_origin, ray_dir, radius=scale_origin[1] * 0.06)
+        if role is None:
+            self.report({"INFO"}, "no joint under the click")
+            return {"RUNNING_MODAL"}
+        conf = pose.joint_confidence.get(role)
+        is_flip = role in ("forearm.L", "forearm.R", "lower_leg.L", "lower_leg.R")
+        if is_flip:
+            bpy.ops.rm.flip_toggle("INVOKE_DEFAULT", flip_key=role)
+        else:
+            self.report(
+                {"INFO"},
+                f"{role}: confidence {conf:.2f}" if conf is not None else f"{role}",
+            )
+        return {"RUNNING_MODAL"}
+
+
+class RM_OT_flip_reset(Operator):
+    """Reset all manual flips back to the solver's choices and re-apply"""
+
+    bl_idname = "rm.flip_reset"
+    bl_label = "Reset Manual Flips"
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        return bool(context.scene.rm_settings.manual_flips)
+
+    def execute(self, context: bpy.types.Context) -> set[str]:
+        settings = context.scene.rm_settings
+        settings.manual_flips = ""
+        flipped = context.scene.rm_settings.payload_path
+        try:
+            core = bpy_bridge.import_core()
+            payload = _load_payload(flipped)
+            pose = core.CanonicalPose.from_dict(
+                pose_apply.payload_module().pose_for_figure(
+                    payload, settings.figure or None
+                )
+            )
+            if settings.mirror:
+                pose = pose.mirrored()
+            report = pose_apply.apply_pose_object(context.active_object, pose, core)
+        except (ValueError, ImportError, AttributeError) as exc:
+            self.report({"ERROR"}, str(exc))
+            return {"CANCELLED"}
+        pose_apply.push_undo()
+        self.report({"INFO"}, f"solver flips restored ({len(report['applied'])} bones)")
+        return {"REGISTER"}
+
+
 class RM_OT_clear_pose(Operator):
     """Restore every pose bone on the active armature to rest"""
 
@@ -288,6 +453,7 @@ class RM_OT_clear_pose(Operator):
 
     def execute(self, context: bpy.types.Context) -> set[str]:
         message = pose_apply.clear_pose(context.active_object)
+        context.scene.rm_settings.manual_flips = ""  # review state is session-only
         pose_apply.push_undo()
         self.report({"INFO"}, message)
         return {"REGISTER"}
@@ -384,6 +550,29 @@ class RM_PT_main_panel(Panel):
         box.label(text="Review overlay", icon="HIDE_OFF")
         box.prop(settings, "image_path")
         box.prop(settings, "overlay_enabled")
+        box.operator("rm.pick_joint", icon="RESTRICT_SELECT_OFF")
+        if settings.manual_flips:
+            box.label(text=f"manual flips: {settings.manual_flips}", icon="FLIP")
+            box.operator("rm.flip_reset", icon="LOOP_BACK")
+
+        payload_obj = _payload_summary(settings.payload_path)
+        if payload_obj is not None:
+            try:
+                core = bpy_bridge.import_core()
+                pose = overlay.effective_pose(settings, core)
+                items = core.review_items(pose) if pose is not None else []
+                flagged = [i for i in items if i.kind == "flip"]
+                if flagged:
+                    box = layout.box()
+                    box.label(text="Flagged flips (D-008 rescue)", icon="ERROR")
+                    for item in flagged:
+                        row = box.row(align=True)
+                        row.label(text=item.role, icon=_conf_icon(1.0 - item.severity))
+                        row.operator(
+                            "rm.flip_toggle", text="Toggle", icon="FLIP"
+                        ).flip_key = item.role
+            except ImportError:
+                pass
 
         if settings.last_report:
             box = layout.box()
@@ -432,6 +621,9 @@ _CLASSES = (
     RM_OT_inspect_and_map,
     RM_OT_show_report,
     RM_OT_apply_pose,
+    RM_OT_flip_toggle,
+    RM_OT_pick_joint,
+    RM_OT_flip_reset,
     RM_OT_clear_pose,
     RM_PT_main_panel,
     RM_AddonPreferences,

@@ -28,7 +28,13 @@ from .fk_apply import (
 )
 from .mapper import RigMapping, RoleAssignment, map_rig
 from .policy import ContentCategory, PolicyEngine, Refusal
-from .review import ReviewItem, review_items, skeleton_segments
+from .review import (
+    ReviewItem,
+    joint_points,
+    pick_joint,
+    review_items,
+    skeleton_segments,
+)
 from .types import BoneData, RigData
 
 __version__ = "0.0.1"
@@ -62,4 +68,6 @@ __all__ = [
     "ReviewItem",
     "review_items",
     "skeleton_segments",
+    "joint_points",
+    "pick_joint",
 ]
