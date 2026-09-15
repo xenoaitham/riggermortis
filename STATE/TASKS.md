@@ -47,7 +47,8 @@ quadruped) with ≤2 manual corrections each, proven headless.
 - [ ] P1-8a (from D-011) Fallback estimator evaluation: sketch/anime whole-body estimator candidates, dual-estimator inference interface, per-image confidence-probe selection, `estimator` field in payload v2. Do NOT start before payload v2 (P1-11 B1) lands.
 - [x] P1-9 — done 2026-09-15 S4 (see checked entry above; this stub was a stale duplicate).
 - [x] P1-10 — done 2026-09-15 S4 (see checked entry above; this stub was a stale duplicate).
-- [ ] P1-11 [S5] Polish pass: multi-figure payloads (format 2 + back-compat, panel figure switch), overlay interactivity (joint pick, flip toggle re-solve, image-plane projection), BOOM GIF centroid framing, UI screenshot only if display exists. media: updated GIF.
+- [ ] P1-11 [S5] Polish pass: multi-figure payloads DONE (B1 below); remaining: overlay interactivity, BOOM GIF centroid framing, UI screenshot only if display exists. media: updated GIF.
+- [x] P1-11 B1 [S5] Multi-figure payloads: core `payload.py` contract module (v2 write, v1 back-compat read, figure resolution — one implementation for addon/CLI/MCP); `rigpose pose --all-figures` embeds every figure's solve+FK; panel figure dropdown switches in-process (EnumProperty from payload, apply by label, per-figure conf readout); 9 contract tests + committed-v1-fixture back-compat test (158 total). Gate: verify_pose_apply.sh extended — 12-figure real payload, in-process switch applied at 0.0247° worst (bar 0.5°), gate PASS.
 
 ## Phase 2 — Video → animation
 **Gate:** dance + fight clips playable on 3 rigs; honest side-by-side GIFs; foot-slide metric published.

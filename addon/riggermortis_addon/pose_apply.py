@@ -26,7 +26,16 @@ from typing import Any
 
 from . import bpy_bridge
 
-PAYLOAD_FORMAT = 1
+PAYLOAD_FORMAT = 2
+#: Formats this build reads: 2 (native) and 1 (back-compat, read-only).
+READABLE_FORMATS = (1, 2)
+
+
+def _payload_module() -> Any:
+    """The core payload contract module (shared with CLI / MCP; D-009)."""
+    import riggermortis.payload as payload_mod  # noqa: PLC0415 (lazy, keeps load light)
+
+    return payload_mod
 
 
 def mapping_from_props(obj: Any, core: Any) -> Any | None:
@@ -62,9 +71,13 @@ def _bone_local_basis(pb: Any, world_axis: Any, world_angle: float) -> Any:
 
 
 def apply_payload(
-    obj: Any, payload: dict[str, Any], mirror: bool = False, core: Any = None
+    obj: Any, payload: dict[str, Any], mirror: bool = False, core: Any = None,
+    figure: str | None = None,
 ) -> dict[str, Any]:
     """Apply a ``rigpose pose`` payload to an armature's pose bones.
+
+    ``figure``: label of the figure to apply (payload v2 carries several when
+    written with ``--all-figures``); None = the payload's selected figure.
 
     Returns a structured report: applied/missing bones, per-bone FK angle
     errors vs the payload targets (worst included), skipped roles, and notes.
@@ -72,21 +85,22 @@ def apply_payload(
     """
     if obj.type != "ARMATURE":
         raise ValueError(f"{obj.name!r} is not an armature")
-    if payload.get("format") != PAYLOAD_FORMAT:
+    fmt = payload.get("format", 1)
+    if fmt not in READABLE_FORMATS:
         raise ValueError(
-            f"unsupported pose payload format {payload.get('format')!r} "
-            f"(hint: this build reads format {PAYLOAD_FORMAT}; "
+            f"unsupported pose payload format {fmt!r} "
+            f"(hint: this build reads formats {', '.join(map(str, READABLE_FORMATS))}; "
             "regenerate with: rigpose pose <image> <rig.json> --out payload.json)"
-        )
-    if "pose" not in payload:
-        raise ValueError(
-            "payload has no 'pose' section "
-            "(hint: regenerate with: rigpose pose <image> <rig.json> --out payload.json)"
         )
     if core is None:
         core = bpy_bridge.import_core()
 
-    pose = core.CanonicalPose.from_dict(payload["pose"])
+    payload_mod = _payload_module()
+    try:
+        pose_dict = payload_mod.pose_for_figure(payload, figure)
+    except Exception as exc:  # PayloadError — reworded to the addon's ValueError contract
+        raise ValueError(f"{exc} (hint: regenerate with: rigpose pose ...)") from exc
+    pose = core.CanonicalPose.from_dict(pose_dict)
     if mirror:
         pose = pose.mirrored()
 
@@ -121,7 +135,9 @@ def apply_payload(
     worst_role, worst_rad = max(errors.items(), key=lambda kv: kv[1]) if errors else ("", 0.0)
     worst_deg = worst_rad * 57.29577951308232
 
+    applied_label = payload_mod.entry_for_label(payload, figure).get("label", "?")
     return {
+        "figure": str(applied_label),
         "applied": applied,
         "missing_pose_bones": missing,
         "skipped": list(application.skipped),

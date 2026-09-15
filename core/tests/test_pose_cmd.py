@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import pytest  # noqa: E402
 
+from riggermortis import payload as payload_mod  # noqa: E402
 from riggermortis.canonical_pose import CanonicalPose  # noqa: E402
 from riggermortis.cli import EXIT_HANDLED_ERROR, EXIT_OK, main  # noqa: E402
 from riggermortis.errors import InferenceError  # noqa: E402
@@ -96,10 +97,13 @@ def test_pose_writes_payload_and_round_trips(fake_detect, rig_json, tmp_path, ca
     out = tmp_path / "payload.json"
     assert main(["pose", str(_image_file(tmp_path)), str(rig_json), "--out", str(out)]) == EXIT_OK
     payload = json.loads(out.read_text(encoding="utf-8"))
-    assert payload["format"] == 1
+    assert payload["format"] == 2
     assert payload["image"]["width"] == 640 and payload["image"]["height"] == 820
     assert payload["figure"]["label"] == "figure 1"
     assert payload["rig"]["fingerprint"] == rigify_rig().fingerprint()
+    # v2: figures list mirrors the selected figure into the v1 top-level keys.
+    assert [f["label"] for f in payload["figures"]] == ["figure 1"]
+    assert payload["figures"][0]["pose"] == payload["pose"]
 
     pose = CanonicalPose.from_dict(payload["pose"])
     assert "hips" in pose.positions and pose.reliable
@@ -117,7 +121,26 @@ def test_pose_json_flag_prints_payload(fake_detect, rig_json, tmp_path, capsys) 
     code = main(["pose", str(_image_file(tmp_path)), str(rig_json), "--json"])
     assert code == EXIT_OK
     payload = json.loads(capsys.readouterr().out)
-    assert payload["format"] == 1 and payload["rotations"]
+    assert payload["format"] == 2 and payload["rotations"]
+
+
+def test_pose_all_figures_embeds_every_figure(fake_detect, rig_json, tmp_path) -> None:
+    """--all-figures: every detected figure solved into the payload (B1)."""
+    fake_detect["detection"] = _detection(two_figures=True)
+    img = str(_image_file(tmp_path))
+    out = tmp_path / "payload.json"
+    assert main(["pose", img, str(rig_json), "--all-figures", "--out", str(out)]) == EXIT_OK
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert [f["label"] for f in payload["figures"]] == ["figure 1", "figure 2"]
+    assert payload["figure"]["label"] == "figure 2"  # largest = default selection
+    poses = {f["label"]: CanonicalPose.from_dict(f["pose"]) for f in payload["figures"]}
+    assert all(p.reliable for p in poses.values())
+    assert poses["figure 1"].positions != poses["figure 2"].positions
+    # every embedded figure carries FK rotations for headless consumers
+    assert all(f["rotations"] for f in payload["figures"])
+    # switching the selection is a pure read on the same payload
+    other = payload_mod.pose_for_figure(payload, "figure 1")
+    assert CanonicalPose.from_dict(other).positions == poses["figure 1"].positions
 
 
 def test_pose_summary_is_human_readable(fake_detect, rig_json, tmp_path, capsys) -> None:

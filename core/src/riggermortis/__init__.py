@@ -13,6 +13,7 @@ from .canonical_pose import CanonicalPose
 from .errors import (
     BridgeError,
     MappingError,
+    PayloadError,
     PolicyError,
     PresetError,
     RiggermortisError,
@@ -55,6 +56,7 @@ __all__ = [
     "RigLoadError",
     "MappingError",
     "PresetError",
+    "PayloadError",
     "PolicyError",
     "BridgeError",
     "ReviewItem",

@@ -23,6 +23,7 @@ import sys
 from pathlib import Path
 
 from . import __version__
+from . import payload as payload_mod
 from .canonical_pose import observations_from_keypoints, solve_pose
 from .errors import MappingError, RiggermortisError
 from .fk_apply import apply_canonical_pose
@@ -121,6 +122,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p_pose.add_argument(
         "--figure", default="largest",
         help="figure selector: board index (0-based), 'largest' (default), or 'primary'",
+    )
+    p_pose.add_argument(
+        "--all-figures", action="store_true",
+        help="embed every detected figure's solved pose in the payload so the "
+             "add-on's dropdown switches figures without re-running the CLI",
     )
     p_pose.add_argument(
         "--out", metavar="PATH", default=None,
@@ -358,21 +364,36 @@ def _select_figure(board: FigureBoard, selector: str):
     return figure
 
 
-def _build_pose_payload(
-    image_path: Path,
-    detection_width: int,
-    detection_height: int,
-    figure,
-    pose,
-    rig,
-    rotations,
-    skipped: list[str],
-    notes: list[str],
+def _select_figure(board: FigureBoard, selector: str):
+    """Resolve a --figure selector ('largest' | 'primary' | board index)."""
+    if selector == "largest":
+        figure = board.largest()
+    elif selector == "primary":
+        figure = board.primary()
+    else:
+        try:
+            index = int(selector)
+        except ValueError:
+            raise RiggermortisError(
+                f"unknown figure selector {selector!r}",
+                hint="use a board index (0-based), 'largest', or 'primary'",
+            ) from None
+        figure = board.select(index)
+    if figure is None:
+        raise RiggermortisError(
+            f"figure {selector} does not exist",
+            hint=f"{len(board.figures)} figure(s) detected; "
+                 "use --figure largest (default), primary, or an index in "
+                 f"0..{max(len(board.figures) - 1, 0)}",
+        )
+    return figure
+
+
+def _figure_entry(
+    figure, pose, rotations: list[dict[str, object]], skipped: list[str], notes: list[str]
 ) -> dict[str, object]:
-    """Pose payload v1 (D-009): everything a frontend needs to apply a pose."""
+    """One per-figure entry for the payload v2 ``figures`` list."""
     return {
-        "format": 1,
-        "image": {"path": str(image_path), "width": detection_width, "height": detection_height},
         "figure": {
             "label": figure.label,
             "index": figure.index,
@@ -383,8 +404,15 @@ def _build_pose_payload(
         "rotations": rotations,
         "skipped": skipped,
         "notes": notes,
-        "rig": {"name": rig.name, "fingerprint": rig.fingerprint()},
     }
+
+
+def _solve_and_apply_figure(figure, rig, mapping):
+    """One figure's keypoints -> (pose, application)."""
+    observations = observations_from_keypoints(figure.keypoints, figure.confidences)
+    pose = solve_pose(observations)
+    application = apply_canonical_pose(rig, mapping, pose)
+    return pose, application
 
 
 def cmd_pose(args: argparse.Namespace) -> int:
@@ -409,24 +437,40 @@ def cmd_pose(args: argparse.Namespace) -> int:
         )
     figure = _select_figure(board, args.figure)
 
-    observations = observations_from_keypoints(figure.keypoints, figure.confidences)
-    pose = solve_pose(observations)
-
     rig = load_rig(args.rig)
     preset_mapping = load_preset(args.preset).mapping if args.preset else None
     mapping = map_rig(rig, preset_mapping=preset_mapping)
-    application = apply_canonical_pose(rig, mapping, pose)
 
-    payload = _build_pose_payload(
+    selected_pose, selected_application = _solve_and_apply_figure(figure, rig, mapping)
+    entries = [_figure_entry(
+        figure,
+        selected_pose,
+        [r.to_dict() for r in selected_application.rotations],
+        list(selected_application.skipped),
+        list(selected_application.notes),
+    )]
+
+    if args.all_figures and len(board.figures) > 1:
+        for other in board.figures:
+            if other.label == figure.label:
+                continue
+            pose, application = _solve_and_apply_figure(other, rig, mapping)
+            entries.append(_figure_entry(
+                other,
+                pose,
+                [r.to_dict() for r in application.rotations],
+                list(application.skipped),
+                list(application.notes),
+            ))
+        entries.sort(key=lambda e: e["figure"]["index"])  # board order, deterministic
+
+    payload = payload_mod.build_pose_payload(
         image,
         detection.width,
         detection.height,
-        figure,
-        pose,
         rig,
-        [r.to_dict() for r in application.rotations],
-        list(application.skipped),
-        list(application.notes),
+        entries,
+        selected_label=figure.label,
     )
 
     if args.json:
@@ -442,16 +486,20 @@ def cmd_pose(args: argparse.Namespace) -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
 
-    state = "reliable" if pose.reliable else "BELOW the reliable bar — review before use"
+    state = "reliable" if selected_pose.reliable else "BELOW the reliable bar — review before use"
     print(f"image: {image} ({detection.width}x{detection.height})")
     print(f"figure: {figure.label} (score {figure.score:.2f})")
-    print(f"pose: confidence {pose.confidence:.2f}, {state}")
-    for note in pose.notes:
+    print(f"pose: confidence {selected_pose.confidence:.2f}, {state}")
+    for note in selected_pose.notes:
         print(f"  note: {note}")
     print(
-        f"rotations: {len(application.rotations)} bone(s), "
-        f"{len(application.skipped)} skipped, {len(application.notes)} note(s)"
+        f"rotations: {len(selected_application.rotations)} bone(s), "
+        f"{len(selected_application.skipped)} skipped, "
+        f"{len(selected_application.notes)} note(s)"
     )
+    if len(entries) > 1:
+        print(f"figures embedded: {len(entries)} — the panel dropdown switches "
+              "them without re-running the CLI")
     print(f"payload written: {out}")
     print(f"apply it in Blender: Riggermortis panel -> Apply Pose (payload: {out.name})")
     return EXIT_OK

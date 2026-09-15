@@ -44,3 +44,7 @@ class BridgeError(RiggermortisError):
 
 class InferenceError(RiggermortisError):
     """A managed model is missing, tampered with, or a download failed."""
+
+
+class PayloadError(RiggermortisError):
+    """A pose/detection payload is malformed, unsupported, or missing a figure."""

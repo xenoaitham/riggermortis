@@ -26,11 +26,12 @@ bl_info = {
 import bpy  # noqa: E402
 from bpy.props import (  # noqa: E402
     BoolProperty,
-    IntProperty,
+    EnumProperty,
     PointerProperty,
     StringProperty,
 )
 from bpy.types import AddonPreferences, Operator, Panel, PropertyGroup  # noqa: E402
+from typing import Any  # noqa: E402
 
 from . import bpy_bridge, pose_apply  # noqa: E402
 
@@ -51,6 +52,67 @@ PAYLOAD_HINT = (
 # scene settings
 # ---------------------------------------------------------------------------
 
+def _figure_rows(payload: dict) -> list[dict]:
+    """Per-figure {label, confidence, reliable} rows for the panel dropdown.
+
+    Uses the core payload contract when importable (the one implementation of
+    the D-009 rules); falls back to a minimal shape walk at draw time so the
+    panel still renders usefully when core is missing (Apply then shows the
+    real install error). Never raises.
+    """
+    try:
+        import riggermortis.payload as payload_mod  # noqa: PLC0415
+        entries = payload_mod.figure_entries(payload)
+        return [
+            {
+                "label": str(e.get("label", "?")),
+                "confidence": float((e.get("pose") or {}).get("confidence", 0.0)),
+                "reliable": bool((e.get("pose") or {}).get("reliable", False)),
+            }
+            for e in entries if isinstance(e, dict)
+        ]
+    except Exception:  # noqa: BLE001 — draw-time best effort; apply reports precisely
+        fmt = payload.get("format", 1)
+        if fmt == 2 and isinstance(payload.get("figures"), list):
+            rows = []
+            for e in payload["figures"]:
+                if isinstance(e, dict):
+                    pose = e.get("pose") or {}
+                    rows.append({
+                        "label": str(e.get("label", "?")),
+                        "confidence": float(pose.get("confidence", 0.0)),
+                        "reliable": bool(pose.get("reliable", False)),
+                    })
+            return rows
+        pose = payload.get("pose") or {}
+        figure = payload.get("figure") or {}
+        if pose:
+            return [{
+                "label": str(figure.get("label", "figure 0")),
+                "confidence": float(pose.get("confidence", 0.0)),
+                "reliable": bool(pose.get("reliable", False)),
+            }]
+        return []
+
+
+def _figure_enum_items(self: Any, context: Any) -> list[tuple[str, str, str]]:
+    """Dynamic EnumProperty items: the figures embedded in the current payload."""
+    del self  # PropertyGroup instance — the payload lives on the scene settings
+    settings = context.scene.rm_settings
+    payload = _payload_summary(settings.payload_path)
+    if not payload:
+        return [("", "(no payload)", "Load a pose payload JSON first")]
+    rows = _figure_rows(payload)
+    if not rows:
+        return [("", "(no figures)", "Payload carries no figures")]
+    return [
+        (row["label"], row["label"],
+         f"confidence {row['confidence']:.2f} — "
+         + ("reliable" if row["reliable"] else "low confidence, review"))
+        for row in rows
+    ]
+
+
 class RM_SceneSettings(PropertyGroup):
     rig_object: StringProperty(  # type: ignore[valid-type]
         name="Rig",
@@ -66,11 +128,11 @@ class RM_SceneSettings(PropertyGroup):
         description="JSON written by 'rigpose pose' (D-009: the add-on consumes payloads)",
         subtype="FILE_PATH",
     )
-    figure_index: IntProperty(  # type: ignore[valid-type]
+    figure: EnumProperty(  # type: ignore[valid-type]
         name="Figure",
-        description="Which detected figure to pose (chosen by --figure when the payload was made)",
-        default=0,
-        min=0,
+        description="Which detected figure to apply (switch in-process when the "
+                    "payload embeds several, i.e. written with --all-figures)",
+        items=_figure_enum_items,
     )
     mirror: BoolProperty(  # type: ignore[valid-type]
         name="Mirror",
@@ -254,6 +316,14 @@ def _payload_summary(path: str) -> dict | None:
         return None
 
 
+def _selected_row(rows: list[dict], label: str) -> dict | None:
+    """The dropdown's chosen figure row; falls back to the first row."""
+    for row in rows:
+        if row["label"] == label:
+            return row
+    return rows[0] if rows else None
+
+
 def _conf_icon(conf: float) -> str:
     if conf < 0.55:
         return "ERROR"
@@ -285,10 +355,18 @@ class RM_PT_main_panel(Panel):
                 if chunk:
                     box.label(text=chunk, icon="INFO")
         else:
-            figure = payload.get("figure", {})
-            pose = payload.get("pose", {})
-            state = "reliable" if pose.get("reliable") else "low confidence — review"
-            box.label(text=f"{figure.get('label', '?')}  conf {pose.get('confidence', 0):.2f} ({state})")
+            rows = _figure_rows(payload)
+            box.prop(settings, "figure")
+            row = _selected_row(rows, settings.figure)
+            if row is not None:
+                state = "reliable" if row["reliable"] else "low confidence — review"
+                box.label(
+                    text=f"{row['label']}  conf {row['confidence']:.2f} ({state})",
+                    icon=_conf_icon(row["confidence"]),
+                )
+                if len(rows) > 1 and not (payload.get("figures") and len(payload["figures"]) > 1):
+                    box.label(text="switch figures: regenerate with --all-figures", icon="INFO")
+            pose = payload.get("pose") or {}
             joint_conf = pose.get("joint_confidence", {})
             shown = 0
             for role, conf in sorted(joint_conf.items()):

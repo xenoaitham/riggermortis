@@ -13,6 +13,7 @@ BLENDER=${BLENDER:-blender}
 RIGPOSE=${RIGPOSE:-rigpose}
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 IMG="$REPO/out/benchmark/images/photo/rtmpose_human_pose.jpg"
+MULTI_IMG="$REPO/out/benchmark/images/photo/girls_still_multi.png"
 METARIG_BLEND="$REPO/out/real_rigs/metarig.blend"
 METARIG_RIG="$REPO/out/real_rigs/metarig.rig.json"
 SEEDSAN_VRM="$REPO/out/real_rigs/Seed-san.vrm"
@@ -22,7 +23,7 @@ PAYLOADS="$REPO/out/payloads"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
-for f in "$IMG" "$METARIG_BLEND" "$METARIG_RIG" "$SEEDSAN_VRM" "$SEEDSAN_RIG"; do
+for f in "$IMG" "$MULTI_IMG" "$METARIG_BLEND" "$METARIG_RIG" "$SEEDSAN_VRM" "$SEEDSAN_RIG"; do
   if [ ! -s "$f" ]; then
     echo "missing $f — build it first (see docs/BENCHMARKS.md reproduce block)" >&2
     exit 1
@@ -30,14 +31,17 @@ for f in "$IMG" "$METARIG_BLEND" "$METARIG_RIG" "$SEEDSAN_VRM" "$SEEDSAN_RIG"; d
 done
 
 mkdir -p "$PAYLOADS"
-if [ ! -s "$PAYLOADS/metarig_payload.json" ]; then
+fmt() { python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get('format',1))" "$1" 2>/dev/null || echo 0; }
+if [ ! -s "$PAYLOADS/metarig_payload.json" ] || [ "$(fmt "$PAYLOADS/metarig_payload.json")" != "2" ]; then
   echo "== generating metarig payload (real models)"
   "$RIGPOSE" pose "$IMG" "$METARIG_RIG" --out "$PAYLOADS/metarig_payload.json" > /dev/null
 fi
-if [ ! -s "$PAYLOADS/seedsan_payload.json" ]; then
+if [ ! -s "$PAYLOADS/seedsan_payload.json" ] || [ "$(fmt "$PAYLOADS/seedsan_payload.json")" != "2" ]; then
   echo "== generating seedsan payload (real models)"
   "$RIGPOSE" pose "$IMG" "$SEEDSAN_RIG" --out "$PAYLOADS/seedsan_payload.json" > /dev/null
 fi
+echo "== generating multi-figure payload (B1: real models, --all-figures)"
+"$RIGPOSE" pose "$MULTI_IMG" "$METARIG_RIG" --all-figures --out "$PAYLOADS/girls_multi.json" > /dev/null
 
 cat > "$TMP/probe.py" <<'PY'
 import json
@@ -64,9 +68,9 @@ def first_armature():
     raise RuntimeError("no armature found in scene")
 
 
-def measure(obj, payload, mirror):
+def measure(obj, pose_dict, mirror):
     """Independent check: applied pose-bone world directions vs canonical targets."""
-    pose = core.CanonicalPose.from_dict(payload["pose"])
+    pose = core.CanonicalPose.from_dict(pose_dict)
     if mirror:
         pose = pose.mirrored()
     mapping = pose_apply.mapping_from_props(obj, core) or core.map_rig(
@@ -93,13 +97,22 @@ def measure(obj, payload, mirror):
     return checked, worst_role, worst_deg
 
 
-def run(payload_path, label, mirror):
+def run(payload_path, label, mirror, figure=None):
     with open(payload_path, encoding="utf-8") as fh:
         payload = json.load(fh)
+    from riggermortis.payload import pose_for_figure  # noqa: E402
+
+    from riggermortis.payload import entry_for_label  # noqa: E402
+
     obj = first_armature()
-    report = pose_apply.apply_payload(obj, payload, mirror=mirror)
-    checked, worst_role, worst_deg = measure(obj, payload, mirror)
-    status = "PASS" if (worst_deg <= TOL_DEG and checked >= 12) else "FAIL"
+    report = pose_apply.apply_payload(obj, payload, mirror=mirror, figure=figure)
+    pose_dict = pose_for_figure(payload, figure)
+    expected_label = entry_for_label(payload, figure)["label"]
+    checked, worst_role, worst_deg = measure(obj, pose_dict, mirror)
+    label_ok = report["figure"] == expected_label
+    status = "PASS" if (worst_deg <= TOL_DEG and checked >= 12 and label_ok) else "FAIL"
+    if not label_ok:
+        print(f"  figure mismatch: applied {report['figure']!r} expected {expected_label!r}")
     print(
         f"RM_POSE_APPLY {label}: {status} worst={worst_deg:.4f}deg role={worst_role} "
         f"checked={checked} applied={len(report['applied'])} mapping={report['mapping_source']} "
@@ -187,6 +200,23 @@ bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.gltf(filepath=os.environ["RM_SEEDSAN_VRM"])
 ok &= run(os.path.join(os.environ["RM_PAYLOADS"], "seedsan_payload.json"), "SEEDSAN", mirror=False)
 
+# -- B1: multi-figure payload — switch figures in-process on the metarig -------
+bpy.ops.wm.open_mainfile(filepath=os.environ["RM_METARIG_BLEND"])
+with open(os.path.join(os.environ["RM_PAYLOADS"], "girls_multi.json"), encoding="utf-8") as fh:
+    _multi = json.load(fh)
+if len(_multi.get("figures", [])) >= 2:
+    _label_b = _multi["figures"][1]["label"]
+    ok &= run(os.path.join(os.environ["RM_PAYLOADS"], "girls_multi.json"),
+              "MULTI_FIGURE_SWITCH", mirror=False, figure=_label_b)
+    with open(os.path.join(os.environ["RM_PAYLOADS"], "girls_multi.json"), encoding="utf-8") as fh2:
+        _multi2 = json.load(fh2)
+    _labels = [f["label"] for f in _multi2["figures"]]
+    print(f"RM_MULTI_FIGURE: labels={_labels} applied={_label_b}")
+    ok &= len(_labels) >= 2
+else:
+    print("RM_MULTI_FIGURE: FAIL — payload does not embed >=2 figures")
+    ok = False
+
 # -- P1-7 review overlay: handler registers, line data builds, offscreen attempt
 ok &= run_overlay(os.path.join(os.environ["RM_PAYLOADS"], "metarig_payload.json"))
 
@@ -205,6 +235,8 @@ grep -q "RM_POSE_APPLY METARIG: PASS" "$TMP/probe.log"
 grep -q "RM_POSE_APPLY METARIG_MIRROR: PASS" "$TMP/probe.log"
 grep -q "RM_POSE_APPLY CLEAR: PASS" "$TMP/probe.log"
 grep -q "RM_POSE_APPLY SEEDSAN: PASS" "$TMP/probe.log"
+grep -q "RM_POSE_APPLY MULTI_FIGURE_SWITCH: PASS" "$TMP/probe.log"
+grep -q "RM_MULTI_FIGURE: labels=" "$TMP/probe.log"
 grep -q "RM_OVERLAY HANDLER: PASS" "$TMP/probe.log"
 grep -qE "RM_OVERLAY OFFSCREEN: (PASS|SKIPPED)" "$TMP/probe.log"
 grep -q "RM_POSE_APPLY GATE: PASS" "$TMP/probe.log"
