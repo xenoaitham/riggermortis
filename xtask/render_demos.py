@@ -154,7 +154,12 @@ def _add_bone_proxy_mesh(armature) -> None:
 
 
 def _stage_scene(frames: int, width: int, height: int):
-    """Workbench shading, camera + sun; returns the orbit aim function."""
+    """Workbench shading, camera + sun; returns (aim, set_target).
+
+    The orbit target is mutable (P1-11 B3): the caller re-centers it on the
+    rendered geometry's bound-box center, so a posed figure that drifts off
+    the rest-pose centroid stays framed.
+    """
     import bpy
     from mathutils import Vector
 
@@ -179,11 +184,15 @@ def _stage_scene(frames: int, width: int, height: int):
     bpy.context.collection.objects.link(sun)
     sun.rotation_euler = (math.radians(50), 0.0, math.radians(30))
 
-    target = Vector((0.0, 0.0, 0.82))
+    state = {"target": Vector((0.0, 0.0, 0.82))}
     radius = 3.8
     _ = frames  # orbit is angle-driven; frames only bound the caller's loop
 
+    def set_target(vec: Vector) -> None:
+        state["target"] = Vector(vec)
+
     def aim(angle: float) -> None:
+        target = state["target"]
         cam.location = target + Vector(
             (math.sin(angle) * radius, -math.cos(angle) * radius, 0.45)
         )
@@ -191,7 +200,19 @@ def _stage_scene(frames: int, width: int, height: int):
         cam.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
 
     cam.data.lens = 45
-    return aim
+    return aim, set_target
+
+
+def _proxy_center():
+    """World-space center of the rendered geometry (deformed bone proxy)."""
+    import bpy
+    from mathutils import Vector
+
+    bpy.context.view_layer.update()
+    proxy = bpy.data.objects["rm_bone_proxy"]
+    evaluated = proxy.evaluated_get(bpy.context.evaluated_depsgraph_get())
+    corners = [evaluated.matrix_world @ Vector(c) for c in evaluated.bound_box]
+    return sum(corners, Vector((0.0, 0.0, 0.0))) / len(corners)
 
 
 def _render_turntable(aim, frames: int, out_dir: Path, prefix: str) -> list[str]:
@@ -221,7 +242,9 @@ def main(argv: list[str]) -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     armature = _setup_scene(metarig)
-    aim = _stage_scene(frames, width, height)
+    aim, set_target = _stage_scene(frames, width, height)
+    rest_center = _proxy_center()
+    set_target(rest_center)  # rest pose: frame the actual geometry
     rest_frames = _render_turntable(aim, frames, out_dir, "rest")
 
     # Apply the real payload through the add-on's own apply path; ship nothing
@@ -242,6 +265,11 @@ def main(argv: list[str]) -> int:
         return 1
     print(f"RM_RENDER payload applied, worst {report['worst_deg']:.4f} deg")
 
+    posed_center = _proxy_center()
+    shift = (posed_center - rest_center).length
+    if shift > 1e-4:
+        set_target(posed_center)  # P1-11 B3: track the posed centroid
+        print(f"RM_RENDER camera target tracked posed centroid (shift {shift:.3f} m)")
     posed_frames = _render_turntable(aim, frames, out_dir, "posed")
 
     manifest = {
