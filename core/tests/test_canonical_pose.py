@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import pytest  # noqa: E402
 
 from poses_fixtures import POSES, PoseFixture, project_fixture  # noqa: E402
+from riggermortis.canonical import mirror_role  # noqa: E402
 from riggermortis.canonical_pose import (  # noqa: E402
     CanonicalPose,
     observations_from_keypoints,
@@ -159,3 +160,128 @@ def test_scale_recovers_projection_scale() -> None:
     obs = project_fixture(fx, scale=333.0, center=(250.0, 900.0))
     pose = solve_pose(obs)
     assert pose.scale == pytest.approx(333.0, rel=0.02)
+
+
+# -- payload round-trip + mirror (P1-6 / D-009) ---------------------------------------
+
+
+def test_from_dict_round_trips_to_dict() -> None:
+    fx = next(p for p in POSES if p.name == "arms_down_relaxed")
+    pose = _solve_fixture(fx)
+    rt = CanonicalPose.from_dict(pose.to_dict())
+    assert rt.positions == pose.positions
+    assert rt.flips == pose.flips
+    assert rt.confidence == pose.confidence
+    assert rt.reliable == pose.reliable
+    assert rt.scale == pose.scale
+    assert rt.anchor == pose.anchor
+    assert rt.notes == pose.notes
+    assert rt.joint_confidence == pose.joint_confidence
+
+
+def test_mirrored_swaps_sides_and_negates_x() -> None:
+    fx = next(p for p in POSES if p.name == "arms_down_relaxed")
+    pose = _solve_fixture(fx)
+    mirror = pose.mirrored()
+
+    assert set(mirror.positions) == set(pose.positions)
+    for role, pos in pose.positions.items():
+        mx, my, mz = mirror.positions[mirror_role(role)]
+        assert mx == pytest.approx(-pos[0])
+        assert (my, mz) == (pos[1], pos[2])
+    assert mirror.positions["upper_arm.L"][0] == pytest.approx(-pose.positions["upper_arm.R"][0])
+    assert mirror.positions["upper_arm.R"][0] == pytest.approx(-pose.positions["upper_arm.L"][0])
+
+    # Flip values move with their side key; depth semantics are unchanged.
+    assert mirror.flips["forearm.L"] == pose.flips["forearm.R"]
+    assert mirror.flips["forearm.R"] == pose.flips["forearm.L"]
+    assert mirror.flips["lower_leg.L"] == pose.flips["lower_leg.R"]
+    assert mirror.joint_confidence["forearm.L"] == pose.joint_confidence["forearm.R"]
+    assert mirror.confidence == pose.confidence and mirror.notes == pose.notes
+
+    # Involution: mirroring twice restores the original.
+    twice = mirror.mirrored()
+    assert twice.positions == pose.positions and twice.flips == pose.flips
+
+
+def test_mirrored_pose_applies_within_tolerance() -> None:
+    """The add-on mirror toggle path: mirrored pose still satisfies FK."""
+    from riggermortis.canonical import ALL_ROLES, CANONICAL, rest_skeleton
+    from riggermortis.fk_apply import apply_canonical_pose, verify_application
+    from riggermortis.mapper import RigMapping, RoleAssignment
+    from riggermortis.types import BoneData, RigData
+
+    skeleton = rest_skeleton(1.7)
+    bones = {
+        role: BoneData(role, head, tail, CANONICAL[role].parent)
+        for role, (head, tail) in sorted(skeleton.items())
+    }
+    rig = RigData(name="canonical_rest", bones=bones, source="synthetic")
+    mapping = RigMapping(
+        rig_name=rig.name,
+        fingerprint=rig.fingerprint(),
+        assignments={
+            role: RoleAssignment(role=role, bone=role, confidence=1.0, side="C")
+            for role in ALL_ROLES
+            if role in rig.bones
+        },
+    )
+    fx = next(p for p in POSES if p.name == "reach_forward")
+    pose = _solve_fixture(fx)
+    mirrored = pose.mirrored()
+    app = apply_canonical_pose(rig, mapping, mirrored)
+    errors = verify_application(rig, app, mirrored)
+    assert errors and max(errors.values()) <= 1e-6
+
+
+# -- review overlay data model (P1-7) ------------------------------------------------
+
+
+def test_review_items_flag_low_flip_margins_and_weak_joints() -> None:
+    from riggermortis.review import review_items
+
+    fx = next(p for p in POSES if p.name == "arms_down_relaxed")
+    pose = _solve_fixture(fx)
+    # Pin every confidence high except the two we want flagged, so the test
+    # asserts exactly what it forces (not fixture-specific solver margins).
+    pose.joint_confidence = {k: 0.95 for k in pose.joint_confidence}
+    pose.joint_confidence["forearm.L"] = 0.1
+    pose.joint_confidence["upper_arm.L"] = 0.3
+    pose.notes = ["hips unobserved; anchored at neck"]
+    items = review_items(pose)
+
+    flips = [i for i in items if i.kind == "flip"]
+    confs = [i for i in items if i.kind == "confidence"]
+    notes = [i for i in items if i.kind == "note"]
+    assert [i.role for i in flips] == ["forearm.L"]
+    assert {i.role for i in confs} == {"upper_arm.L"}
+    assert len(notes) == 1
+    # Severity sort: the weakest item first; notes sink to the end.
+    assert items[0].kind == "flip"
+    assert items[-1].kind == "note"
+    assert all(i.to_dict()["severity"] is not None for i in items)
+
+
+def test_review_items_empty_for_clean_strong_pose() -> None:
+    from riggermortis.review import review_items
+
+    fx = next(p for p in POSES if p.name == "arms_down_relaxed")
+    pose = _solve_fixture(fx)
+    pose.joint_confidence = {k: 0.9 for k in pose.joint_confidence}
+    pose.notes = []
+    assert review_items(pose) == []
+
+
+def test_skeleton_segments_follow_fk_chains_and_are_deterministic() -> None:
+    from riggermortis.review import skeleton_segments
+
+    fx = next(p for p in POSES if p.name == "arms_down_relaxed")
+    pose = _solve_fixture(fx)
+    segments = skeleton_segments(pose)
+    assert segments == skeleton_segments(pose)  # deterministic
+    assert ("hips", "spine") in segments
+    assert ("upper_arm.L", "forearm.L") in segments
+    assert ("lower_leg.R", "foot.R") in segments
+    # Parents come from the FK chain map only — no invented segments.
+    for parent, child in segments:
+        assert child.endswith((".L", ".R")) or parent in ("hips", "spine", "chest", "neck")

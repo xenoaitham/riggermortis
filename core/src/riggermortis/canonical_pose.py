@@ -45,7 +45,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
-from .canonical import CANONICAL, LEFT, RIGHT, rest_skeleton
+from .canonical import CANONICAL, LEFT, RIGHT, mirror_role, rest_skeleton
 from .inference.poses import (
     ANKLE_L,
     ANKLE_R,
@@ -156,6 +156,49 @@ class CanonicalPose:
                 r: round(c, 4) for r, c in sorted(self.joint_confidence.items())
             },
         }
+
+    @staticmethod
+    def from_dict(d: dict[str, object]) -> CanonicalPose:
+        """Rebuild a pose from :meth:`to_dict` output (payload round-trip)."""
+        return CanonicalPose(
+            positions={
+                str(role): (float(p[0]), float(p[1]), float(p[2]))  # type: ignore[index]
+                for role, p in d["positions"].items()  # type: ignore[union-attr]
+            },
+            flips={str(k): int(v) for k, v in d["flips"].items()},  # type: ignore[union-attr]
+            confidence=float(d["confidence"]),  # type: ignore[arg-type]
+            reliable=bool(d["reliable"]),  # type: ignore[arg-type]
+            scale=float(d["scale"]),  # type: ignore[arg-type]
+            anchor=str(d["anchor"]),
+            notes=[str(n) for n in d.get("notes", [])],  # type: ignore[union-attr]
+            joint_confidence={
+                str(k): float(v) for k, v in d.get("joint_confidence", {}).items()  # type: ignore[union-attr]
+            },
+        )
+
+    def mirrored(self) -> CanonicalPose:
+        """Mirror across the character's YZ plane: x -> -x, .L/.R roles swapped.
+
+        Depth (y) semantics are unchanged — an x-mirror does not flip
+        front/back — so flip values move with their side key untouched.
+        Confidence, notes, and metadata carry over: this is a geometry
+        operation, not a re-solve.
+        """
+        return CanonicalPose(
+            positions={
+                mirror_role(role): (-p[0], p[1], p[2])
+                for role, p in self.positions.items()
+            },
+            flips={mirror_role(k): v for k, v in self.flips.items()},
+            confidence=self.confidence,
+            reliable=self.reliable,
+            scale=self.scale,
+            anchor=self.anchor,
+            notes=list(self.notes),
+            joint_confidence={
+                mirror_role(k): v for k, v in self.joint_confidence.items()
+            },
+        )
 
 
 # -- small vec helpers (stdlib) ---------------------------------------------------

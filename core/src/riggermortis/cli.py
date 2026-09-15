@@ -6,6 +6,12 @@ Subcommands:
                             manual reassignments, review-UI equivalent)
     preset save|load        persist / apply reviewed mappings
     policy status           content-policy status (adult module off by default)
+    detect <image>          DWPose person detection + 133 keypoints
+    pose <image> <rig>      one-command posing: detect -> figure select ->
+                            solve -> FK; writes the pose payload JSON that
+                            the add-on / MCP / headless consumers apply
+                            (D-009: frontends consume payloads, they never
+                            spawn processes)
 
 Errors print ``error: message (hint: ...)`` and exit 2 — never tracebacks.
 """
@@ -14,9 +20,13 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from pathlib import Path
 
 from . import __version__
+from .canonical_pose import observations_from_keypoints, solve_pose
 from .errors import MappingError, RiggermortisError
+from .fk_apply import apply_canonical_pose
+from .inference.figures import FigureBoard
 from .io import load_rig
 from .mapper import map_rig, propose_reassignment
 from .policy import PolicyEngine
@@ -96,6 +106,28 @@ def _build_parser() -> argparse.ArgumentParser:
         help="only report figure N (deterministic order: score desc, then leftmost)",
     )
     p_detect.add_argument(
+        "--gpu", action="store_true",
+        help="opt in to the CUDA onnxruntime provider (CPU is the default)",
+    )
+
+    p_pose = sub.add_parser(
+        "pose",
+        help="one-command posing: detect -> solve -> FK -> pose payload JSON "
+             "(the add-on / MCP consume this payload; D-009)",
+    )
+    p_pose.add_argument("image", help="path to a reference image (photo or anime art)")
+    p_pose.add_argument("rig", help="rig JSON file to apply the pose to")
+    p_pose.add_argument("--preset", default=None, help="apply a saved mapping preset on top")
+    p_pose.add_argument(
+        "--figure", default="largest",
+        help="figure selector: board index (0-based), 'largest' (default), or 'primary'",
+    )
+    p_pose.add_argument(
+        "--out", metavar="PATH", default=None,
+        help="write the pose payload JSON here (use with the add-on's Apply Pose)",
+    )
+    p_pose.add_argument("--json", action="store_true", help="print the payload to stdout instead")
+    p_pose.add_argument(
         "--gpu", action="store_true",
         help="opt in to the CUDA onnxruntime provider (CPU is the default)",
     )
@@ -301,6 +333,130 @@ def cmd_detect(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def _select_figure(board: FigureBoard, selector: str):
+    """Resolve a --figure selector ('largest' | 'primary' | board index)."""
+    if selector == "largest":
+        figure = board.largest()
+    elif selector == "primary":
+        figure = board.primary()
+    else:
+        try:
+            index = int(selector)
+        except ValueError:
+            raise RiggermortisError(
+                f"unknown figure selector {selector!r}",
+                hint="use a board index (0-based), 'largest', or 'primary'",
+            ) from None
+        figure = board.select(index)
+    if figure is None:
+        raise RiggermortisError(
+            f"figure {selector} does not exist",
+            hint=f"{len(board.figures)} figure(s) detected; "
+                 "use --figure largest (default), primary, or an index in "
+                 f"0..{max(len(board.figures) - 1, 0)}",
+        )
+    return figure
+
+
+def _build_pose_payload(
+    image_path: Path,
+    detection_width: int,
+    detection_height: int,
+    figure,
+    pose,
+    rig,
+    rotations,
+    skipped: list[str],
+    notes: list[str],
+) -> dict[str, object]:
+    """Pose payload v1 (D-009): everything a frontend needs to apply a pose."""
+    return {
+        "format": 1,
+        "image": {"path": str(image_path), "width": detection_width, "height": detection_height},
+        "figure": {
+            "label": figure.label,
+            "index": figure.index,
+            "score": round(figure.score, 4),
+            "bbox": [round(v, 2) for v in figure.bbox],
+        },
+        "pose": pose.to_dict(),
+        "rotations": rotations,
+        "skipped": skipped,
+        "notes": notes,
+        "rig": {"name": rig.name, "fingerprint": rig.fingerprint()},
+    }
+
+
+def cmd_pose(args: argparse.Namespace) -> int:
+    image = Path(args.image)
+    if not image.exists():
+        raise RiggermortisError(
+            f"image not found: {image}",
+            hint="pass a path to a reference photo or anime art file",
+        )
+    # Lazy import: importing the CLI must never require numpy/onnxruntime.
+    from .inference.dwpose import detect_keypoints
+
+    providers = ["CUDAExecutionProvider", "CPUExecutionProvider"] if args.gpu else None
+    detection = detect_keypoints(str(image), providers=providers)
+    board = FigureBoard.from_detection(detection)
+    if not board.figures:
+        raise RiggermortisError(
+            "no person detected in the image",
+            hint="try a clearer reference; DWPose is trained on photoreal "
+                 "poses, anime/sketch accuracy is a known gap "
+                 "(docs/BENCHMARKS.md tracks the number)",
+        )
+    figure = _select_figure(board, args.figure)
+
+    observations = observations_from_keypoints(figure.keypoints, figure.confidences)
+    pose = solve_pose(observations)
+
+    rig = load_rig(args.rig)
+    preset_mapping = load_preset(args.preset).mapping if args.preset else None
+    mapping = map_rig(rig, preset_mapping=preset_mapping)
+    application = apply_canonical_pose(rig, mapping, pose)
+
+    payload = _build_pose_payload(
+        image,
+        detection.width,
+        detection.height,
+        figure,
+        pose,
+        rig,
+        [r.to_dict() for r in application.rotations],
+        list(application.skipped),
+        list(application.notes),
+    )
+
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return EXIT_OK
+    if not args.out:
+        raise RiggermortisError(
+            "no output destination for the pose payload",
+            hint="pass --out payload.json (consumed by the add-on's Apply "
+                 "Pose) or --json to print it",
+        )
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+
+    state = "reliable" if pose.reliable else "BELOW the reliable bar — review before use"
+    print(f"image: {image} ({detection.width}x{detection.height})")
+    print(f"figure: {figure.label} (score {figure.score:.2f})")
+    print(f"pose: confidence {pose.confidence:.2f}, {state}")
+    for note in pose.notes:
+        print(f"  note: {note}")
+    print(
+        f"rotations: {len(application.rotations)} bone(s), "
+        f"{len(application.skipped)} skipped, {len(application.notes)} note(s)"
+    )
+    print(f"payload written: {out}")
+    print(f"apply it in Blender: Riggermortis panel -> Apply Pose (payload: {out.name})")
+    return EXIT_OK
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -326,6 +482,8 @@ def main(argv: list[str] | None = None) -> int:
             return cmd_models_path(args)
         if args.command == "detect":
             return cmd_detect(args)
+        if args.command == "pose":
+            return cmd_pose(args)
         parser.error(f"unknown command {args.command!r}")
         return EXIT_HANDLED_ERROR
     except RiggermortisError as exc:

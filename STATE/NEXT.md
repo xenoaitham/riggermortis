@@ -1,32 +1,36 @@
 # NEXT SESSION SHOULD …
 
-1. **P1-6 — add-on pose UX** (the user-visible BOOM): image picker in the
-   N-panel, run `rigpose detect` via the established edge pattern (D-004:
-   inference runs outside Blender; the add-on consumes the JSON payload),
-   FigureBoard selection (P1-3 API is ready), then solve + FK and apply the
-   rotation payload via bpy pose bones (`rotation_mode` AXIS_ANGLE).
-   media: UI screenshot + first posed-rig render.
-2. **P1-7 — review overlay**: ghost canonical skeleton over the image
-   (canonical.rest_skeleton renderer already exists), per-joint confidence
-   heat from `CanonicalPose.joint_confidence`, manual flip toggles (the two
-   documented solver misses are the exact case it must rescue).
-3. **P1-9 — 20-image benchmark harness** (10 photo / 10 anime): usable-rate
-   metric per the Phase 1 gate; its anime number decides P1-8 (fallback
-   estimator plan). The engine chain is proven end-to-end (S3 smoke);
-   the harness mostly wraps `detect -> FigureBoard -> solve_pose -> FK`.
-4. If the benchmark says DWPose holds ≥90% on the photo set: start P1-10
-   (BOOM GIF via `xtask/render_demos.py --demo boom`).
+1. **P1-8 decision is explicitly pending on sourcing** (NEEDS-HUMAN): the
+   benchmark harness is done and honest, but only 1 photo + 1 anime image
+   exist locally. Source 10+10 licensing-clean images (CC0/OWN collections;
+   never commit scraped files), rerun `python3 xtask/benchmark_poses.py`,
+   and let the anime number decide the fallback-estimator plan.
+2. **P1-11 polish pass** (the known rough edges, all documented in TASKS):
+   - review overlay interactivity: joint picking, in-viewport flip toggles,
+     image-plane projection onto the reference empty;
+   - multi-figure payloads (embed all figures in one payload so the panel can
+     switch without re-running the CLI);
+   - UI screenshot for the README (needs xvfb or a display — do not fake);
+   - BOOM GIF framing polish (pose-centroid camera target).
+3. **Then open Phase 2** (video pipeline): P2-1 video reader + per-frame
+   detection is the first rock; the payload path (D-009) extends to per-frame
+   rotation payloads. Phase 3 (MCP server) can start in parallel per
+   mcp/DESIGN.md — the payload contracts are exactly the tool outputs.
 
 Watch out for:
-- Keep `rigpose detect` outside the network-audit test's command list (it
-  lazy-imports numpy/onnxruntime; CI has neither).
-- The two flip misses (D-008) are REPORTED via notes/confidence — do not
-  "fix" them by tuning priors against the fixture set (that's overfitting);
-  the review UI is the remedy.
-- Blender-side pose application needs rotation_mode handling per pose bone
-  and an undo push — verify headlessly via the established sentinel pattern.
+- `verify_pose_apply.sh` + `render_boom.sh` need local assets
+  (out/real_rigs/*, out/benchmark/images/*) — regenerate per
+  docs/BENCHMARKS.md reproduce blocks before running.
+- Blender background mode has NO GPU API (`gpu` module, GPUOffScreen) —
+  overlay offscreen checks must stay honestly SKIPPED there; workbench/EEVEE
+  renders DO work headlessly on this machine (EGL).
+- Keep `rigpose detect` / `rigpose pose` out of the network-audit command
+  list (lazy [inference] imports; CI has neither).
+- Do NOT tune solve priors against fixtures (D-008) — the review UI is the
+  remedy for the two documented miss classes.
 
 Blocked / deferred (unchanged):
 - Mixamo real export (Adobe login) — NEEDS-HUMAN.
 - Publishing (GitHub repo, PyPI, Blender Extensions) — NEEDS-HUMAN; CI yml
   still has never run (first push will be its first run).
+- Benchmark image sourcing (10 photo / 10 anime, licensing-clean) — NEEDS-HUMAN.

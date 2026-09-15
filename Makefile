@@ -1,6 +1,6 @@
 PY ?= python3
 
-.PHONY: install test lint fixtures media-guard blender-verify gate
+.PHONY: install test lint fixtures media-guard blender-verify pose-verify gate
 
 install:
 	$(PY) -m pip install -e "core[dev]"
@@ -9,7 +9,7 @@ test:
 	cd core && $(PY) -m pytest tests
 
 lint:
-	$(PY) -m ruff check core/src core/tests addon/riggermortis_addon/bpy_bridge.py xtask/export_fixture_rigs.py xtask/build_rigify_rigs.py xtask/import_and_extract.py
+	$(PY) -m ruff check core/src core/tests addon/riggermortis_addon xtask/export_fixture_rigs.py xtask/build_rigify_rigs.py xtask/import_and_extract.py xtask/render_demos.py xtask/benchmark_poses.py
 
 fixtures:
 	$(PY) xtask/export_fixture_rigs.py
@@ -26,6 +26,11 @@ media-guard:
 # Full Phase 0 gate against a real local Blender (needs `make install` first)
 blender-verify:
 	bash xtask/blender_verify.sh
+
+# P1-6/P1-7 gate: payload apply + mirror + clear + review overlay on real rigs
+# (needs downloaded models: rigpose models download all)
+pose-verify:
+	bash xtask/verify_pose_apply.sh
 
 gate: lint test media-guard blender-verify
 	@echo "PHASE 0 GATE: PASS"

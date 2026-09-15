@@ -143,6 +143,33 @@ depth (y) is solved per joint under rigid canonical bone lengths.
   it proportionally); bows/leans tilt the line but spine articulation is not
   solved in v1.
 
+## D-009 Payload-consumer architecture (2026-09-15, S4; amends D-004's wording)
+
+D-004 said "the add-on/MCP server invoke the core inference CLI as a local
+subprocess". As written that is impossible: the add-on and the MCP server are
+`.py` files, and the workspace security gate forbids the string
+`subprocess` in any Python file (D-003's boundary, tooling-enforced).
+Resolution — the spawn lives OUTSIDE Python; the frontends consume payloads:
+
+- **Spawning** `rigpose detect` / `rigpose pose` belongs to the user's shell,
+  an agent, or `xtask/*.sh` glue — never to a `.py` file.
+- **The Blender add-on and MCP tools consume plain JSON payloads**:
+  - *detection payload*: `rigpose detect <image> --json` (figures + 133
+    keypoints) — for review/figure UIs.
+  - *pose payload*: `rigpose pose <image> <rig.rig.json> [--figure N|largest]
+    [--out payload.json]` — image size, figure label, `CanonicalPose.to_dict`,
+    ordered `BoneRotation.to_dict()` rotations, `skipped`, `notes`, rig
+    fingerprint. Everything after `detect` is pure stdlib, so the command and
+    payload are fully testable without models.
+- The add-on applies a pose payload **in-process** (stdlib core import): it
+  loads the payload, optionally mirrors the pose (`CanonicalPose.mirrored`),
+  rebuilds role→bone from the `rm_role_*` props (fallback: `map_rig`), and
+  writes pose-bone rotations in Blender's bone-local space (see the metarig
+  probe — payload rotations are parent-space/world-frame and must be
+  conjugated by each bone's rest matrix). Payload `rotations` remain in the
+  file for headless/CLI/MCP consumers; the Blender path recomputes from the
+  pose so mirror + manual remaps stay correct.
+
 ## NEEDS-HUMAN queue
 - GitHub org/repo + PyPI registration + Blender Extensions account (D-001).
 - Decide public repo name string exactly (`riggermortis` recommended).
