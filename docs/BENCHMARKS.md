@@ -29,7 +29,8 @@ a human must make in the review UI; review-confirm flags are listed separately.
 | Rigify human meta-rig | Blender 4.0.2 factory metarig add-on (bundled) | 159 | 21 | complete | 0 | 1 review-confirm (structural hips) |
 | Rigify generated rig | same metarig via `rigify_generate` | 706 (220 ctl / 160 DEF- / 167 MCH- / 159 ORG-) | 22/22 | complete | 0 | 0 |
 | VRM 1.0 sample | Seed-san by VirtualCast, Inc. — [VRM Public License 1.0](https://vrm.dev/en/licenses/1.0/index); kept unmodified in git-ignored `out/` | 55 | 21 | complete | 0 | 0 |
-| Mixamo export | not run — needs an Adobe login (NEEDS-HUMAN, DECISIONS queue). The synthetic Mixamo-style fixture (incl. the `LeftLeg`-is-a-shin trap) covers the naming traps meanwhile | — | — | — | — | — |
+| Mixamo export | **Xbot.glb** — a REAL Mixamo export (mixamorig:* names, 67 bones), sourced from mrdoob/three.js `examples/models/gltf/Xbot.glb` (MIT repo; Mixamo character terms permit project use; kept unmodified, git-ignored `out/real_rigs/`, never redistributed by this repo). No Adobe login needed | 21/22 | complete | 0 | 2 (upper_arm conf 0.50 review flags — no correction needed) |
+| Xbot mapping detail | hips→mixamorig:Hips, spine→mixamorig:Spine, chest→mixamorig:Spine1 (chain promotion), lower_leg.→mixamorig:LeftLeg/RightLeg (the shin trap, handled), Spine2 honestly unmapped; `mixamorig:*_End` leaf bones skipped | — | — | — | — |
 
 Reproduce (all local, no uploads):
 
@@ -132,7 +133,7 @@ rotations, worst error 0.0000 deg, sensible values (spine 14.5 deg, thighs
 
 `usable-straight-away` = solver-reliable AND every distal flip verified (>= 0.55; straight limbs are immaterial and auto-pass, unobserved distal joints read 0.0 = review, D-010) AND no deep-foreshortening flag (heuristic proxy for the two documented D-008 miss classes: deep kicks, wrists behind the back). Flags: `flip` = distal joint unseen, bend unverifiable; `fore-<segment>` = proximal segment 2D length < 0.6x canonical (single-view depth limitation).
 
-#### anime set — 0/7 usable (0%), confidence min 0.00 / median 0.52 / max 0.71; detector found no person: 2/7
+#### anime set — 0/10 usable (0%), confidence min 0.00 / median 0.50 / max 0.73; detector found no person: 3/10
 
 | image | figures | figure used | det score | pose conf | reliable | min flip margin | flags | usable |
 |---|---|---|---|---|---|---|---|---|
@@ -140,6 +141,9 @@ rotations, worst error 0.0000 deg, sensible values (spine 14.5 deg, thighs
 | anime2_lineart_hat.png | 0 | - | 0.00 | 0.00 | NO | 0.00 | flip;fore-no-person | no |
 | anime3_lineart_sketch.jpg | 1 | figure 1 | 0.87 | 0.69 | yes | 0.35 | flip;fore-lower_leg.L:upper_leg.L,lower_leg.R:upper_leg.R | no |
 | anime4_lineart_bag.jpg | 1 | figure 1 | 0.44 | 0.52 | NO | 0.34 | flip;fore-forearm.R:upper_arm.R,lower_leg.L:upper_leg.L,lower_leg.R:upper_leg.R | no |
+| anime4_saber_night_crop.png | 1 | figure 1 | 0.89 | 0.49 | NO | 0.39 | flip;fore-forearm.L:upper_arm.L,forearm.R:upper_arm.R,lower_leg.L:upper_leg.L | no |
+| anime6_gothic_dress_crop.png | 1 | figure 1 | 0.92 | 0.73 | yes | 0.82 | fore-lower_leg.L:upper_leg.L,lower_leg.R:upper_leg.R | no |
+| commons_niabot_upright.jpg | 0 | - | 0.00 | 0.00 | NO | 0.00 | flip;fore-no-person | no |
 | controlnet_anime3_crop.png | 1 | figure 1 | 0.88 | 0.64 | yes | 0.34 | flip;fore-lower_leg.L:upper_leg.L,lower_leg.R:upper_leg.R | no |
 | onegirl_portrait.png | 1 | figure 1 | 0.96 | 0.45 | NO | 0.06 | flip | no |
 | violet_ai_render.jpg | 1 | figure 1 | 0.85 | 0.71 | yes | 0.51 | flip;fore-lower_leg.L:upper_leg.L,lower_leg.R:upper_leg.R | no |
@@ -158,7 +162,5 @@ rotations, worst error 0.0000 deg, sensible values (spine 14.5 deg, thighs
 | rtmpose_human_pose.jpg | 1 | figure 1 | 0.96 | 0.70 | yes | 0.35 | flip;fore-lower_leg.R:upper_leg.R | no |
 | ski_carving.jpg | 1 | figure 1 | 0.91 | 0.67 | yes | 0.12 | flip;fore-lower_leg.L:upper_leg.L | no |
 | woman_lying.jpg | 1 | figure 1 | 0.90 | 0.40 | NO | 0.14 | flip;fore-forearm.R:upper_arm.R,lower_leg.L:upper_leg.L | no |
-
-**NEEDS-HUMAN (anime sourcing):** only 7 licensing-clean anime image(s) available locally; the P1-8 fallback-estimator decision stays explicitly pending until a 10-image set exists.
 
 <!-- BENCHMARK:POSES:END -->

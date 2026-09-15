@@ -27,7 +27,7 @@ quadruped) with ≤2 manual corrections each, proven headless.
   - media: n/a yet.
 - [x] P0-14 [S1] pytest suite (49 tests): 5 synthetic rigs, determinism, presets, policy, CLI, I/O.
 - [x] P0-15 [S2] Real-rig gate: Rigify meta-rig (headless generation), a real Mixamo export, a real VRM; map each ≤2 corrections; record in docs/BENCHMARKS.md.
-  - done: metarig + generated Rigify (Blender 4.0.2) + Seed-san VRM all ≤2 corrections (0 each); Mixamo export NEEDS-HUMAN (Adobe login) — gap recorded honestly in docs/BENCHMARKS.md; mapper fixes → DECISIONS D-007.
+  - done: metarig + generated Rigify (Blender 4.0.2) + Seed-san VRM all ≤2 corrections (0 each); Mixamo real export DONE S5b: Xbot.glb (real mixamorig export via three.js, no Adobe login needed) — 21/22, core complete, 0 corrections, 2 review flags; mapper fixes → DECISIONS D-007.
 - [x] P0-16 [S2] CI skeleton: ruff + pytest + blender gate + **network-audit test** (zero outbound in default use).
 - [x] P0-17 [S2] Review data model: `propose_reassignment()` + ambiguity ranking for the 30-second review UI.
 

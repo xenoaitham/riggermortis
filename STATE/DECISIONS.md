@@ -244,6 +244,24 @@ need — the review UI is its remedy, not a second detector). Therefore:
 - Re-decide at n=10 anime (LO-owned/CC0 art drops in) — the detector no-person
   rate is the number to watch; n=7 makes ±1 image worth ±14 points.
 
+## D-012 P1-8 re-decision at n=10 + real-Mixamo gate (2026-09-15, S5 NEEDS-HUMAN-clearing run)
+
+- **P1-8 at full n=10** (D-011 amendment): anime set completed with two
+  recorded crops of Apache-2.0 ControlNet screenshots (anime_4/anime_6) and
+  one Wikimedia Commons hand-drawn illustration (CC BY-SA 3.0, User:Niabot —
+  provenance in SOURCES.md). Result: **3/10 outright detector failures** and
+  0/10 usable-straight-away; median anime conf 0.50 vs photo 0.66. Key new
+  fact: the Commons soft-shaded HAND-DRAWN illustration also gets zero
+  detections — the gap is NOT line-art-only. D-011's fallback-estimator plan
+  (P1-8a) is CONFIRMED necessary at full statistical weight.
+- **Real Mixamo gate closed without Adobe**: Xbot.glb is a genuine Mixamo
+  export distributed in mrdoob/three.js (MIT). Mapper: 21/22 roles, core
+  complete, 0 corrections, 2 review flags (upper_arm conf 0.50) — within the
+  ≤2-corrections gate. The NEEDS-HUMAN (Adobe login) item is RETIRED.
+- NEEDS-HUMAN cleared by tooling: gh CLI authenticated → GitHub repo
+  creation + push unblocked (CI's first run). PyPI upload still requires
+  LO's account credentials (prep-only: build + twine check + runbook).
+
 ## NEEDS-HUMAN queue
 - Benchmark anime sourcing: 3 of 10 anime slots open — drop LO-owned/CC0 art
   into `out/benchmark/images/anime/`, record in out/benchmark/SOURCES.md,
