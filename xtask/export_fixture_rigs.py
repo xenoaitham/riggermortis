@@ -14,7 +14,7 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "core/tests"))
 sys.path.insert(0, str(REPO / "core/src"))
 
-from rigs import all_five  # noqa: E402
+from rigs import all_five
 
 
 def main() -> int:

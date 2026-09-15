@@ -251,7 +251,7 @@ def main(argv: list[str]) -> int:
     # if its self-check disagrees with the payload's promise.
     sys.path.insert(0, os.environ["RM_CORE_SRC"])
     sys.path.insert(0, os.environ["RM_ADDON_DIR"])
-    from riggermortis_addon import pose_apply  # noqa: E402
+    from riggermortis_addon import pose_apply
 
     with open(payload_path, encoding="utf-8") as fh:
         payload = json.load(fh)

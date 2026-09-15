@@ -33,7 +33,7 @@ READABLE_FORMATS = (1, 2)
 
 def payload_module() -> Any:
     """The core payload contract module (shared with CLI / MCP; D-009)."""
-    import riggermortis.payload as payload_mod  # noqa: PLC0415 (lazy, keeps load light)
+    import riggermortis.payload as payload_mod
 
     return payload_mod
 
@@ -177,9 +177,9 @@ def clear_pose(obj: Any) -> str:
 
 def push_undo() -> None:
     """Best-effort undo push; background mode has no undo context."""
-    try:
+    import contextlib
+
+    with contextlib.suppress(Exception):  # background/headless runs have no undo stack
         import bpy
 
         bpy.ops.ed.undo_push()
-    except Exception:  # noqa: BLE001 — background/headless runs have no undo stack
-        pass

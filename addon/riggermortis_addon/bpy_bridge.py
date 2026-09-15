@@ -40,7 +40,7 @@ def rig_data_from_armature(armature_object: Any) -> dict[str, Any]:
 def import_core():
     """Import riggermortis-core or raise with an actionable message."""
     try:
-        import riggermortis  # noqa: PLC0415  (lazy import keeps addon load light)
+        import riggermortis
     except ImportError as exc:
         raise ImportError(CORE_MISSING_HINT) from exc
     return riggermortis

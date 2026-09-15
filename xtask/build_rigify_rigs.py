@@ -60,7 +60,7 @@ def main() -> int:
         bpy.ops.object.mode_set(mode="OBJECT")
     try:
         bpy.ops.pose.rigify_generate()
-    except Exception as exc:  # report and fail loudly, never silently
+    except Exception as exc:  # noqa: BLE001 — logged and turned into a failure exit
         print(f"{SENTINEL}FAIL rigify_generate: {type(exc).__name__}: {exc}")
         return 1
     generated = max(_armatures(), key=lambda o: (len(o.data.bones), o.name))

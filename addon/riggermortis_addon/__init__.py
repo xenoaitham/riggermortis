@@ -23,17 +23,18 @@ bl_info = {
     "category": "Animation",
 }
 
-import bpy  # noqa: E402
-from bpy.props import (  # noqa: E402
+from typing import Any, ClassVar
+
+import bpy
+from bpy.props import (
     BoolProperty,
     EnumProperty,
     PointerProperty,
     StringProperty,
 )
-from bpy.types import AddonPreferences, Operator, Panel, PropertyGroup  # noqa: E402
-from typing import Any  # noqa: E402
+from bpy.types import AddonPreferences, Operator, Panel, PropertyGroup
 
-from . import bpy_bridge, overlay, pose_apply  # noqa: E402
+from . import bpy_bridge, overlay, pose_apply
 
 POLICY_NOTICE = (
     "Default build is SFW. An opt-in adult module (off by default, requires "
@@ -61,7 +62,7 @@ def _figure_rows(payload: dict) -> list[dict]:
     real install error). Never raises.
     """
     try:
-        import riggermortis.payload as payload_mod  # noqa: PLC0415
+        import riggermortis.payload as payload_mod
         entries = payload_mod.figure_entries(payload)
         return [
             {
@@ -166,7 +167,7 @@ class RM_OT_inspect_and_map(Operator):
 
     bl_idname = "rm.inspect_and_map"
     bl_label = "Inspect & Map Rig"
-    bl_options = {"REGISTER", "UNDO"}
+    bl_options: ClassVar[set[str]] = {"REGISTER", "UNDO"}
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
@@ -237,7 +238,7 @@ class RM_OT_apply_pose(Operator):
 
     bl_idname = "rm.apply_pose"
     bl_label = "Apply Pose"
-    bl_options = {"REGISTER", "UNDO"}
+    bl_options: ClassVar[set[str]] = {"REGISTER", "UNDO"}
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
@@ -285,7 +286,7 @@ class RM_OT_flip_toggle(Operator):
 
     bl_idname = "rm.flip_toggle"
     bl_label = "Toggle Flip"
-    bl_options = {"REGISTER", "UNDO"}
+    bl_options: ClassVar[set[str]] = {"REGISTER", "UNDO"}
 
     flip_key: StringProperty(  # type: ignore[valid-type]
         name="Flip key",
@@ -346,7 +347,7 @@ class RM_OT_pick_joint(Operator):
 
     bl_idname = "rm.pick_joint"
     bl_label = "Pick Joint (click in viewport)"
-    bl_options = {"REGISTER"}
+    bl_options: ClassVar[set[str]] = {"REGISTER"}
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
@@ -410,7 +411,7 @@ class RM_OT_flip_reset(Operator):
 
     bl_idname = "rm.flip_reset"
     bl_label = "Reset Manual Flips"
-    bl_options = {"REGISTER", "UNDO"}
+    bl_options: ClassVar[set[str]] = {"REGISTER", "UNDO"}
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
@@ -444,7 +445,7 @@ class RM_OT_clear_pose(Operator):
 
     bl_idname = "rm.clear_pose"
     bl_label = "Clear Pose"
-    bl_options = {"REGISTER", "UNDO"}
+    bl_options: ClassVar[set[str]] = {"REGISTER", "UNDO"}
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
@@ -534,13 +535,12 @@ class RM_PT_main_panel(Panel):
                     box.label(text="switch figures: regenerate with --all-figures", icon="INFO")
             pose = payload.get("pose") or {}
             joint_conf = pose.get("joint_confidence", {})
-            shown = 0
-            for role, conf in sorted(joint_conf.items()):
+            joint_items = sorted(joint_conf.items())
+            for shown, (role, conf) in enumerate(joint_items):
                 if shown >= 8:
-                    box.label(text=f"… and {len(joint_conf) - shown} more")
+                    box.label(text=f"… and {len(joint_items) - shown} more")
                     break
                 box.label(text=f"{role:<14} {conf:.2f}", icon=_conf_icon(conf))
-                shown += 1
         row = box.row()
         row.prop(settings, "mirror")
         row.operator("rm.apply_pose", icon="PLAY")

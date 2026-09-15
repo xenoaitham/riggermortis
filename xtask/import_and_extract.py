@@ -122,6 +122,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    import bpy  # type: ignore[name-defined]  # noqa: E402  (only exists inside Blender)
+    import bpy  # type: ignore[name-defined]
 
     sys.exit(main())

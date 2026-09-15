@@ -32,8 +32,8 @@ inference = ["numpy>=1.24", "onnxruntime>=1.16", "pillow>=10"]
 rigpose = "riggermortis.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/riggermortis/riggermortis"
-Issues = "https://github.com/riggermortis/riggermortis/issues"
+Homepage = "https://github.com/xenoaitham/riggermortis"
+Issues = "https://github.com/xenoaitham/riggermortis/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]

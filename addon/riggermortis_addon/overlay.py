@@ -145,7 +145,7 @@ def _cached_pose(settings: Any):
 
 
 def _payload_module() -> Any:
-    import riggermortis.payload as payload_mod  # noqa: PLC0415
+    import riggermortis.payload as payload_mod
 
     return payload_mod
 
