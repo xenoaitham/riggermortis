@@ -68,8 +68,8 @@ quadruped) with ≤2 manual corrections each, proven headless.
 ## Phase 3 — MCP server (the agent angle)
 **Gate:** real MCP client, zero human Blender interaction: inspect → pose → animate → render turntable; demo GIF is a launch asset.
 
-- [ ] P3-1 Server skeleton: stdio + 127.0.0.1-socket transports, server_info, protocol version.
-- [ ] P3-2 Tool schemas v1 per mcp/DESIGN.md; golden-schema tests.
+- [x] P3-1 [S5] Server skeleton — PARTIAL (honest): stdio JSON-RPC 2.0 (newline-delimited), initialize/server_info (protocol 2024-11-05, local_only, contract version), ping, parse-error handling. Loopback-socket transport deferred to P3-5 (session bridge) — stdio covers agent clients per mcp/DESIGN.md.
+- [x] P3-2 [S5] Tool schemas v1 — DONE: 5 tools declared (inspect_rig/policy_status/map_rig LIVE; pose_from_image/animate_from_video declared with structured not_implemented answers); golden-schema test pins names/status/required fields; stdio framing test (requests, notifications, parse errors). 8 tests. Live: inspect_rig (core map), policy_status (defaults + hard lines).
 - [ ] P3-3 Structured policy refusals through MCP (tested like any tool).
 - [ ] P3-4 Progress streaming for long tools.
 - [ ] P3-5 Blender session manager: add-on ↔ server local socket, action queue.
