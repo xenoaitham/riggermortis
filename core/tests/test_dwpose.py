@@ -171,10 +171,13 @@ def test_missing_extra_error(monkeypatch: pytest.MonkeyPatch) -> None:
         dwpose.detect_keypoints(object())
 
 
-def test_missing_onnxruntime_error(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_missing_onnxruntime_error(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    # Stub the on-disk model check: without it, environments without downloaded
+    # models (CI) fail on "not downloaded" BEFORE reaching the import gate.
+    monkeypatch.setattr(dwpose.models, "verify_model", lambda *a, **k: None)
     monkeypatch.setitem(sys.modules, "onnxruntime", None)
     with pytest.raises(InferenceError, match="onnxruntime"):
-        dwpose.load_sessions()
+        dwpose.load_sessions(root=tmp_path)
 
 
 def test_missing_model_error(tmp_path: Path) -> None:
