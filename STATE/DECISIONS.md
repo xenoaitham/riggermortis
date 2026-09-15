@@ -170,7 +170,84 @@ Resolution — the spawn lives OUTSIDE Python; the frontends consume payloads:
   file for headless/CLI/MCP consumers; the Blender path recomputes from the
   pose so mirror + manual remaps stay correct.
 
+## D-010 Flip verification semantics + observation mapping fix (2026-09-15, S5)
+
+Driven by the benchmark instrument reading structural zeros on ALL 17 real
+images. Three changes, all reporting/bugfix class — no solve prior weights
+touched (D-008 weights stand):
+
+- **Arm observation mapping fixed to D-008's locked table.** The code mapped
+  elbow→`upper_arm.*`, wrist→`forearm.*`, and never consumed the wrist as
+  `hand.*` (legs already matched D-008). Consequences before the fix: the
+  shoulder girdle anchor was actually elbows, flip-chain lengths were applied
+  one joint down (0.32 on the forearm segment), distal-flip verification was
+  IMPOSSIBLE on real detections (no hand role → margin 0.0 → every real image
+  flagged), and the confidence formula silently excluded those zeros
+  (`if conf > 0.0`), inflating whole-pose confidence (S4's 0.85–0.91).
+  Fixtures were D-008-semantics all along; only the kp index table was wrong.
+  Fixture flip accept unchanged at 18/20 (same two documented D-008 misses);
+  per-pose confidences rose (true girdle anchors, correct segment lengths).
+- **Immaterial flips (straight limbs) auto-pass.** A limb straight within
+  ~14.5 deg (depth swing ≤ 0.25 distal-bone lengths) renders identically
+  under both bend signs; its margin is a noise-driven near-tie, not review
+  material. Such flips report verification 1.0 with an honest note
+  ("flip immaterial, auto-pass"). Unobserved distal joints stay 0.0 =
+  review (bend unverifiable). Real margins are evidence-conf-independent
+  (ratio of energies) and — with the corrected mapping — legs mostly verify
+  0.54–1.00 while arms genuinely land 0.12–0.53 on real photos (noisy wrists
+  flatten the energy landscape): the D-008 single-view class, now visible
+  instead of hidden.
+- **Whole-pose flip quality aggregates by MEAN, not min.** Min made sense
+  only while hands were unobservable; with four real margins, one noisy
+  wrist must not mark an otherwise-good pose unreliable. Per-flip review
+  triggers stay per-flip (each margin vs the 0.55 bar in review.py).
+
+Instrument honesty: `usable-straight-away` is unchanged as a STRICT lower
+bound. If it reads 0%, we publish 0% (see D-011) — thresholds are not
+loosened to pass gates.
+
+## D-011 P1-8 decision: fallback-estimator PLAN (2026-09-15, S5; not implemented)
+
+Benchmark basis (out/benchmark/images/, provenance out/benchmark/SOURCES.md,
+n=7 anime of the 10-slot gate — 3 slots NEEDS-HUMAN for LO-owned/CC0 art):
+
+- anime: 0/7 usable-straight-away; **detector found no person on 2/7**
+  (pure line-art sketches — the D-002-predicted photoreal-training gap);
+  detected-5 confidences 0.45–0.71 vs photo 0.40–0.77.
+- photo: 0/10 usable-straight-away — but 10/10 DETECTED fine; failures are
+  solver-side (arm flip review, foreshortening heuristics), i.e. shared with
+  anime, not anime-specific.
+
+Decision: DWPose is **<90% on the anime set** (both raw usable rate and
+detection success). The gap decomposes into (a) an anime-specific DETECTOR
+gap (line-art no-person) and (b) a domain-general SOLVER class (flip review
+need — the review UI is its remedy, not a second detector). Therefore:
+
+- **Fallback-estimator plan (task P1-8a, not implemented this session):**
+  1. Candidate: a sketch/anime-finetuned whole-body estimator with ONNX
+     export (SKEP-120K-class sketch-pose models; or DWPose fine-tune on
+     licensed line-art with pose labels). Gate any candidate on THIS
+     benchmark set + the same usable metric — no new private metric.
+  2. Architecture stays dual-estimator-capable: `inference/` gains an
+     estimator interface; DWPose remains default; fallback selected
+     per-image by a cheap detector-confidence probe (if no person / conf
+     < threshold, retry with the anime estimator). Payload format v2 (B1)
+     carries an `estimator` field so provenance travels with the payload.
+  3. Licensing for any training data must be names + licenses, same bar as
+     SOURCES.md. No scraped Danbooru-class data, ever.
+- **The Phase-1 "≥90% usable-straight-away" gate is NOT met as measured**
+  (0/10 photo, 0/7 anime). Honest status: the pipeline produces reliable,
+  review-ready poses (median conf 0.66 photo / 0.52 anime; legs verify,
+  arms often need a one-click flip review); it does not yet hit
+  "usable with zero review" at 90% on strict criteria. This is recorded as
+  the Phase-1 close-out position, not hidden behind a redefined metric.
+- Re-decide at n=10 anime (LO-owned/CC0 art drops in) — the detector no-person
+  rate is the number to watch; n=7 makes ±1 image worth ±14 points.
+
 ## NEEDS-HUMAN queue
+- Benchmark anime sourcing: 3 of 10 anime slots open — drop LO-owned/CC0 art
+  into `out/benchmark/images/anime/`, record in out/benchmark/SOURCES.md,
+  rerun `python3 xtask/benchmark_poses.py` (SOURCES.md documents the bar).
 - GitHub org/repo + PyPI registration + Blender Extensions account (D-001).
 - Decide public repo name string exactly (`riggermortis` recommended).
 - Sample-rig sourcing for P0-15 needs network access in the next session

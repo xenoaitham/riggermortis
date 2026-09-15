@@ -27,15 +27,17 @@ def test_observations_reject_wrong_count() -> None:
 def test_observations_midpoints_take_min_conf() -> None:
     kps = [(0.0, 0.0)] * 133
     conf = [0.0] * 133
-    kps[5], conf[5] = (10.0, 10.0), 0.9
+    kps[5], conf[5] = (10.0, 10.0), 0.9  # shoulder.L -> upper_arm.L
     kps[6], conf[6] = (30.0, 10.0), 0.5
     kps[11], conf[11] = (20.0, 100.0), 0.8
     kps[12], conf[12] = (20.0, 120.0), 0.1
-    kps[7], conf[7] = (5.0, 50.0), 0.7
+    kps[7], conf[7] = (5.0, 50.0), 0.7  # elbow.L -> forearm.L
     obs = observations_from_keypoints(kps, conf)
     assert obs["neck"] == ((20.0, 10.0), 0.5)
     assert obs["hips"] == ((20.0, 110.0), 0.1)
-    assert obs["upper_arm.L"] == ((5.0, 50.0), 0.7)
+    assert obs["upper_arm.L"] == ((10.0, 10.0), 0.9)
+    assert obs["forearm.L"] == ((5.0, 50.0), 0.7)
+    assert "hand.L" not in obs  # wrist keypoint not set in this probe
     assert "toe.L" not in obs  # toes need both sources usable
 
 
@@ -144,6 +146,45 @@ def test_partial_observations_degrade_gracefully() -> None:
         assert pose.joint_confidence[limb] == 0.0
     assert pose.flips["lower_leg.L"] == 1  # kneel shanks point backward
     assert pose.flips["lower_leg.R"] == 1
+
+
+# -- flip materiality (D-010): straight limbs auto-pass, ambiguity stays review ------
+
+
+def _arm_obs(hand: tuple[float, float], forearm: tuple[float, float], conf: float = 0.9) -> dict:
+    """Minimal observation set: torso anchors + a left arm chain with given geometry.
+
+    Scale is 1000 px/canonical-unit (neck->hips span 450 px = 0.45 units), so the
+    forearm's canonical distal length is 280 px.
+    """
+    return {
+        "neck": ((0.0, 0.0), 0.9),
+        "hips": ((0.0, 450.0), 0.9),
+        "upper_arm.L": ((-60.0, 100.0), conf),
+        "forearm.L": (forearm, conf),
+        "hand.L": (hand, conf),
+    }
+
+
+def test_straight_limb_flip_is_immaterial_not_uncertain() -> None:
+    """A dead-straight arm renders identically under both flips -> auto-pass (D-010)."""
+    pose = solve_pose(_arm_obs(forearm=(-100.0, 350.0), hand=(-102.0, 660.0)))
+    assert pose.joint_confidence["forearm.L"] == 1.0
+    assert any("immaterial" in n for n in pose.notes)
+
+
+def test_bent_flip_resolves_confidently_and_never_masquerades_immaterial() -> None:
+    """Bent limbs with observed distals resolve via the priors (margin is a ratio,
+    so it is evidence-confidence independent): conf stays >= review bar and the
+    immaterial note is reserved for straight limbs (D-010)."""
+    # Forearm chord ~150 px (clearly bent vs 280 px bone), weak observation conf.
+    pose = solve_pose(_arm_obs(forearm=(-100.0, 350.0), hand=(-230.0, 430.0), conf=0.3))
+    assert pose.joint_confidence["forearm.L"] >= 0.55
+    assert not any(n.startswith("forearm.L") and "immaterial" in n for n in pose.notes)
+    # Strong evidence: same confident resolution.
+    pose2 = solve_pose(_arm_obs(forearm=(-100.0, 350.0), hand=(-220.0, 420.0)))
+    assert pose2.joint_confidence["forearm.L"] >= 0.55
+    assert pose2.flips["forearm.L"] == pose.flips["forearm.L"]
 
 
 def test_confidence_is_bounded_and_honest() -> None:

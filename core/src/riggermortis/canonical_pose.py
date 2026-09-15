@@ -100,11 +100,17 @@ def observations_from_keypoints(
         )
     kp, cf = keypoints, confidences
     out: dict[str, tuple[tuple[float, float], float]] = {}
+    # Role position = the joint at the HEAD of that role's bone (D-008):
+    # shoulder->upper_arm, elbow->forearm, wrist->hand (arms were shifted one
+    # joint down the chain until 2026-09-15, which left wrists unmapped and
+    # made distal-flip verification impossible on real detections).
     single = {
-        "upper_arm.L": ELBOW_L,
-        "upper_arm.R": ELBOW_R,
-        "forearm.L": WRIST_L,
-        "forearm.R": WRIST_R,
+        "upper_arm.L": SHOULDER_L,
+        "upper_arm.R": SHOULDER_R,
+        "forearm.L": ELBOW_L,
+        "forearm.R": ELBOW_R,
+        "hand.L": WRIST_L,
+        "hand.R": WRIST_R,
         "upper_leg.L": HIP_L,
         "upper_leg.R": HIP_R,
         "lower_leg.L": KNEE_L,
@@ -231,6 +237,11 @@ _FLIP_CHAINS: dict[str, tuple[str, str, str, float, float]] = {
 }
 _FLIP_KEYS = tuple(sorted(_FLIP_CHAINS))
 
+#: Max depth swing (as a fraction of the distal bone length) below which a
+#: bend flip cannot change the rendered pose meaningfully — such flips are
+#: immaterial and auto-pass (D-010). 0.25 ~= a limb straight within 14.5 deg.
+_FLIP_IMMATERIAL_SWING = 0.25
+
 #: Roles pinned to the torso plane (y = 0) by girdle rigidity.
 _GIRDLE_ROLES = (
     "hips",
@@ -318,10 +329,23 @@ def solve_pose(
     flips = {k: (-1 if best_combo[i] == 0 else 1) for i, k in enumerate(_FLIP_KEYS)}
     flip_conf: dict[str, float] = {}
     for i, key in enumerate(_FLIP_KEYS):
-        end_role = _FLIP_CHAINS[key][2]
-        if end_role not in obs:
-            flip_conf[key] = 0.0
+        girdle, mid, end, _l_prox, l_dist = _FLIP_CHAINS[key]
+        if end not in obs:
+            flip_conf[key] = 0.0  # distal joint unseen: flip unverifiable -> review
             continue
+        # Immaterial flips (D-010): a limb straight within ~14.5 deg has a depth
+        # swing <= 0.25 bone lengths, so both bend signs render the same — the
+        # flip auto-passes instead of flooding review with straight-limb noise.
+        if mid in obs:
+            chord = math.hypot(plane[end][0] - plane[mid][0], plane[end][1] - plane[mid][1])
+            delta = math.sqrt(max(l_dist * l_dist - chord * chord, 0.0))
+            if delta <= _FLIP_IMMATERIAL_SWING * l_dist:
+                flip_conf[key] = 1.0
+                notes.append(
+                    f"{key}: bend within {math.degrees(math.asin(min(delta / l_dist, 1.0))):.0f} deg; "
+                    "flip immaterial, auto-pass"
+                )
+                continue
         with_bit = min(e for e, c in ranked if c[i] == best_combo[i])
         without = min(e for e, c in ranked if c[i] != best_combo[i])
         margin = (without - with_bit) / (without + with_bit + 1e-9)
@@ -341,8 +365,12 @@ def solve_pose(
         if r in obs
     ]
     obs_quality = sum(obs[r][1] for r in core_obs) / len(core_obs) if core_obs else 0.0
+    # Whole-pose flip quality aggregates by MEAN, not min (D-010): one noisy
+    # wrist must not mark an otherwise-good pose unreliable — per-flip review
+    # triggers stay per-flip (review.py reads each margin against the bar).
+    # Min was only meaningful before hands were observed (S5 mapping fix).
     meaningful = [flip_conf[k] for k in _FLIP_KEYS if flip_conf[k] > 0.0]
-    flip_quality = min(meaningful) if meaningful else 0.5
+    flip_quality = sum(meaningful) / len(meaningful) if meaningful else 0.5
     confidence = max(0.0, min(1.0, 0.6 * obs_quality + 0.4 * flip_quality))
     reliable = confidence >= 0.55 and len(core_obs) >= 6
 
