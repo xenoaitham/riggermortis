@@ -47,7 +47,11 @@ jobs:
           identical numbers; 4.0.2 exercises the oldest supported apt path)
         run: |
           sudo apt-get update
-          sudo apt-get install -y blender
+          # python3-numpy: the apt Blender 4.0.2 glTF exporter imports numpy
+          # and the apt build does NOT bundle it (Blender 5.x does — the dev
+          # box gate passes without this). Without it the export gate
+          # degrades to an honest per-format SKIP.
+          sudo apt-get install -y blender python3-numpy
           blender --version | head -1
       - name: Install core
         run: make install PY=python
