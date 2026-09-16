@@ -21,6 +21,14 @@
      remains the Phase-1 follow-up when a licensing-clean candidate exists.
 
 Watch out for:
+- **Blender location changed (LO, 2026-09-16)**: the real install is
+  **5.1.0 at `/home/potato/blender-5.1.0-linux-x64/`** — on PATH via
+  ~/.bashrc + ~/.profile, or pass `BLENDER=/home/potato/blender-5.1.0-linux-x64/blender`
+  explicitly (both gate scripts honor it). The old /usr/bin/blender 4.0.2 is
+  broken on this box. Both Blender gates were RE-VERIFIED against 5.1.0 in
+  S6b (Phase 0 + pose-apply, identical numbers). CI still runs apt 4.0.2 on
+  ubuntu-24.04 — decide next session whether to bump CI to a 5.1 official
+  download (ci.yml edit) or keep 4.0.2 as the CI pin.
 - **noqa directives in files OUTSIDE core/**: ruff finds no repo config for
   `addon/`/`xtask/` paths from the repo root, so defaults apply and ruff
   0.16 validates noqa codes there (RUF100 fires for known-but-disabled
