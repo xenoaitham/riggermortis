@@ -9,7 +9,7 @@ test:
 	cd core && $(PY) -m pytest tests
 
 lint:
-	$(PY) -m ruff check core/src core/tests addon/riggermortis_addon xtask/export_fixture_rigs.py xtask/build_rigify_rigs.py xtask/import_and_extract.py xtask/render_demos.py xtask/benchmark_poses.py
+	$(PY) -m ruff check core/src core/tests addon/riggermortis_addon xtask/export_fixture_rigs.py xtask/build_rigify_rigs.py xtask/import_and_extract.py xtask/render_demos.py xtask/benchmark_poses.py xtask/foot_lock_gate.py
 
 fixtures:
 	$(PY) xtask/export_fixture_rigs.py

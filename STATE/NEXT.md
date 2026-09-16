@@ -1,58 +1,59 @@
 # NEXT SESSION SHOULD …
 
-1. **P2-5 IK foot lock + ground-plane fit** — the pieces are staged: contact
-   intervals attach to the action (`contacts.attach_contacts`), the bake
-   lives in `addon/bake.py`, and the gate metric exists
-   (`contacts.foot_slide`; gate = ≥5× improvement, baseline instrument
-   verified). Lock each ankle's in-contact frames (per-interval position
-   hold or IK to a ground projection), re-measure `foot_slide` before/after
-   on a real clip, publish both numbers in docs/BENCHMARKS.md.
-2. **P2-6 motion denoise** (hip stabilization, jitter pass) — or P2-7 export
-   (Blender actions done; FBX/GLTF/VRMA via Blender where needed).
-3. **P3-3 structured policy refusals through MCP** — refusal shapes already
-   designed in mcp/DESIGN.md and mirrored by `riggermortis.policy`; wire the
-   gate + tests like any tool. P3-4 progress streaming is next after that.
+1. **P2-6 motion denoise** — hip stabilization (the root-motion-shaped gap;
+   the honest path per D-008 — no fabricated translation, stabilize what the
+   solve actually produces) + jitter pass tuning through the existing
+   `condition_action` (1€ params). Wire through `load_action → condition →
+   detect → lock_feet → bake` as the documented cleanup pipeline order and
+   CI-test the composition.
+2. **P2-7 export** — Blender actions are already written by the bake; add
+   FBX/GLTF/VRMA via Blender edge scripts (glTF exporter is builtin; VRMA
+   needs a writer — scope it honestly). CI-testable pieces through the
+   payload/action contract only.
+3. **P3-3 structured policy refusals through MCP** — shapes mirrored from
+   `riggermortis.policy`; wire the gate + tests like any tool. P3-4
+   progress streaming after.
 4. Cheap wins while gates run:
-   - a second windowed UI screenshot attempt (`xtask/ui_screenshot.sh`) is
-     best-effort (flaky GL, ~1-in-4) — docs/media/ui_screenshot.png is now
-     committed + allowlisted, so a re-capture just replaces it (media-guard
-     pins the exact filename).
-   - P1-8a fallback estimator (anime detector gap: 3/10 no-person at n=10)
-     remains the Phase-1 follow-up when a licensing-clean candidate exists.
+   - **P2-8 prep**: source a licensing-clean REAL walking clip (SOURCES.md
+     provenance rules; NEEDS-HUMAN if LO-owned) — the foot-lock gate
+     currently publishes synthetic-labeled numbers by design (D-013); a real
+     clip re-run makes them benchmark-grade.
+   - A second windowed UI screenshot attempt on 5.1 (`xtask/ui_screenshot.sh`)
+     is best-effort (flaky GL) — docs/media/ui_screenshot.png is committed +
+     allowlisted, a genuine re-capture just replaces it.
 
 Watch out for:
-- **Blender location changed (LO, 2026-09-16)**: the real install is
-  **5.1.0 at `/home/potato/blender-5.1.0-linux-x64/`** — on PATH via
-  ~/.bashrc + ~/.profile, or pass `BLENDER=/home/potato/blender-5.1.0-linux-x64/blender`
-  explicitly (both gate scripts honor it). The old /usr/bin/blender 4.0.2 is
-  broken on this box. Both Blender gates were RE-VERIFIED against 5.1.0 in
-  S6b (Phase 0 + pose-apply, identical numbers). CI still runs apt 4.0.2 on
-  ubuntu-24.04 — decide next session whether to bump CI to a 5.1 official
-  download (ci.yml edit) or keep 4.0.2 as the CI pin.
+- **Blender 5.1.0 at `/home/potato/blender-5.1.0-linux-x64/` is the real
+  install** (on PATH via ~/.bashrc + ~/.profile; or pass
+  `BLENDER=…` explicitly). CI deliberately keeps apt 4.0.2 — decided and
+  documented this session (D-014, ci.yml step name); bump only per D-014's
+  trigger. After a box crash, `python3` may resolve to /usr/bin/python3 —
+  the project env is conda BASE (`~/miniconda3/bin/python`, `rigpose`,
+  ruff live there); pass `RIGPOSE=` to gate scripts if PATH is stale.
+- **Addon bake foot lock**: `pb.matrix` reads are STALE once an action is
+  assigned — world matrices are composed locally (W = P@(Mp⁻¹Mb)@B, see
+  bake.py); bone rest LENGTH is `Bone.length`, not the matrix 3x3. Both
+  bit us in S7; don't reintroduce.
 - **noqa directives in files OUTSIDE core/**: ruff finds no repo config for
-  `addon/`/`xtask/` paths from the repo root, so defaults apply and ruff
-  0.16 validates noqa codes there (RUF100 fires for known-but-disabled
-  codes like PLC0415). core/src files resolve core/pyproject.toml and are
-  exempt. S6 rule: no `# noqa: <code>` comments in addon/xtask files.
-- Payload contract: v2 payloads MUST carry the `figures` list — video.py
-  writer was fixed in S6; `figure_entries` raises otherwise (the old
-  git-ignored jobs under out/video_smoke/{job,pjob} predate the fix and
-  fail honestly with "unreadable payload" notes; regenerate).
-- `make pose-verify` needs local assets (out/real_rigs/*, out/payloads/*,
-  out/benchmark/images/*) — all present as of S6; regenerate per
-  docs/BENCHMARKS.md reproduce blocks if you switch machines.
-- Root motion stays unimplemented by design (D-008 hip anchoring) — don't
-  "fix" the bake by fabricating translation; P2-6 hip stabilization is the
-  honest path.
+  `addon/`/`xtask/` paths from the repo root, so defaults apply and RUF100
+  fires for known-but-disabled codes. S6 rule stands: no `# noqa: <code>`
+  comments in addon/xtask files.
+- Payload contract: v2 payloads MUST carry the `figures` list; canonical
+  actions load ONLY through `payload.py` (D-009).
+- Root motion stays unimplemented by design (D-008 hip anchoring); the foot
+  lock's walk-in-place result IS the honest baseline — don't "fix" it by
+  fabricating translation; P2-6 hip stabilization is the path.
 - Windowed Blender under this box's GL segfaults on `space.show_region_ui`
   assignment from Python — do not reintroduce that in ui_screenshot.py.
 
-Blocked / deferred (UPDATED 2026-09-15 NEEDS-HUMAN-clearing run):
-- GitHub repo LIVE: https://github.com/xenoaitham/riggermortis — CI IS GREEN
-  (first-ever run + fixes: ruff 0.16 semantics, env-coupled onnxruntime test).
+Blocked / deferred (UPDATED 2026-09-16 S7):
+- GitHub repo LIVE: https://github.com/xenoaitham/riggermortis — CI IS GREEN.
 - Full Mimosa audit DONE, CLEAN (findingCount=0, seal sha256:7c594eb7...).
 - Real Mixamo gate DONE via three.js Xbot (0 corrections; no Adobe login).
 - Anime benchmark set at 10/10 (SOURCES.md); P1-8 re-decided at full n (D-012).
+- CI Blender pin decided (D-014) — no longer open.
 - PyPI: dist builds + twine PASSED; ONLY the upload needs LO's PyPI account
   (docs/PUBLISHING.md runbook). Blender Extensions needs LO's blender.org
   account (same runbook).
+- P1-8a fallback estimator remains parked (D-011/D-012), needs a
+  licensing-clean candidate.

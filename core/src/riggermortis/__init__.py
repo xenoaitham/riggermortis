@@ -17,10 +17,15 @@ from .action import (
 from .canonical import ALL_ROLES, CORE_ROLES, side_of
 from .canonical_pose import CanonicalPose
 from .contacts import (
+    LOCK_CHAIN_BASES,
     ContactInterval,
     ContactReport,
+    LockReport,
+    SlideReport,
     attach_contacts,
     detect_contacts,
+    foot_slide,
+    lock_feet,
 )
 from .errors import (
     BridgeError,
@@ -62,16 +67,21 @@ __all__ = [
     "CanonicalPose",
     "ContactInterval",
     "ContactReport",
+    "LOCK_CHAIN_BASES",
+    "LockReport",
     "PoseApplication",
     "RigData",
     "RigMapping",
     "RoleAssignment",
+    "SlideReport",
     "action_from_poses",
     "apply_canonical_pose",
     "attach_contacts",
     "bone_target_direction",
     "condition_action",
     "detect_contacts",
+    "foot_slide",
+    "lock_feet",
     "verify_application",
     "map_rig",
     "side_of",

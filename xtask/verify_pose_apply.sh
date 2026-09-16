@@ -300,6 +300,111 @@ def run_bake(payload_path):
 
 ok &= run_bake(os.path.join(os.environ["RM_PAYLOADS"], "metarig_payload.json"))
 
+# -- P2-5: foot-lock bake — locked ankle stays planted across the interval ------
+def run_foot_lock():
+    """Synthetic planted-foot action (canonical units): detect -> core lock ->
+    bake with contacts on the metarig. The ankle bone's world position across
+    the locked interval must drift <= 0.01 m, and the UNLOCKED bake of the raw
+    frames must drift more (otherwise the lock does nothing in rig space)."""
+    try:
+        import riggermortis_addon.bake as bake
+        from riggermortis_addon import pose_apply
+
+        def probe_pose(i):
+            positions = {
+                "spine": (0.0, 0.0, 0.09), "chest": (0.0, 0.0, 0.26),
+                "neck": (0.0, 0.0, 0.45), "head": (0.0, 0.0, 0.56),
+                "shoulder.L": (0.13, 0.0, 0.45), "shoulder.R": (-0.13, 0.0, 0.45),
+                "upper_arm.L": (0.26, 0.0, 0.45), "upper_arm.R": (-0.26, 0.0, 0.45),
+                "forearm.L": (0.58, 0.0, 0.45), "forearm.R": (-0.58, 0.0, 0.45),
+                "hand.L": (0.86, 0.0, 0.45), "hand.R": (-0.86, 0.0, 0.45),
+            }
+            sway = 0.004 * math.sin(0.7 * i)
+            positions["hips"] = (sway, 0.0, 0.0)
+            for sign in (-1.0, 1.0):
+                side = ".L" if sign < 0 else ".R"
+                hip = (sign * 0.08 + sway, 0.0, 0.0)
+                positions[f"upper_leg{side}"] = hip
+                if side == ".L":  # planted, drifting 0.004 u/frame (the artifact)
+                    ankle = (-0.11 + 0.004 * i, 0.0, -1.0)
+                else:  # swinging arc
+                    t = min(1.0, (i + 1) / 11.0)
+                    ankle = (0.11 - 0.02 * i, 0.0, -1.0 + 0.3 * math.sin(math.pi * t))
+                knee = ((hip[0] + ankle[0]) / 2.0, -0.08, (hip[2] + ankle[2]) / 2.0)
+                positions[f"lower_leg{side}"] = knee
+                positions[f"foot{side}"] = ankle
+                positions[f"toe{side}"] = (ankle[0], ankle[1] - 0.12, ankle[2])
+            return core.CanonicalPose(
+                positions=positions, flips={}, confidence=0.9, reliable=True,
+                scale=30.0, anchor="hips",
+            )
+
+        frames = [core.ActionFrame(frame=i, pose=probe_pose(i)) for i in range(10)]
+        action = core.action_from_poses([(f.frame, f.pose) for f in frames])
+        report = core.detect_contacts(frames)
+        l_ivs = [iv for iv in report.intervals if iv.foot == "foot.L"]
+        if not l_ivs:
+            print("RM_FOOT_LOCK LOCK: FAIL — detector found no foot.L contact")
+            return False
+        locked, lock = core.lock_feet(action, report)
+
+        bpy.ops.wm.open_mainfile(filepath=os.environ["RM_METARIG_BLEND"])
+        obj = first_armature()
+        mapping = pose_apply.mapping_from_props(obj, core) or core.map_rig(
+            core.RigData.from_dict(bpy_bridge.rig_data_from_armature(obj))
+        )
+        ankle_bone = mapping.assignments["foot.L"].bone
+
+        def drift(report_frames):
+            points = []
+            for f in report_frames:
+                bpy.context.scene.frame_set(f + 1)
+                bpy.context.view_layer.update()
+                points.append(obj.pose.bones[ankle_bone].matrix.to_translation())
+            return max(
+                (math.dist(a, b) for i, a in enumerate(points) for b in points[i + 1:]),
+                default=0.0,
+            )
+
+        def clean(up):
+            obj.animation_data_clear()
+            act = bpy.data.actions.get(up["action"])
+            if act is not None:
+                bpy.data.actions.remove(act)
+
+        contact_frames = [
+            f for iv in l_ivs for f in range(iv.start, iv.end + 1)
+        ]
+        before = bake.bake_action(obj, frames, core, name="rm_lock_before")
+        drift_before = drift(contact_frames)
+        clean(before)
+        after = bake.bake_action(
+            obj, locked.frames, core, name="rm_lock_after", contacts=report
+        )
+        drift_after = drift(contact_frames)
+        clean(after)
+
+        bar = 0.01
+        passed = drift_after <= bar and drift_after < drift_before
+        print(
+            f"RM_FOOT_LOCK BEFORE: unlocked ankle drift={drift_before:.4f}m "
+            f"across {len(contact_frames)} contact frame(s)"
+        )
+        print(
+            f"RM_FOOT_LOCK LOCK: {'PASS' if passed else 'FAIL'} "
+            f"locked_drift={drift_after:.4f}m unlocked={drift_before:.4f}m "
+            f"bar={bar:.4f}m lock_dev={after['lock_dev_deg']:.2f}deg "
+            f"locked_frames={after['locked_frames']} "
+            f"knee_cost={max(lock.max_knee_shift.values(), default=0.0):.4f}u"
+        )
+        return passed
+    except Exception as exc:  # noqa: BLE001
+        print(f"RM_FOOT_LOCK: FAIL ({exc.__class__.__name__}: {exc})")
+        return False
+
+
+ok &= run_foot_lock()
+
 print("RM_POSE_APPLY GATE:", "PASS" if ok else "FAIL")
 PY
 
@@ -322,6 +427,8 @@ grep -q "RM_REVIEW TOGGLE: PASS" "$TMP/probe.log"
 grep -q "RM_REVIEW TOGGLE_APPLY: PASS" "$TMP/probe.log"
 grep -q "RM_BAKE BAKE: PASS" "$TMP/probe.log"
 grep -q "RM_BAKE EVAL: PASS" "$TMP/probe.log"
+grep -q "RM_FOOT_LOCK BEFORE: " "$TMP/probe.log"
+grep -q "RM_FOOT_LOCK LOCK: PASS" "$TMP/probe.log"
 grep -q "RM_OVERLAY HANDLER: PASS" "$TMP/probe.log"
 grep -qE "RM_OVERLAY OFFSCREEN: (PASS|SKIPPED)" "$TMP/probe.log"
 grep -q "RM_POSE_APPLY GATE: PASS" "$TMP/probe.log"

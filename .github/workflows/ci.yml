@@ -41,7 +41,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"  # matches Blender 4.x bundled Python
-      - name: Install Blender (ubuntu-24.04 ships 4.0.2 — same as the local gate)
+      - name: >-
+          Install Blender (ubuntu-24.04 ships 4.0.2 — deliberate CI pin, D-014:
+          the dev box runs 5.1.0 and both gates were re-verified there with
+          identical numbers; 4.0.2 exercises the oldest supported apt path)
         run: |
           sudo apt-get update
           sudo apt-get install -y blender

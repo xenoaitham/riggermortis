@@ -262,7 +262,58 @@ need — the review UI is its remedy, not a second detector). Therefore:
   creation + push unblocked (CI's first run). PyPI upload still requires
   LO's account credentials (prep-only: build + twine check + runbook).
 
+## D-013 P2-5 IK foot lock v1 scope (2026-09-16, S7)
+
+The contact report (P2-4) becomes a lock in two coordinated halves:
+
+- **Core — canonical position pin** (`contacts.lock_feet`): per contact
+  interval the ankle AND toe are pinned to the interval's FIRST OBSERVED
+  positions (a real detected plant pose, never fabricated), and the knee is
+  re-solved by a deterministic 2-bone IK (closest-to-original pole; fixed
+  fallback ladder for straight-leg degeneracy; unreachable targets clamped
+  along hip->ankle and counted). The locked action is walk-in-place — the
+  honest alternative to fabricating root motion (D-008). Frames already at
+  their pinned position (within 1e-12) keep their original values, so
+  locking clean data is a bit-for-bit no-op. `to_ground` optionally projects
+  pinned ankles onto the report's ground estimate. Returns a LockReport with
+  slide before/after (the >=5x gate) plus cost columns (knee corrections,
+  ankle shifts, clamps).
+- **Add-on bake — rig-space world pin** (`bake_action(contacts=...)`): per
+  locked frame the thigh+shin are re-solved by a small 2-bone correction so
+  the ankle's WORLD position stays at the captured plant, and the foot
+  bone's world transform is held (no pivot, no drift). Deviation from the
+  source pose is reported as `lock_dev_deg`, separate from FK fidelity
+  (`worst_deg`, always measured on the UNLOCKED application); unreachable
+  targets count in `lock_clamped`. Requires all three leg roles mapped;
+  missing roles degrade that frame to computed keys.
+- **Implementation facts worth keeping** (both bit us): bone rest LENGTHS
+  are `Bone.length`, NOT recoverable from `matrix_local`'s 3x3 (pure
+  rotation -> unit Y); and `pb.matrix` reads are STALE once an action is
+  assigned — mid-bake world matrices are composed locally via
+  `W = P @ (Mp⁻¹ Mb) @ B` (identity verified to 0.000000 on the real
+  metarig) and carried across frames (previous key = constant interpolation,
+  matching Blender).
+- **Gate numbers** (published in docs/BENCHMARKS.md): synthetic labeled
+  instrument slide 0.768 u -> 0.000 / 0.793 u -> 0.000 (cost: knee
+  corrections <= 0.035 u); real-Blender bake probe 0.0371 m unlocked ankle
+  drift -> 0.0000 m locked (bar 0.010 m) at lock_dev 5.10 deg, FK fidelity
+  unchanged (0.0242 deg). Real-clip numbers land with P2-8; thresholds NOT
+  tuned against fixtures (D-008).
+
+## D-014 CI Blender pin: keep apt 4.0.2, document the dev-box skew (2026-09-16, S7)
+
+- CI keeps ubuntu-24.04's apt Blender 4.0.2: it is the oldest supported
+  path, installs fast without a 300 MB download per run, and the suite has
+  been green on it since the first CI run. The dev box runs the real
+  install, Blender 5.1.0 — BOTH gates were re-verified there (S6b, identical
+  numbers) and S7's RM_FOOT_LOCK probe was written and PASSes on 5.1.0.
+- The skew is now DOCUMENTED in ci.yml (step name) rather than silent.
+- Revisit trigger: any gate needing a Blender >= 4.2-only feature (add-on
+  extensions manifest work, new API) should bump CI to an official 5.x
+  tarball with actions/cache in one deliberate commit.
+
 ## NEEDS-HUMAN queue (updated 2026-09-15 NEEDS-HUMAN-clearing run)
+
 - RETIRED — anime sourcing: set complete at 10/10 (SOURCES.md; Commons CC BY-SA crop provenance).
 - RETIRED — real Mixamo gate: closed via three.js Xbot.glb (0 corrections, D-012).
 - RETIRED — full Mimosa audit: completed CLEAN (findingCount=0, seal sha256:7c594eb7..., static-only evidence boundary).
