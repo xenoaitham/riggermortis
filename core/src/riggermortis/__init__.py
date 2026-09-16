@@ -11,8 +11,10 @@ from __future__ import annotations
 from .action import (
     ActionFrame,
     CanonicalAction,
+    HipStabReport,
     action_from_poses,
     condition_action,
+    stabilize_hips,
 )
 from .canonical import ALL_ROLES, CORE_ROLES, side_of
 from .canonical_pose import CanonicalPose
@@ -67,6 +69,7 @@ __all__ = [
     "CanonicalPose",
     "ContactInterval",
     "ContactReport",
+    "HipStabReport",
     "LOCK_CHAIN_BASES",
     "LockReport",
     "PoseApplication",
@@ -85,6 +88,7 @@ __all__ = [
     "verify_application",
     "map_rig",
     "side_of",
+    "stabilize_hips",
     "PolicyEngine",
     "Refusal",
     "ContentCategory",

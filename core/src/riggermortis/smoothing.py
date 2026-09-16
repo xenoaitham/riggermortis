@@ -10,6 +10,12 @@ jitter dies while fast limb motion survives.
 (P2-3 wires it into actions): greedy error-driven decimation — a frame is
 kept when any tracked channel bends more than ``tolerance`` away from the
 linear path between its kept neighbours. Deterministic; endpoints always kept.
+
+``moving_average`` (P2-6) is the offline companion: a centered moving average
+for separation of low-frequency drift from high-frequency sway on tracks that
+are fully observed (an action is conditioned after the fact, so a phase-neutral
+centered window beats a causal filter). Windows shrink at the edges instead of
+shifting the signal.
 """
 from __future__ import annotations
 
@@ -23,6 +29,29 @@ def _alpha(cutoff: float, freq: float) -> float:
     tau = 1.0 / (2.0 * math.pi * cutoff)
     te = 1.0 / freq
     return 1.0 / (1.0 + tau / te)
+
+
+def moving_average(values: list[float], window: int) -> list[float]:
+    """Centered moving average; same length out as in.
+
+    ``window`` counts observed samples (an even window is bumped to the next
+    odd, deterministically). Edge windows shrink to the available neighbours
+    rather than padding, so the ends stay phase-true. Pure stdlib; same input
+    = same output.
+    """
+    if window < 1:
+        raise ValueError(f"window must be >= 1, got {window}")
+    if not values:
+        return []
+    half = max(window // 2, 0)
+    if window % 2 == 0:
+        half = window // 2  # even window: asymmetric bump, still deterministic
+    out: list[float] = []
+    for i in range(len(values)):
+        lo = max(0, i - half)
+        hi = min(len(values), i + half + 1)
+        out.append(sum(values[lo:hi]) / (hi - lo))
+    return out
 
 
 class OneEuroFilter:

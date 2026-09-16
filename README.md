@@ -45,8 +45,11 @@ What exists **right now** (every claim cites a test, gate, or number):
   glue) → per-frame detection/solve with crash-safe resume and an honest
   failure ledger → **canonical actions** → keyframed retarget baked onto any
   mapped rig (2-frame bake verified on a real rig at 0.024°/frame) → foot
-  contact detection with hysteresis → foot-slide metric (the cleanup gate's
-  number to beat). IK foot lock, denoise, and export are next; no GIF is
+  contact detection with hysteresis → IK foot lock (slide 0.768 u → 0.000 on
+  the labeled synthetic instrument; walk-in-place by design — no fabricated
+  root motion) → motion denoise: hip stabilization + 1€ jitter pass
+  (stabilization alone halves the breathing-induced stance slide on the
+  synthetic gate). Export and the clips×rigs GIFs are next; no GIF is
   promised until the clips deserve one.
 - **MCP server skeleton** — stdio JSON-RPC 2.0 with declared tool schemas;
   `inspect_rig` and `policy_status` work today, animation tools answer
@@ -110,7 +113,9 @@ text: [docs/POLICY.md](docs/POLICY.md).
   estimator is planned (P1-8a) — not implemented yet.
 - The video pipeline bakes rotations, not root motion: the single-view solve
   is hip-anchored per frame, so fabricating world translation would be fake
-  data. Foot-slide cleanup (IK foot lock) is the next phase-2 work.
+  data. The IK foot lock makes contacts walk-in-place; hip stabilization
+  removes anchor-frame noise only — a steady per-frame drift is
+  low-frequency by construction and is deliberately left to the lock.
 - Mapping assumes a humanoid-ish skeleton with roughly human proportions;
   quadrupeds are detected and flagged, not solved.
 - `.blend` reading shells out to the user's own Blender via an edge script —
