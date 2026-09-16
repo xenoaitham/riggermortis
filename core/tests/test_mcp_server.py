@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
 import riggermortis_mcp as server  # noqa: E402
 
+import riggermortis as core  # noqa: E402
 from rigs import rigify_rig  # noqa: E402
 
 
@@ -46,13 +47,15 @@ def test_tools_list_matches_golden_schema() -> None:
     tools = response["result"]["tools"]
     by_name = {t["name"]: t for t in tools}
     assert set(by_name) == {
-        "inspect_rig", "policy_status", "map_rig",
+        "inspect_rig", "policy_status", "policy_check", "map_rig",
         "pose_from_image", "animate_from_video",
     }
     assert by_name["inspect_rig"]["status"] == "live"
     assert by_name["inspect_rig"]["input_schema"]["required"] == ["path"]
     assert by_name["pose_from_image"]["status"] == "declared"
     assert by_name["policy_status"]["input_schema"]["properties"] == {}
+    assert by_name["policy_check"]["status"] == "live"
+    assert by_name["policy_check"]["input_schema"]["required"] == ["subject"]
     assert tools == server.TOOL_SCHEMAS_V1  # deterministic output
 
 
@@ -92,6 +95,79 @@ def test_policy_status_reports_defaults() -> None:
     value = response["result"]["content"][0]["json"]
     assert value["adult_module_enabled"] is False
     assert isinstance(value["hard_lines"], list) and value["hard_lines"]
+
+
+# -- P3-3: structured policy refusals through MCP -------------------------------
+
+def _policy_check(subject: str) -> tuple[dict, dict]:
+    response = _rpc("tools/call", params={
+        "name": "policy_check", "arguments": {"subject": subject},
+    })
+    return (
+        response["result"]["content"][0]["json"],
+        {"isError": response["result"]["isError"]},
+    )
+
+
+def test_policy_check_refusals_mirror_the_core_engine_exactly() -> None:
+    """The MCP refusal shape IS riggermortis.policy's Refusal.to_dict() —
+    mirrored, byte for byte, from a fresh default engine (public API)."""
+    engine = core.PolicyEngine()
+    for subject in ("minor", "real_person", "fictional_adult", "bogus"):
+        expected = engine.check_explicit_request(subject)
+        assert expected is not None  # all four refuse on a default engine
+        value, meta = _policy_check(subject)
+        assert meta["isError"] is True
+        assert value["error"] == expected.to_dict()
+        assert set(value["error"]) == {"code", "message", "category", "retryable"}
+
+
+def test_policy_check_refusal_codes_are_the_public_api() -> None:
+    cases = {
+        "minor": core.MINOR_CONTENT,
+        "real_person": core.REAL_PERSON_EXPLICIT,
+        "fictional_adult": core.ADULT_MODULE_DISABLED,
+        "bogus": core.INVALID_REQUEST,
+    }
+    for subject, code in cases.items():
+        value, _meta = _policy_check(subject)
+        assert value["error"]["code"] == code
+
+
+def test_policy_check_retryable_follows_the_policy() -> None:
+    """adult_module_disabled is the ONLY retryable refusal (the user can
+    enable the module with explicit confirmation); hard lines are not."""
+    value, _meta = _policy_check("fictional_adult")
+    assert value["error"]["retryable"] is True
+    for subject in ("minor", "real_person"):
+        value, _meta = _policy_check(subject)
+        assert value["error"]["retryable"] is False
+
+
+def test_policy_check_allowed_subject_answers_allowed() -> None:
+    value, meta = _policy_check("other")
+    assert meta["isError"] is False
+    assert value == {"allowed": True, "subject": "other"}
+
+
+def test_policy_check_non_string_subject_is_invalid_request() -> None:
+    response = _rpc("tools/call", params={
+        "name": "policy_check", "arguments": {"subject": 42},
+    })
+    value = response["result"]["content"][0]["json"]
+    assert response["result"]["isError"] is True
+    assert value["error"]["code"] == core.INVALID_REQUEST
+
+
+def test_policy_status_lists_the_public_refusal_codes() -> None:
+    response = _rpc("tools/call", params={"name": "policy_status", "arguments": {}})
+    value = response["result"]["content"][0]["json"]
+    assert value["refusal_codes"] == [
+        core.MINOR_CONTENT,
+        core.REAL_PERSON_EXPLICIT,
+        core.ADULT_MODULE_DISABLED,
+        core.INVALID_REQUEST,
+    ]
 
 
 def test_unknown_method_and_notifications() -> None:

@@ -9,13 +9,17 @@ conventions. Implemented methods:
 
 - ``initialize``            -> server_info (contract version, capabilities)
 - ``tools/list``            -> schema v1 for the Phase-0/1 tool subset
-- ``tools/call``            -> ``inspect_rig`` and ``policy_status`` are LIVE;
-                               the remaining design tools return a structured
-                               ``not_implemented`` result (honest, still
-                               schema-listed so agents can plan against them)
+- ``tools/call``            -> ``inspect_rig``, ``policy_status`` and
+                               ``policy_check`` are LIVE; the remaining design
+                               tools return a structured ``not_implemented``
+                               result (honest, still schema-listed so agents
+                               can plan against them)
 - ``ping``                  -> {}
 
-Structured policy refusals (P3-3) mirror ``riggermortis.policy`` codes.
+Structured policy refusals (P3-3) mirror ``riggermortis.policy`` exactly:
+codes are imported from the core module (public API, never re-typed here)
+and the error shape is ``Refusal.to_dict()`` —
+``{"code", "message", "category", "retryable"}`` per mcp/DESIGN.md.
 
 Run: ``python3 mcp/riggermortis_mcp.py`` (an agent client owns the process —
 spawn lives outside Python per D-009).
@@ -50,8 +54,20 @@ TOOL_SCHEMAS_V1: list[dict] = [
     {
         "name": "policy_status",
         "status": "live",
-        "description": "Content-policy state: defaults and hard lines",
+        "description": "Content-policy state: defaults, hard lines, refusal codes",
         "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "policy_check",
+        "status": "live",
+        "description": "Evaluate a hypothetical content request against the "
+                       "policy; refused subjects answer with the structured "
+                       "refusal shape (codes mirror riggermortis.policy)",
+        "input_schema": {
+            "type": "object",
+            "properties": {"subject": {"type": "string"}},
+            "required": ["subject"],
+        },
     },
     {
         "name": "map_rig",
@@ -118,7 +134,40 @@ def policy_status() -> dict:
         "adult_module_enabled": status.get("adult_module_enabled", False),
         "defaults": status.get("defaults", {}),
         "hard_lines": status.get("hard_lines", []),
+        # Public-API refusal codes, imported from the core module (P3-3):
+        # frontends must report exactly these strings.
+        "refusal_codes": [
+            core.MINOR_CONTENT,
+            core.REAL_PERSON_EXPLICIT,
+            core.ADULT_MODULE_DISABLED,
+            core.INVALID_REQUEST,
+        ],
     }
+
+
+def policy_check(arguments: dict) -> dict:
+    """Evaluate a hypothetical content request (P3-3).
+
+    Allowed subjects answer ``{"allowed": true, ...}``; refused ones answer
+    with the EXACT structured refusal shape from ``riggermortis.policy``
+    (``Refusal.to_dict()``) under ``error`` with ``isError`` — the same shape
+    every content-carrying tool will return once implemented (P6-4/P6-5).
+    """
+    subject = arguments.get("subject")
+    if not isinstance(subject, str):
+        return {
+            "error": {
+                "code": core.INVALID_REQUEST,
+                "message": "subject must be a string "
+                           "(expected: minor, real_person, fictional_adult, other)",
+                "retryable": False,
+            }
+        }
+    engine = core.PolicyEngine()
+    refusal = engine.check_explicit_request(subject)
+    if refusal is None:
+        return {"allowed": True, "subject": subject}
+    return {"error": refusal.to_dict()}
 
 
 def inspect_rig(arguments: dict) -> dict:
@@ -159,6 +208,8 @@ def call_tool(name: str, arguments: dict) -> dict:
         return inspect_rig(arguments)
     if name == "policy_status":
         return policy_status()
+    if name == "policy_check":
+        return policy_check(arguments)
     return {
         "error": {
             "code": "not_implemented",

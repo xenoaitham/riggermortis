@@ -46,7 +46,15 @@ from .fk_apply import (
     verify_application,
 )
 from .mapper import RigMapping, RoleAssignment, map_rig
-from .policy import ContentCategory, PolicyEngine, Refusal
+from .policy import (
+    ADULT_MODULE_DISABLED,
+    INVALID_REQUEST,
+    MINOR_CONTENT,
+    REAL_PERSON_EXPLICIT,
+    ContentCategory,
+    PolicyEngine,
+    Refusal,
+)
 from .review import (
     ReviewItem,
     joint_points,
@@ -92,6 +100,10 @@ __all__ = [
     "PolicyEngine",
     "Refusal",
     "ContentCategory",
+    "MINOR_CONTENT",
+    "REAL_PERSON_EXPLICIT",
+    "ADULT_MODULE_DISABLED",
+    "INVALID_REQUEST",
     "RiggermortisError",
     "RigLoadError",
     "MappingError",

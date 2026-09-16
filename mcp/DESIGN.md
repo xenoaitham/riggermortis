@@ -24,7 +24,8 @@ over a local socket to the Blender add-on.
 | `apply_style(scene, preset)` | Toon preset on EEVEE (anime/manga/cartoon) | `{preset, nodes_created}` |
 | `render(scene, mode, out)` | turntable / viewport / panel | `{path, duration_s, engine}` |
 | `compose_manga(layout, out_pdf)` | Panel layout → PDF/EPUB/PNG | `{pages, path}` |
-| `policy_status()` | Reports whether the 18+ module is enabled + hard lines | `{adult_module_enabled, defaults, hard_lines[]}` |
+| `policy_status()` | Reports whether the 18+ module is enabled + hard lines + the public refusal codes | `{adult_module_enabled, defaults, hard_lines[], refusal_codes[]}` |
+| `policy_check(subject)` | Evaluates a hypothetical content request; refused subjects return the structured refusal below | `{allowed: true}` or the refusal shape |
 
 ## Structured refusals (part of the API)
 
