@@ -312,7 +312,7 @@ The contact report (P2-4) becomes a lock in two coordinated halves:
   extensions manifest work, new API) should bump CI to an official 5.x
   tarball with actions/cache in one deliberate commit.
 
-## NEEDS-HUMAN queue (updated 2026-09-15 NEEDS-HUMAN-clearing run)
+## NEEDS-HUMAN queue (updated 2026-09-16 S8)
 
 - RETIRED — anime sourcing: set complete at 10/10 (SOURCES.md; Commons CC BY-SA crop provenance).
 - RETIRED — real Mixamo gate: closed via three.js Xbot.glb (0 corrections, D-012).
@@ -320,3 +320,4 @@ The contact report (P2-4) becomes a lock in two coordinated halves:
 - DONE — GitHub repo: https://github.com/xenoaitham/riggermortis (public, main, CI green).
 - REMAINS — PyPI upload: needs LO's PyPI account/token (docs/PUBLISHING.md, one command).
 - REMAINS — Blender Extensions upload: needs LO's blender.org account (docs/PUBLISHING.md).
+- NEW (S8) — P2-8 real walking clip: bounded search exhausted (mmpose demo.mp4 is 1 s @ 5 fps — too short; Commons yields POV city walks / news footage — wrong kind and provenance-hostile). Need: single person, full body, side-ish view, >= 3 s, steady fps, named license (or LO-owned with a provenance statement). Evidence sidecar: out/video_smoke/SOURCES.md. P2-8 proceeds on the synthetic-labeled instruments until then (do NOT relabel them real).
