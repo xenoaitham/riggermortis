@@ -8,8 +8,20 @@ the pose solve (canonical_pose), FK apply (fk_apply), and pose payloads
 """
 from __future__ import annotations
 
+from .action import (
+    ActionFrame,
+    CanonicalAction,
+    action_from_poses,
+    condition_action,
+)
 from .canonical import ALL_ROLES, CORE_ROLES, side_of
 from .canonical_pose import CanonicalPose
+from .contacts import (
+    ContactInterval,
+    ContactReport,
+    attach_contacts,
+    detect_contacts,
+)
 from .errors import (
     BridgeError,
     MappingError,
@@ -43,15 +55,23 @@ __all__ = [
     "__version__",
     "ALL_ROLES",
     "CORE_ROLES",
+    "ActionFrame",
     "BoneData",
     "BoneRotation",
+    "CanonicalAction",
     "CanonicalPose",
+    "ContactInterval",
+    "ContactReport",
     "PoseApplication",
     "RigData",
     "RigMapping",
     "RoleAssignment",
+    "action_from_poses",
     "apply_canonical_pose",
+    "attach_contacts",
     "bone_target_direction",
+    "condition_action",
+    "detect_contacts",
     "verify_application",
     "map_rig",
     "side_of",

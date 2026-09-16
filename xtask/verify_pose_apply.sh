@@ -256,6 +256,50 @@ def run_review(payload_path):
 
 ok &= run_review(os.path.join(os.environ["RM_PAYLOADS"], "metarig_payload.json"))
 
+# -- P2-3: 2-frame action bake — key two poses, re-evaluate BOTH from the curves
+def run_bake(payload_path):
+    """Bake frame 1 = payload pose, frame 2 = mirrored pose into a new action,
+    then re-measure each frame's bone world directions from the fcurve
+    evaluation (scene.frame_set), bar <= 0.5 deg per bone per frame."""
+    try:
+        with open(payload_path, encoding="utf-8") as fh:
+            payload = json.load(fh)
+        import riggermortis_addon.bake as bake  # noqa: E402
+
+        pose_a = core.CanonicalPose.from_dict(payload["pose"])
+        pose_b = pose_a.mirrored()
+        frames = [
+            core.ActionFrame(frame=0, pose=pose_a),
+            core.ActionFrame(frame=1, pose=pose_b),
+        ]
+        obj = first_armature()
+        report = bake.bake_action(obj, frames, core, name="rm_bake_gate")
+        baked_ok = report["baked_frames"] == [1, 2] and report["keys"] >= 24
+        print(
+            f"RM_BAKE BAKE: {'PASS' if baked_ok else 'FAIL'} "
+            f"frames={report['baked_frames']} keys={report['keys']} "
+            f"worst={report['worst_deg']:.4f}deg mapping={report['mapping_source']}"
+        )
+        evals = []
+        for frame_no, mirror in ((1, False), (2, True)):
+            bpy.context.scene.frame_set(frame_no)
+            checked, worst_role, worst_deg = measure(obj, payload["pose"], mirror)
+            evals.append((frame_no, checked, worst_role, worst_deg))
+        eval_ok = all(w <= TOL_DEG and c >= 12 for _f, c, _r, w in evals)
+        detail = " ".join(
+            f"f{f}:worst={w:.4f}deg({r}) checked={c}" for f, c, r, w in evals
+        )
+        print(f"RM_BAKE EVAL: {'PASS' if eval_ok else 'FAIL'} {detail}")
+        obj.animation_data_clear()
+        bpy.data.actions.remove(bpy.data.actions[report["action"]])
+        return baked_ok and eval_ok
+    except Exception as exc:  # noqa: BLE001
+        print(f"RM_BAKE: FAIL ({exc.__class__.__name__}: {exc})")
+        return False
+
+
+ok &= run_bake(os.path.join(os.environ["RM_PAYLOADS"], "metarig_payload.json"))
+
 print("RM_POSE_APPLY GATE:", "PASS" if ok else "FAIL")
 PY
 
@@ -276,6 +320,8 @@ grep -q "RM_MULTI_FIGURE: labels=" "$TMP/probe.log"
 grep -q "RM_REVIEW PICK: PASS" "$TMP/probe.log"
 grep -q "RM_REVIEW TOGGLE: PASS" "$TMP/probe.log"
 grep -q "RM_REVIEW TOGGLE_APPLY: PASS" "$TMP/probe.log"
+grep -q "RM_BAKE BAKE: PASS" "$TMP/probe.log"
+grep -q "RM_BAKE EVAL: PASS" "$TMP/probe.log"
 grep -q "RM_OVERLAY HANDLER: PASS" "$TMP/probe.log"
 grep -qE "RM_OVERLAY OFFSCREEN: (PASS|SKIPPED)" "$TMP/probe.log"
 grep -q "RM_POSE_APPLY GATE: PASS" "$TMP/probe.log"

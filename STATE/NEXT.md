@@ -1,36 +1,41 @@
 # NEXT SESSION SHOULD …
 
-1. **P2-3 keyframed retarget** (the Phase-2 core rock): canonical per-frame
-   payloads (already flowing from `rigpose pose-video`, P2-1) → a Blender
-   ACTION on the mapped rig: sample each payload's rotations onto frames,
-   root-motion option, wire `smoothing.reduce_keyframes` into the bake so
-   actions stay lean. Gate context: dance + fight clips playable on 3 rigs
-   (P2-8) needs this first. Extend `xtask/verify_pose_apply.sh` with a
-   2-frame action bake check (frame A → frame B, both within 0.5°).
-2. **P2-4 foot contact detection** (velocity + height heuristic on canonical
-   ankle positions from the job payloads) — the input to the foot-slide gate.
-3. If Phase-2 retarget lands early: **P3-3 structured policy refusals through
-   MCP** (the refusal shapes are already designed in mcp/DESIGN.md and the
-   skeleton answers structured errors — wire `riggermortis.policy` codes in),
-   or P3-5's loopback socket bridge.
+1. **P2-5 IK foot lock + ground-plane fit** — the pieces are staged: contact
+   intervals attach to the action (`contacts.attach_contacts`), the bake
+   lives in `addon/bake.py`, and the gate metric exists
+   (`contacts.foot_slide`; gate = ≥5× improvement, baseline instrument
+   verified). Lock each ankle's in-contact frames (per-interval position
+   hold or IK to a ground projection), re-measure `foot_slide` before/after
+   on a real clip, publish both numbers in docs/BENCHMARKS.md.
+2. **P2-6 motion denoise** (hip stabilization, jitter pass) — or P2-7 export
+   (Blender actions done; FBX/GLTF/VRMA via Blender where needed).
+3. **P3-3 structured policy refusals through MCP** — refusal shapes already
+   designed in mcp/DESIGN.md and mirrored by `riggermortis.policy`; wire the
+   gate + tests like any tool. P3-4 progress streaming is next after that.
 4. Cheap wins while gates run:
-   - anime benchmark set: 3 slots still open (out/benchmark/SOURCES.md has
-     the bar; drop LO-owned/CC0 art, rerun `python3 xtask/benchmark_poses.py`,
-     re-decide P1-8 at n=10 — the detector no-person rate is the number).
-   - windowed Blender screenshot (xtask/ui_screenshot.sh) is flaky ~3-in-4 on
-     this box (GL startup/teardown) — the one capture that succeeded is real
-     and verified; a second stable capture would be nice for README (P7-1).
+   - a second windowed UI screenshot attempt (`xtask/ui_screenshot.sh`) is
+     best-effort (flaky GL, ~1-in-4) — docs/media/ui_screenshot.png is now
+     committed + allowlisted, so a re-capture just replaces it (media-guard
+     pins the exact filename).
+   - P1-8a fallback estimator (anime detector gap: 3/10 no-person at n=10)
+     remains the Phase-1 follow-up when a licensing-clean candidate exists.
 
 Watch out for:
+- **noqa directives in files OUTSIDE core/**: ruff finds no repo config for
+  `addon/`/`xtask/` paths from the repo root, so defaults apply and ruff
+  0.16 validates noqa codes there (RUF100 fires for known-but-disabled
+  codes like PLC0415). core/src files resolve core/pyproject.toml and are
+  exempt. S6 rule: no `# noqa: <code>` comments in addon/xtask files.
+- Payload contract: v2 payloads MUST carry the `figures` list — video.py
+  writer was fixed in S6; `figure_entries` raises otherwise (the old
+  git-ignored jobs under out/video_smoke/{job,pjob} predate the fix and
+  fail honestly with "unreadable payload" notes; regenerate).
 - `make pose-verify` needs local assets (out/real_rigs/*, out/payloads/*,
-  out/benchmark/images/*) — all present as of S5; regenerate per
+  out/benchmark/images/*) — all present as of S6; regenerate per
   docs/BENCHMARKS.md reproduce blocks if you switch machines.
-- Payload format is **2** everywhere now (core payload.py is the single
-  contract: write v2, read v1+v2). The add-on, video jobs, and MCP all go
-  through it — don't read payload dicts ad hoc.
-- `CanonicalPose.toggled()` is the D-008 rescue primitive; review UI flip
-  state lives in the addon's session `manual_flips` (payload files stay
-  untouched).
+- Root motion stays unimplemented by design (D-008 hip anchoring) — don't
+  "fix" the bake by fabricating translation; P2-6 hip stabilization is the
+  honest path.
 - Windowed Blender under this box's GL segfaults on `space.show_region_ui`
   assignment from Python — do not reintroduce that in ui_screenshot.py.
 

@@ -209,19 +209,29 @@ def run_video_job(
             save_state(job_dir, [p.name for p in frames], stride,
                        str(frames_dir), str(rig_path), done, notes)
             continue
-        payload = {
-            "format": PAYLOAD_FORMAT,
-            "frame": index,
-            "file": frame.name,
-            "figure": {
-                "label": figure.label, "index": figure.index,
-                "score": round(figure.score, 4),
-                "bbox": [round(v, 2) for v in figure.bbox],
-            },
+        entry = {
+            "label": figure.label, "index": figure.index,
+            "score": round(figure.score, 4),
+            "bbox": [round(v, 2) for v in figure.bbox],
             "pose": pose.to_dict(),
             "rotations": [r.to_dict() for r in application.rotations],
             "skipped": list(application.skipped),
             "notes": list(application.notes),
+        }
+        meta = {k: entry[k] for k in ("label", "index", "score", "bbox")}
+        # Contract-valid v2 (payload.py is the single contract): the v1-shaped
+        # top-level mirrors plus a one-entry figures list — the video pipeline
+        # always solves exactly the largest figure.
+        payload = {
+            "format": PAYLOAD_FORMAT,
+            "frame": index,
+            "file": frame.name,
+            "figure": meta,
+            "pose": entry["pose"],
+            "rotations": entry["rotations"],
+            "skipped": entry["skipped"],
+            "notes": entry["notes"],
+            "figures": [entry],
             "rig": {"name": rig.name, "fingerprint": rig.fingerprint()},
         }
         (job_dir / rel_payload).write_text(

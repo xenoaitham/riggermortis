@@ -27,13 +27,25 @@ media-guard:
 		echo "media/ contains $$n committed file(s) — demo media is generated headlessly and never hand-committed" >&2; \
 		exit 1; \
 	fi; \
-	echo "media/ clean: no committed files"
+	for want in docs/media/boom.gif docs/media/ui_screenshot.png; do \
+		if ! git ls-files --error-unmatch "$$want" > /dev/null 2>&1; then \
+			echo "missing $$want — README hero artifact is a pipeline output (regen: bash xtask/render_boom.sh / xtask/ui_screenshot.sh)" >&2; \
+			exit 1; \
+		fi; \
+	done; \
+	extra=$$(git ls-files docs/media/ | grep -Fxv -e docs/media/boom.gif -e docs/media/ui_screenshot.png || true); \
+	if [ -n "$$extra" ]; then \
+		echo "docs/media/ contains unallowlisted file(s): $$extra — hero media is pinned to the two pipeline outputs" >&2; \
+		exit 1; \
+	fi; \
+	echo "media guard clean: media/ empty; docs/media/ = the 2 pinned pipeline outputs"
 
 # Full Phase 0 gate against a real local Blender (needs `make install` first)
 blender-verify:
 	bash xtask/blender_verify.sh
 
-# P1-6/P1-7 gate: payload apply + mirror + clear + review overlay on real rigs
+# P1-6/P1-7 gate + P2-3 bake gate: payload apply, mirror, clear, review
+# overlay, multi-figure switch, 2-frame action bake on real rigs
 # (needs downloaded models: rigpose models download all)
 pose-verify:
 	bash xtask/verify_pose_apply.sh

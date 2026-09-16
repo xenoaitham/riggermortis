@@ -121,10 +121,54 @@ solve (confidence 0.80, reliable) -> FK apply to the real metarig: 16
 rotations, worst error 0.0000 deg, sensible values (spine 14.5 deg, thighs
 ~60 deg for the wide stance in the photo).
 
+## Phase 2 — video pipeline instruments (session 6)
+
+Not benchmark numbers yet — the *instruments* Phase 2's gate will be measured
+with, plus their verification status. The gate itself (dance + fight clips × 3
+rigs, foot-slide metric improving ≥5× under IK foot lock) lands in P2-5/P2-8.
+
+### Keyframed retarget (P2-3)
+
+- Canonical action model (`core/action.py`): per-frame poses sampled from a
+  video job through the single payload contract; failed frames are carried in
+  a ledger and never interpolated (CI-tested with faked payloads).
+- Optional bake-time conditioning: 1€ smoothing per canonical channel
+  (min_cutoff=1.0, beta=0.0 defaults) + keyframe reduction with tolerance
+  defined as joint-position error in canonical units (P2-2 code, now wired;
+  determinism + input-immutability CI-tested).
+- Add-on bake: rotations keyed per frame into a NEW Blender action (mapping
+  computed once, `B = M⁻¹LM` conversion reused from the proven apply path).
+  Root motion is deliberately not baked — the single-view solve is
+  hip-anchored, so world translation would be fabricated.
+- **2-frame bake gate** (in `xtask/verify_pose_apply.sh`, real Blender 4.0.2
+  metarig): pose A keyed at frame 1, its mirror at frame 2, then BOTH frames
+  re-evaluated purely from the fcurves and measured against the canonical
+  targets — worst **0.0242° / 0.0242°** across 16 roles each (bar 0.5°).
+
+### Foot contact detection + slide metric (P2-4 / P2-5 instrument)
+
+- Detector (`core/contacts.py`): per-ankle speed + height-vs-ground
+  (nearest-rank percentile, self-normalizing) with Schmitt-trigger hysteresis
+  (enter 0.02 u/frame & 0.08 u; exit 0.06 u/frame or 0.20 u; order-of-magnitude
+  choices on the canonical scale, NOT fixture-fitted — D-008 discipline).
+  Gap frames split intervals honestly.
+- CI ground truth: synthetic 70-frame walk with known phases — **exact
+  interval match** when clean; precision/recall ≥ 0.9 each with realistic
+  wobble; determinism + scale-field invariance asserted; airborne → 0
+  contacts; missing frame → interval split with a note.
+- Slide metric (`contacts.foot_slide`): ankle path length traveled while in
+  contact (canonical units). This is P2-5's number to beat (gate: ≥5×
+  improvement under IK foot lock). Baseline instrument verified: planted
+  synthetic foot reads 0.0, drift reads nonzero and interval-bounded.
+- Live instrument smoke (git-ignored local data, NOT a benchmark): the S5
+  person clip re-run through the fixed payload writer — 5/5 frames loaded
+  through the contract, both feet correctly planted the whole clip, slide
+  0.0, conditioning reduced 5 → 2 frames (near-static clip).
+
 ## Planned (from the mission gates)
 
-- **Phase 1:** 20-image benchmark (10 photo, 10 anime) — ≥90% usable-straight-away poses.
-- **Phase 2:** dance + fight clips on 3 rigs; published foot-slide metric.
+- **Phase 2:** dance + fight clips on 3 rigs; foot-slide metric published
+  (baseline instrument above; ≥5× improvement gate in P2-5).
 - **Phase 5:** live-mode latency budget (<100 ms, mid laptop).
 - **Always:** network-audit test (zero outbound connections in default use).
 
