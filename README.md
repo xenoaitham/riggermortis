@@ -49,8 +49,11 @@ What exists **right now** (every claim cites a test, gate, or number):
   the labeled synthetic instrument; walk-in-place by design — no fabricated
   root motion) → motion denoise: hip stabilization + 1€ jitter pass
   (stabilization alone halves the breathing-induced stance slide on the
-  synthetic gate). Export and the clips×rigs GIFs are next; no GIF is
-  promised until the clips deserve one.
+  synthetic gate) → **FBX/glTF export with a verified round-trip** (skeleton,
+  animation, and pose fidelity re-measured after re-import at ≤2° — measured
+  ~0.02°, `make export-verify`; VRMA has no builtin exporter and is honestly
+  scoped in [docs/EXPORT.md](docs/EXPORT.md)). The clips×rigs GIFs are next;
+  no GIF is promised until the clips deserve one.
 - **MCP server skeleton** — stdio JSON-RPC 2.0 with declared tool schemas;
   `inspect_rig` and `policy_status` work today, animation tools answer
   structured `not_implemented` until they're real.

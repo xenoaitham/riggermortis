@@ -1,6 +1,6 @@
 PY ?= python3
 
-.PHONY: install test lint fixtures media-guard blender-verify pose-verify gate dist
+.PHONY: install test lint fixtures media-guard blender-verify pose-verify export-verify gate dist
 
 install:
 	$(PY) -m pip install -e "core[dev]"
@@ -49,6 +49,11 @@ blender-verify:
 # (needs downloaded models: rigpose models download all)
 pose-verify:
 	bash xtask/verify_pose_apply.sh
+
+# P2-7 export gate: bake → FBX/glTF → re-import round-trip on a real Blender
+# (self-contained: no models, no local assets)
+export-verify:
+	bash xtask/export_clip.sh
 
 gate: lint test media-guard blender-verify
 	@echo "PHASE 0 GATE: PASS"
