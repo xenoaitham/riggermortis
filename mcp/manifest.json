@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "name": "riggermortis",
+  "display_name": "riggermortis — local, rig-agnostic posing & animation for Blender",
+  "description": "MCP server + Blender add-on: drop a rigged model and a reference image and get the pose applied; drop a video job and get a foot-locked, walk-in-place animation. Drives Blender through domain tools with structured policy refusals. No cloud, no accounts, no uploads, ever.",
+  "version": "0.3.0",
+  "local_only": true,
+  "license": "MIT",
+  "repository": "https://github.com/xenoaitham/riggermortis",
+  "transport": {
+    "default": "stdio (newline-delimited JSON-RPC 2.0, zero sockets)",
+    "session_bridge": "opt-in loopback TCP on 127.0.0.1 ONLY; starts solely with --session-port AND --session-token"
+  },
+  "capabilities": {
+    "tools": true,
+    "progress_streaming": true,
+    "session_bridge": "per-process: true only when the bridge flags are given"
+  },
+  "tools": [
+    {"name": "inspect_rig", "status": "live"},
+    {"name": "policy_status", "status": "live"},
+    {"name": "policy_check", "status": "live"},
+    {"name": "map_rig", "status": "live"},
+    {"name": "pose_from_image", "status": "declared"},
+    {"name": "animate_from_video", "status": "live"},
+    {"name": "session_status", "status": "live"},
+    {"name": "enqueue_action", "status": "live"},
+    {"name": "action_result", "status": "live"}
+  ],
+  "notes": "This manifest is PROJECT metadata pinned by core/tests/test_mcp_server.py (tools and version must match the server module exactly). Official MCP registry submission fields get filled at submission time — account-bound, see docs/PUBLISHING.md."
+}

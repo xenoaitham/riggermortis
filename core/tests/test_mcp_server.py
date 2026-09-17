@@ -90,6 +90,32 @@ def test_server_declares_progress_streaming() -> None:
     assert info["capabilities"]["progress_streaming"] is True
 
 
+def test_registry_manifest_matches_the_server_exactly(tmp_path: Path) -> None:
+    """P3-8: mcp/manifest.json is project metadata for registry listings —
+    it may only claim what the code proves. The tool table must match the
+    golden schema name-for-name and status-for-status, and the version must
+    match SERVER_VERSION (bump both together)."""
+    manifest = json.loads((MCP_DIR / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["name"] == "riggermortis"
+    assert manifest["version"] == server.SERVER_VERSION
+    assert manifest["local_only"] is True
+    assert manifest["capabilities"]["progress_streaming"] is True
+    golden = [
+        {"name": tool["name"], "status": tool["status"]}
+        for tool in server.TOOL_SCHEMAS_V1
+    ]
+    assert manifest["tools"] == golden
+    live = {tool["name"] for tool in golden if tool["status"] == "live"}
+    assert live == {
+        "inspect_rig", "policy_status", "policy_check", "map_rig",
+        "animate_from_video",
+        "session_status", "enqueue_action", "action_result",
+    }
+    assert {"pose_from_image"} == {
+        tool["name"] for tool in golden if tool["status"] == "declared"
+    }
+
+
 # -- P3-4: progress streaming over a REAL canonical job --------------------------
 
 def _fake_video_job(tmp_path: Path, planned: int, done: set[int]) -> Path:
