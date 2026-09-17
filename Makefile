@@ -9,7 +9,7 @@ test:
 	cd core && $(PY) -m pytest tests
 
 lint:
-	$(PY) -m ruff check core/src core/tests addon/riggermortis_addon xtask/export_fixture_rigs.py xtask/build_rigify_rigs.py xtask/import_and_extract.py xtask/render_demos.py xtask/benchmark_poses.py xtask/foot_lock_gate.py xtask/hip_stab_gate.py
+	$(PY) -m ruff check core/src core/tests addon/riggermortis_addon xtask/export_fixture_rigs.py xtask/build_rigify_rigs.py xtask/import_and_extract.py xtask/render_demos.py xtask/benchmark_poses.py xtask/foot_lock_gate.py xtask/hip_stab_gate.py xtask/walk_media.py xtask/assemble_walk.py xtask/walk_docs.py
 
 fixtures:
 	$(PY) xtask/export_fixture_rigs.py
@@ -21,24 +21,27 @@ dist:
 	@python3 -m twine check dist/*
 	@rm -f core/README.md
 
+WALK_GIFS = docs/media/walk_lock_metarig.gif docs/media/walk_lock_seedsan.gif \
+	docs/media/walk_lock_xbot.gif docs/media/walk_3rigs.gif
+
 media-guard:
 	@n=$$(git ls-files media/ | wc -l); \
 	if [ "$$n" -ne 0 ]; then \
 		echo "media/ contains $$n committed file(s) — demo media is generated headlessly and never hand-committed" >&2; \
 		exit 1; \
 	fi; \
-	for want in docs/media/boom.gif docs/media/ui_screenshot.png; do \
+	for want in docs/media/boom.gif docs/media/ui_screenshot.png $(WALK_GIFS); do \
 		if ! git ls-files --error-unmatch "$$want" > /dev/null 2>&1; then \
-			echo "missing $$want — README hero artifact is a pipeline output (regen: bash xtask/render_boom.sh / xtask/ui_screenshot.sh)" >&2; \
+			echo "missing $$want — hero media is pinned to pipeline outputs (regen: bash xtask/render_boom.sh / xtask/ui_screenshot.sh / make walk-gifs)" >&2; \
 			exit 1; \
 		fi; \
 	done; \
-	extra=$$(git ls-files docs/media/ | grep -Fxv -e docs/media/boom.gif -e docs/media/ui_screenshot.png || true); \
+	extra=$$(git ls-files docs/media/ | grep -Fxv -e docs/media/boom.gif -e docs/media/ui_screenshot.png $(patsubst %,-e %,$(WALK_GIFS)) || true); \
 	if [ -n "$$extra" ]; then \
-		echo "docs/media/ contains unallowlisted file(s): $$extra — hero media is pinned to the two pipeline outputs" >&2; \
+		echo "docs/media/ contains unallowlisted file(s): $$extra — hero media is pinned to the pipeline outputs (extending the allowlist is a deliberate, documented change in the same commit as the media)" >&2; \
 		exit 1; \
 	fi; \
-	echo "media guard clean: media/ empty; docs/media/ = the 2 pinned pipeline outputs"
+	echo "media guard clean: media/ empty; docs/media/ = the 6 pinned pipeline outputs"
 
 # Full Phase 0 gate against a real local Blender (needs `make install` first)
 blender-verify:
@@ -54,6 +57,12 @@ pose-verify:
 # (self-contained: no models, no local assets)
 export-verify:
 	bash xtask/export_clip.sh
+
+# P2-8 walk media: labeled SYNTHETIC walk across 3 real rigs (raw|locked
+# bakes, headless renders, side-by-side GIFs into docs/media/, WALKRIGS docs
+# block). Needs LOCAL rigs (out/real_rigs/, git-ignored) — not a CI target.
+walk-gifs:
+	bash xtask/render_walk_gifs.sh
 
 gate: lint test media-guard blender-verify
 	@echo "PHASE 0 GATE: PASS"

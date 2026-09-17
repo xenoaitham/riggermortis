@@ -12,20 +12,22 @@ manga, or cartoon; lay scenes out into manga pages and comic PDFs.
 Everything runs on the user's machine: no cloud, no accounts, no uploads, no
 telemetry — and a CI test keeps that verifiably true.
 
-## Status: Phase 1 engine + UX shipped — Phase 2 (video → animation) in progress
+## Status: Phase 1 + Phase 2 shipped on honest numbers — Phase 3 (MCP) in progress
 
 | | |
 |---|---|
-| ![BOOM: rest → posed on a real Rigify metarig](docs/media/boom.gif) | ![Real Blender viewport: posed rig + review overlay](docs/media/ui_screenshot.png) |
+| ![BOOM: rest → posed on a real Rigify metarig](docs/media/boom.gif) | ![One synthetic walk retargeted to three real rigs, feet locked](docs/media/walk_3rigs.gif) |
 
 Left: the pipeline's own BOOM render — rest rig → solved pose applied through
 the add-on's apply path, regenerated headlessly by
 `bash xtask/render_boom.sh` (the pipeline refuses to pose anything it can't
-verify to ≤0.5° per bone before shooting). Right: a genuine windowed capture
-of the posed rig with the review overlay (`bash xtask/ui_screenshot.sh`;
-windowed Blender GL is flaky on some boxes — the capture is self-check-gated,
-never staged). Both are pipeline outputs; regenerate them yourself instead of
-trusting us.
+verify to ≤0.5° per bone before shooting). Right: the Phase-2 close — one
+labeled SYNTHETIC walk retargeted to three real rigs (Rigify | Seed-san VRM |
+Mixamo) through the documented cleanup pipeline, feet IK-locked during their
+plants; regenerated headlessly by `make walk-gifs`. Per-rig numbers and the
+honest synthetic-vs-real-clip status live in
+[docs/BENCHMARKS.md](docs/BENCHMARKS.md) — regenerate them yourself instead
+of trusting us.
 
 What exists **right now** (every claim cites a test, gate, or number):
 
@@ -41,22 +43,28 @@ What exists **right now** (every claim cites a test, gate, or number):
   confidence 0.66; legs verify, arms often need a one-click flip) — the
   review UI is the designed remedy, and the gap is decomposed in
   [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
-- **Video pipeline (Phase 2, underway)** — frame extraction (ffmpeg shell
-  glue) → per-frame detection/solve with crash-safe resume and an honest
-  failure ledger → **canonical actions** → keyframed retarget baked onto any
-  mapped rig (2-frame bake verified on a real rig at 0.024°/frame) → foot
-  contact detection with hysteresis → IK foot lock (slide 0.768 u → 0.000 on
-  the labeled synthetic instrument; walk-in-place by design — no fabricated
-  root motion) → motion denoise: hip stabilization + 1€ jitter pass
-  (stabilization alone halves the breathing-induced stance slide on the
-  synthetic gate) → **FBX/glTF export with a verified round-trip** (skeleton,
-  animation, and pose fidelity re-measured after re-import at ≤2° — measured
-  ~0.02°, `make export-verify`; VRMA has no builtin exporter and is honestly
-  scoped in [docs/EXPORT.md](docs/EXPORT.md)). The clips×rigs GIFs are next;
-  no GIF is promised until the clips deserve one.
-- **MCP server skeleton** — stdio JSON-RPC 2.0 with declared tool schemas;
-  `inspect_rig` and `policy_status` work today, animation tools answer
-  structured `not_implemented` until they're real.
+- **Video pipeline (Phase 2, closed on honest numbers)** — frame extraction
+  (ffmpeg shell glue) → per-frame detection/solve with crash-safe resume and
+  an honest failure ledger → **canonical actions** → keyframed retarget baked
+  onto any mapped rig (2-frame bake verified on a real rig at 0.024°/frame)
+  → foot contact detection with hysteresis → IK foot lock (the labeled
+  synthetic walk, retargeted to **three real rigs** through the add-on's real
+  bake: ankle drift within a plant drops **21×/12×/21×** on Rigify / VRM /
+  Mixamo rigs; walk-in-place by design — no fabricated root motion) →
+  motion denoise: hip stabilization + 1€ jitter pass (stabilization alone
+  halves the breathing-induced stance slide on the synthetic gate) →
+  **FBX/glTF export with a verified round-trip** (skeleton, animation, and
+  pose fidelity re-measured after re-import at ≤2° — measured ~0.02°,
+  `make export-verify`; VRMA has no builtin exporter and is honestly scoped
+  in [docs/EXPORT.md](docs/EXPORT.md)). Honest limits: the GIFs below are the
+  LABELED SYNTHETIC walk (generator cited; a licensing-clean real clip is
+  still NEEDS-HUMAN), and the "dance + fight clips" gate is recorded
+  NOT-met-with-real-clips in [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
+- **MCP server** — stdio JSON-RPC 2.0 with declared tool schemas and
+  **progress streaming** (`notifications/progress` with
+  phase/0..1/message per `mcp/DESIGN.md`); `inspect_rig`, `policy_status`,
+  `policy_check` and `animate_from_video`'s canonical half work today;
+  `pose_from_image` answers a structured `not_implemented` until it's real.
 - Content-policy module enforced in the core (SFW default; opt-in 18+ module
   with explicit confirmation; unconditional hard lines).
 
@@ -119,6 +127,14 @@ text: [docs/POLICY.md](docs/POLICY.md).
   data. The IK foot lock makes contacts walk-in-place; hip stabilization
   removes anchor-frame noise only — a steady per-frame drift is
   low-frequency by construction and is deliberately left to the lock.
+- All shipped animation media is the labeled SYNTHETIC walk: a
+  licensing-clean real walking clip is still NEEDS-HUMAN
+  (`out/video_smoke/SOURCES.md`), so the Phase-2 real-clip gate is recorded
+  NOT-met-with-real-clips — the GIFs demonstrate retarget + lock, not
+  real-clip quality.
+- glTF-imported rigs (VRM/Mixamo) can carry synthesized bone tails that
+  disagree with the skeleton — the walk pipeline repairs them when detected;
+  add-on import normalization is a planned follow-up (D-015).
 - Mapping assumes a humanoid-ish skeleton with roughly human proportions;
   quadrupeds are detected and flagged, not solved.
 - `.blend` reading shells out to the user's own Blender via an edge script —

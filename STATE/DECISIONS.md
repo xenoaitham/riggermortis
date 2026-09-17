@@ -312,6 +312,41 @@ The contact report (P2-4) becomes a lock in two coordinated halves:
   extensions manifest work, new API) should bump CI to an official 5.x
   tarball with actions/cache in one deliberate commit.
 
+## D-015 Phase-2 close: NOT-met-with-real-clips + the glTF tail finding (2026-09-17, S9)
+
+**The real-clip gate is NOT met, recorded like the Phase-1 close (D-011
+style).** "Dance + fight clips playable on 3 rigs" decomposes into: the
+PIPELINE is complete and verified end-to-end on real rigs (bake, contacts,
+lock, stabilization, export — every stage gate-published), the MEDIA ships as
+the labeled SYNTHETIC walk retargeted to 3 rigs (WALKRIGS block + 4 GIFs,
+generator-cited), and the REAL-CLIP half stays NEEDS-HUMAN (bounded search
+exhausted, out/video_smoke/SOURCES.md). Nothing is relabeled: the synthetic
+blocks (FOOTLOCK/HIPSTAB/WALKRIGS) stay labeled synthetic; a real clip
+re-runs the SAME instruments and re-opens the gate honestly.
+
+**Third-rig compatibility finding (the gate earned its keep again):** the
+Mixamo Xbot.glb's glTF-synthesized bone tails are ~100x the true joint
+spacing. Garbage tails broke three consumers: (1) the P2-5 2-bone lock solve
+(Bone.length as l1/l2 is WRONG on such rigs — bake.py now derives lengths
+from head-to-head rest distances of the chain bones; identical numbers on
+sane rigs, proven by the unchanged RM_FOOT_LOCK/RM_BAKE gates); (2) Blender's
+EVALUATED bone placement (posed children ladder away from their parents —
+the core-side FK verified 0.0000 deg while the evaluated rig was broken, so
+only a real-Blender per-rig gate catches this class); (3) the bone-proxy
+visualizer (built in armature space — now composed through the armature's
+world matrix). The walk media pipeline repairs tails WHEN they disagree with
+the skeleton (deterministic, conditional: sane rigs are bit-for-bit
+untouched). FOLLOW-UP (task P2-8a): the ADD-ON needs the same conditional
+tail normalization on VRM/glTF import — users posing imported rigs hit the
+same evaluated-placement breakage; not silently bundled into S9.
+
+**Cross-rig drift gate:** per-rig table gates on the PUBLISHED P2-5 >=5x
+slide-reduction criterion (scale-free; metarig 21x, seedsan 12x, xbot 21x).
+The RM_FOOT_LOCK 0.010 m absolute bar is shown as a context column, NOT the
+gate — it bakes in one rig's scale (seedsan misses it by ~5% on its 9
+clamp-cost frames while locking 12x). Published ratios and absolute numbers
+together; nothing hidden.
+
 ## NEEDS-HUMAN queue (updated 2026-09-16 S8)
 
 - RETIRED — anime sourcing: set complete at 10/10 (SOURCES.md; Commons CC BY-SA crop provenance).

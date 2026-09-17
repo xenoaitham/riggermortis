@@ -12,8 +12,9 @@ not re-map the rig per frame. Bones a frame's application does not mention
 interpolation, never a fabricated in-between.
 
 Foot contact lock (P2-5, optional ``contacts``): when a ContactReport is
-passed, every frame inside one of its contact intervals pins the planted
-foot's leg chain to its interval-start WORLD pose:
+passed, every frame inside one of its contact intervals pins each planted
+foot's leg chain (both feet on double-support frames) to its interval-start
+WORLD pose:
 
 - thigh + shin are re-solved per frame by a small 2-bone correction so the
   ANKLE (foot-bone head) stays at its captured world position — hips motion
@@ -97,12 +98,15 @@ def bake_action(
 
     _Y = Vector((0.0, 1.0, 0.0))
 
-    # P2-5: source frame -> (foot, interval index).
-    lock_at: dict[int, tuple[str, int]] = {}
+    # P2-5: source frame -> locked (foot role, interval index) list. BOTH
+    # feet on double-support frames — a single (foot, idx) per frame would
+    # silently unpin the other planted leg (caught by the P2-8 walk media
+    # pipeline, where stance phases overlap).
+    lock_at: dict[int, list[tuple[str, int]]] = {}
     if contacts is not None:
         for idx, interval in enumerate(contacts.intervals):
             for f in range(interval.start, interval.end + 1):
-                lock_at[f] = (interval.foot, idx)
+                lock_at.setdefault(f, []).append((interval.foot, idx))
 
     # Armature-space world matrix per bone, composed from the keyed bases and
     # carried across frames: W = P @ (Mp⁻¹ Mb) @ B equals exactly what the
@@ -126,10 +130,21 @@ def bake_action(
     worst_rad = 0.0
     skipped: set[str] = set()
 
-    def _rest_y_len(pb: Any) -> float:
-        # bone length is NOT in matrix_local's 3x3 (pure rotation) — it is
-        # the Bone.length property; getting this wrong poisons the 2-bone solve
-        return pb.bone.length
+    def _chain_len(side: str, parent_base: str, child_base: str) -> float | None:
+        """Rest segment length as the ACTUAL head-to-head distance between the
+        two chain bones. NOT Bone.length: glTF-imported rigs (VRM/Mixamo glb)
+        synthesize bone tails whose length is a convention — on the Mixamo glb
+        it is ~100x the true segment, which poisoned the 2-bone solve (P2-8
+        third-rig catch; metarig/seedsan tails happen to be sane)."""
+        pa = mapping.assignments.get(parent_base + side)
+        ca = mapping.assignments.get(child_base + side)
+        if pa is None or ca is None:
+            return None
+        p_bone = obj.pose.bones.get(pa.bone)
+        c_bone = obj.pose.bones.get(ca.bone)
+        if p_bone is None or c_bone is None:
+            return None
+        return (c_bone.bone.head_local - p_bone.bone.head_local).length
 
     def _key(pb: Any, basis: Any, frame_no: int) -> None:
         axis, angle = basis.to_quaternion().to_axis_angle()
@@ -216,18 +231,20 @@ def bake_action(
             if rad > worst_rad:
                 worst_role, worst_rad = role, rad
 
-        lock = lock_at.get(af.frame)
-        side = lock[0][-2:] if lock is not None else ""
-        cap = world0.setdefault(
-            lock, {"W": {}, "A0": None, "l1": None, "l2": None}
-        ) if lock is not None else None
+        lock = lock_at.get(af.frame, ())
         roles_present = {rot.role for rot in application.rotations}
-        can_pin = cap is not None and all(
-            f"{b}{side}" in roles_present
-            for b in ("upper_leg", "lower_leg", "foot")
-        )
+        caps: dict[str, dict[str, Any]] = {}
+        for foot_role, idx in lock:
+            side2 = foot_role[-2:]
+            if all(
+                f"{b}{side2}" in roles_present
+                for b in ("upper_leg", "lower_leg", "foot")
+            ):
+                caps[side2] = world0.setdefault(
+                    (foot_role, idx), {"W": {}, "A0": None, "l1": None, "l2": None}
+                )
         pinned_any = False
-        solved_knee: Any = None  # thigh solve -> shin reuse (depth order)
+        solved_knee: dict[str, Any] = {}  # per side: thigh solve -> shin reuse
 
         for rot in application.rotations:  # depth order: parents first
             pb = obj.pose.bones.get(rot.bone)
@@ -240,13 +257,11 @@ def bake_action(
             computed_q = final_basis.to_quaternion()
             final_world: Any = None
             base = rot.role.rsplit(".", 1)[0]
-            is_chain = (
-                cap is not None
-                and base in core.LOCK_CHAIN_BASES
-                and rot.role.endswith(side)
-            )
+            side = rot.role[-2:] if rot.role.endswith((".L", ".R")) else ""
+            cap = caps.get(side) if side else None
+            is_chain = cap is not None and base in core.LOCK_CHAIN_BASES
 
-            if is_chain and can_pin:
+            if is_chain:
                 w0 = cap["W"].get(rot.role)
                 if w0 is None:
                     # First locked frame of the interval: capture this
@@ -257,11 +272,11 @@ def bake_action(
                     if base == "foot":
                         cap["A0"] = w0.to_translation()
                     elif base == "lower_leg":
-                        cap["l2"] = _rest_y_len(pb)
+                        cap["l2"] = _chain_len(side, "lower_leg", "foot")
                     elif base == "upper_leg":
-                        cap["l1"] = _rest_y_len(pb)
+                        cap["l1"] = _chain_len(side, "upper_leg", "lower_leg")
                     pinned_any = True
-                elif base == "upper_leg" and cap["l2"] is not None:
+                elif base == "upper_leg" and cap["l1"] is not None and cap["l2"] is not None:
                     k_prov_w = _compose(pb, final_basis.to_4x4())
                     k_prov = (
                         k_prov_w.to_3x3() @ Vector((0.0, cap["l1"], 0.0))
@@ -271,19 +286,19 @@ def bake_action(
                         _head(pb), cap["A0"], k_prov, cap["l1"], cap["l2"],
                     )
                     lock_clamped += clamped
-                    solved_knee = knee
+                    solved_knee[side] = knee
                     dir_v = knee - _head(pb)
                     if dir_v.length > 1e-9:
                         final_world = _aligned_world(
                             pb, _head(pb), dir_v.normalized()
                         )
                         final_basis = _to_basis(pb, final_world).to_3x3()
-                elif base == "lower_leg" and solved_knee is not None:
+                elif base == "lower_leg" and solved_knee.get(side) is not None:
                     a0 = cap["A0"]
-                    dir_v = a0 - solved_knee
+                    dir_v = a0 - solved_knee[side]
                     if dir_v.length > 1e-9:
                         final_world = _aligned_world(
-                            pb, solved_knee, dir_v.normalized()
+                            pb, solved_knee[side], dir_v.normalized()
                         )
                         final_basis = _to_basis(pb, final_world).to_3x3()
                 elif base == "foot":

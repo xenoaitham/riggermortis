@@ -53,11 +53,29 @@ user can enable the module in preferences), `invalid_request`.
   `server_info()` with the contract version. Breaking changes bump the major
   version and keep the previous version available for one release cycle.
 
-## Progress streaming
+## Progress streaming (implemented, P3-4)
 
-Long tools (`animate_from_video`, `render`, `compose_manga`) stream progress
-notifications (`phase`, `0..1`, message) so agents can report status instead
-of hanging on a silent call.
+Long tools stream **`notifications/progress`** while they run:
+
+```json
+{"jsonrpc": "2.0", "method": "notifications/progress",
+ "params": {"progressToken": "tok-1", "progress": 0.65,
+            "phase": "contacts", "message": "5 contact interval(s) detected"}}
+```
+
+- The client requests tokens by passing `params._meta.progressToken` on
+  `tools/call`; without a token every tool runs identically and silently.
+- Notifications are emitted BEFORE the final response (stdio: written and
+  flushed line-by-line); `progress` is clamped 0..1, rounded to 3 decimals;
+  `phase` is a short ordered label (`load` -> `condition` -> `contacts` ->
+  `lock` -> `done` for `animate_from_video`).
+- Capability: `server_info().capabilities.progress_streaming = true`.
+- Current streaming tool: `animate_from_video` (canonical half — load the
+  job through the payload contract, stabilize -> detect -> lock, report
+  frames/coverage/foot-slide). Its rig-space BAKE stays honestly
+  `not_implemented` inside an otherwise successful result: it needs the
+  Blender add-on path (D-009). `render`/`compose_manga` stream the same way
+  once they exist.
 
 ## Example client config (Claude Desktop)
 

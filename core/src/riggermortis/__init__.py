@@ -14,6 +14,7 @@ from .action import (
     HipStabReport,
     action_from_poses,
     condition_action,
+    load_action,
     stabilize_hips,
 )
 from .canonical import ALL_ROLES, CORE_ROLES, side_of
@@ -97,6 +98,7 @@ __all__ = [
     "map_rig",
     "side_of",
     "stabilize_hips",
+    "load_action",
     "PolicyEngine",
     "Refusal",
     "ContentCategory",

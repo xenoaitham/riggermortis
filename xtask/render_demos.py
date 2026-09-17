@@ -103,21 +103,30 @@ def _setup_scene(metarig_blend: str):
     return armature
 
 
-def _add_bone_proxy_mesh(armature) -> None:
+def _add_bone_proxy_mesh(armature, bone_names=None) -> None:
     """One mesh visualizing every bone as an octahedron, deformed by the rig.
 
     Armature bones are viewport-only overlays — a plain render of an armature
     scene is an empty frame. This proxy is the honest stand-in: octahedrons in
     vertex groups named after their bones, driven by an armature modifier, so
-    the render shows exactly the pose the payload applied.
+    the render shows exactly the pose the payload applied. ``bone_names``
+    (optional) restricts the visualizer to that set — the walk media pipeline
+    passes the MAPPED bones, because unmapped rest bones (VRM hair/skirt
+    chains) are static clutter that drowns the motion.
     """
     import bpy
     from mathutils import Vector
 
     verts, faces, groups = [], [], []
+    # Compose bone coords through the armature's world matrix: imported rigs
+    # may carry object scale (the Mixamo glb imports at 0.01) — an
+    # armature-space proxy would be a giant the camera sits inside.
+    mw = armature.matrix_world
     for bone in armature.data.bones:
-        h = Vector(bone.head_local)
-        t = Vector(bone.tail_local)
+        if bone_names is not None and bone.name not in bone_names:
+            continue
+        h = mw @ Vector(bone.head_local)
+        t = mw @ Vector(bone.tail_local)
         length = (t - h).length
         if length <= 1e-9:
             continue
