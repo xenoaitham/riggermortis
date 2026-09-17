@@ -1,18 +1,22 @@
 #!/usr/bin/env bash
-# P3-5 session-bridge gate: the FULL loop with a real Blender as the add-on.
+# P3-5/P3-7 session-bridge gate: the FULL loop with a real Blender as the add-on.
 #
 # 1. starts the MCP server with the loopback bridge (--session-port/--session-token)
 # 2. acts as the agent over the server's stdio: enqueues inspect_scene,
-#    apply_pose (valid payload), apply_pose (deliberately missing payload)
+#    apply_pose (valid payload), apply_pose (deliberately missing payload),
+#    bake_action (P3-7: a contract-valid walk fixture job through the REAL
+#    add-on bake path under the certified composition), render_turntable (P3-7)
 # 3. runs xtask/session_probe.py headlessly in Blender: registers the add-on,
-#    connects the REAL session client, executes all three actions through the
-#    real main-thread executor (payload apply = the D-009 path)
-# 4. collects the structured results via action_result and validates them
+#    builds rig + payload + fixture job, connects the REAL session client,
+#    executes all five actions through the real main-thread executor
+# 4. collects the structured results via action_result and validates them:
+#    the bake's re-evaluated fcurves must land <= 0.5 deg (RM_BAKE instrument,
+#    unlocked roles; the locked-chain deviation is reported separately), the
+#    turntable must render its frames to disk
 #
-# Honest scope: the apply action must SUCCEED structurally (report with
-# applied bones + self-check numbers); pose-FIDELITY bars stay in
-# verify_pose_apply.sh (real payloads, real rigs). Self-contained: no models,
-# no local assets. Exits non-zero on the first failure.
+# Honest scope: self-contained (no models, no local assets); the walk fixture
+# job is SYNTHETIC (generator-cited, xtask/walk_job.py) — labeled, never
+# relabeled. Exits non-zero on the first failure.
 #
 # Run: make session-verify   (or: BLENDER=... PY=... bash xtask/session_verify.sh)
 set -euo pipefail
@@ -63,7 +67,7 @@ value = json.loads(sys.argv[1])
 print(eval(sys.argv[2], {"v": value}))' "$1" "$2"
 }
 
-echo "== 1/4 starting MCP server with the session bridge on 127.0.0.1:$PORT"
+echo "== 1/5 starting MCP server with the session bridge on 127.0.0.1:$PORT"
 sleep 0.3
 if ! kill -0 "$SERVER_PID" 2>/dev/null; then
   echo "error: server exited at startup:" >&2
@@ -71,29 +75,37 @@ if ! kill -0 "$SERVER_PID" 2>/dev/null; then
   exit 1
 fi
 
-echo "== 2/4 enqueueing three actions as the agent (stdio JSON-RPC)"
+echo "== 2/5 enqueueing five actions as the agent (stdio JSON-RPC)"
 rpc 1 enqueue_action '{"kind":"inspect_scene","params":{}}'
 rpc 2 enqueue_action '{"kind":"apply_pose","params":{"payload_path":"'"$TMP"'/stand.json","armature_name":"RM_SessionRig"}}'
 rpc 3 enqueue_action '{"kind":"apply_pose","params":{"payload_path":"'"$TMP"'/missing.json","armature_name":"RM_SessionRig"}}'
+rpc 4 enqueue_action '{"kind":"bake_action","params":{"job_dir":"'"$TMP"'/walkjob","armature_name":"RM_SessionRig"}}'
+rpc 5 enqueue_action '{"kind":"render_turntable","params":{"out_dir":"'"$TMP"'/turntable","armature_name":"RM_SessionRig","frames":4,"width":320,"height":240,"prefix":"gate"}}'
 A1=$(json_field "$(wait_line 1)" "v['result']['content'][0]['json']['action_id']")
 A2=$(json_field "$(wait_line 2)" "v['result']['content'][0]['json']['action_id']")
 A3=$(json_field "$(wait_line 3)" "v['result']['content'][0]['json']['action_id']")
-echo "   enqueued: $A1 $A2 $A3"
+A4=$(json_field "$(wait_line 4)" "v['result']['content'][0]['json']['action_id']")
+A5=$(json_field "$(wait_line 5)" "v['result']['content'][0]['json']['action_id']")
+echo "   enqueued: $A1 $A2 $A3 $A4 $A5"
 
-echo "== 3/4 running the real add-on client inside Blender (headless)"
+echo "== 3/5 running the real add-on client inside Blender (headless)"
 RM_SESSION_LOG="$TMP/blender.log"
-"$BLENDER" -b --python "$REPO/xtask/session_probe.py" -- "$PORT" "$TOKEN" "$TMP/stand.json" \
+"$BLENDER" -b --python "$REPO/xtask/session_probe.py" -- "$PORT" "$TOKEN" "$TMP/stand.json" "$TMP/walkjob" \
   > "$RM_SESSION_LOG" 2>&1 || { cat "$RM_SESSION_LOG" >&2; exit 1; }
 grep -q "RM_SESSION_PROBE OK" "$RM_SESSION_LOG" || { cat "$RM_SESSION_LOG" >&2; exit 1; }
 grep "RM_SESSION_PROBE OK" "$RM_SESSION_LOG"
 
-echo "== 4/4 collecting the structured results (the agent half)"
+echo "== 4/5 collecting the structured results (the agent half)"
 rpc 4 action_result "{\"action_id\":\"$A1\"}"
 rpc 5 action_result "{\"action_id\":\"$A2\"}"
 rpc 6 action_result "{\"action_id\":\"$A3\"}"
-R1=$(wait_line 4)
-R2=$(wait_line 5)
-R3=$(wait_line 6)
+rpc 7 action_result "{\"action_id\":\"$A4\"}"
+rpc 8 action_result "{\"action_id\":\"$A5\"}"
+R1=$(wait_line 6)
+R2=$(wait_line 7)
+R3=$(wait_line 8)
+R4=$(wait_line 9)
+R5=$(wait_line 10)
 
 check() { # RESPONSE PYEXPR DESCRIPTION
   local got
@@ -124,9 +136,41 @@ check "$R3" "v['result']['content'][0]['json']['error']['code'] == 'executor_err
 check "$R3" "'hint' in v['result']['content'][0]['json']['error']['message'] or 'payload' in v['result']['content'][0]['json']['error']['message']" \
   "failure message is actionable"
 
+# -- P3-7: bake_action through the REAL add-on bake path -----------------------
+check "$R4" "v['result']['content'][0]['json']['status'] == 'done'" \
+  "bake_action completed through the real P2-3/P2-5 path"
+check "$R4" "v['result']['content'][0]['json']['report']['reeval_worst_deg'] <= 0.5" \
+  "baked frames re-evaluate <= 0.5 deg (RM_BAKE instrument, unlocked roles)"
+check "$R4" "v['result']['content'][0]['json']['report']['locked_frames'] >= 1" \
+  "the contact lock pinned at least one frame"
+check "$R4" "v['result']['content'][0]['json']['report']['contacts']['intervals'] >= 1" \
+  "contact detection found the fixture walk's contacts"
+check "$R4" "v['result']['content'][0]['json']['report']['contacts']['slide_after_u'] <= v['result']['content'][0]['json']['report']['contacts']['slide_before_u']" \
+  "foot-slide did not increase through the certified composition"
+check "$R4" "v['result']['content'][0]['json']['report']['reeval_frames'] >= 2 and v['result']['content'][0]['json']['report']['reeval_checks'] > 0" \
+  "re-evaluation measured the baked frames"
+check "$R4" "'root motion' in ' '.join(v['result']['content'][0]['json']['report']['notes'])" \
+  "honest no-root-motion note travels in the report"
+
+# -- P3-7: render_turntable -----------------------------------------------------
+check "$R5" "v['result']['content'][0]['json']['status'] == 'done'" \
+  "render_turntable completed"
+check "$R5" "v['result']['content'][0]['json']['report']['frames_rendered'] == 4" \
+  "turntable rendered its four frames"
+check "$R5" "v['result']['content'][0]['json']['report']['played_action'] is True" \
+  "turntable played the baked action while orbiting"
+check "$R5" "v['result']['content'][0]['json']['report']['bones_visualized'] >= 12" \
+  "turntable visualized the mapped bone set"
+TURN_PNG=$(json_field "$R5" "v['result']['content'][0]['json']['report']['frames'][0]['path']")
+if [ ! -s "$TURN_PNG" ]; then
+  echo "error: turntable frame missing on disk: $TURN_PNG" >&2
+  exit 1
+fi
+echo "   ok: turntable frames on disk ($TURN_PNG)"
+
 # unknown action_id -> structured invalid_request, isError flagged
 rpc 9 action_result "{\"action_id\":\"a-9999\"}"
-R9=$(wait_line 7)
+R9=$(wait_line 11)
 check "$R9" "v['result']['isError'] is True" "unknown action_id is a structured error"
 check "$R9" "v['result']['content'][0]['json']['error']['code'] == 'invalid_request'" \
   "unknown action_id answers invalid_request"
@@ -138,4 +182,4 @@ if [ -s "$TMP/server.err.log" ]; then
 fi
 
 echo ""
-echo "P3-5 SESSION GATE: PASS"
+echo "P3-5/P3-7 SESSION GATE: PASS"

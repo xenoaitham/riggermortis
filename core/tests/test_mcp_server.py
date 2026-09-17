@@ -206,6 +206,35 @@ def test_animate_from_video_without_token_runs_silently(tmp_path: Path) -> None:
     assert value["canonical"]["coverage"] == 0.75
 
 
+def test_animate_from_video_bake_field_points_at_the_session_action(
+    tmp_path: Path,
+) -> None:
+    """P3-7: on a session-enabled server the bake field answers
+    ``session_action`` with the enqueue recipe. The stdio-only path keeps
+    the honest ``not_implemented`` (covered above — those tests run without
+    a session runtime)."""
+    import session_bridge as bridge
+
+    server.set_session_runtime(
+        server.SessionRuntime(bridge.SessionHub("unit-test-token"), 0)
+    )
+    try:
+        rig_path = tmp_path / "rig.json"
+        rigify_rig().to_json(rig_path)
+        job = _fake_video_job(tmp_path, planned=2, done={0, 1})
+        response = _rpc("tools/call", params={
+            "name": "animate_from_video",
+            "arguments": {"rig": str(rig_path), "job_dir": str(job)},
+        })
+        value = response["result"]["content"][0]["json"]
+        assert response["result"]["isError"] is False
+        assert value["bake"]["status"] == "session_action"
+        assert "enqueue_action" in value["bake"]["message"]
+        assert "bake_action" in value["bake"]["message"]
+    finally:
+        server.set_session_runtime(None)
+
+
 def test_animate_from_video_missing_job_is_a_structured_error(
     tmp_path: Path,
 ) -> None:

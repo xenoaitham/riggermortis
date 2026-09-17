@@ -9,7 +9,7 @@ test:
 	cd core && $(PY) -m pytest tests
 
 lint:
-	$(PY) -m ruff check core/src core/tests addon/riggermortis_addon mcp/riggermortis_mcp.py mcp/session_bridge.py xtask/export_fixture_rigs.py xtask/build_rigify_rigs.py xtask/import_and_extract.py xtask/render_demos.py xtask/benchmark_poses.py xtask/foot_lock_gate.py xtask/hip_stab_gate.py xtask/walk_media.py xtask/assemble_walk.py xtask/walk_docs.py xtask/session_probe.py
+	$(PY) -m ruff check core/src core/tests addon/riggermortis_addon mcp/riggermortis_mcp.py mcp/session_bridge.py xtask/export_fixture_rigs.py xtask/build_rigify_rigs.py xtask/import_and_extract.py xtask/render_demos.py xtask/benchmark_poses.py xtask/foot_lock_gate.py xtask/hip_stab_gate.py xtask/walk_media.py xtask/assemble_walk.py xtask/walk_docs.py xtask/session_probe.py xtask/walk_job.py
 
 fixtures:
 	$(PY) xtask/export_fixture_rigs.py
@@ -64,11 +64,19 @@ export-verify:
 walk-gifs:
 	bash xtask/render_walk_gifs.sh
 
-# P3-5 session-bridge gate: MCP server loopback <-> REAL Blender add-on
-# client, enqueue -> execute -> structured result, self-contained
+# P3-5/P3-7 session-bridge gate: MCP server loopback <-> REAL Blender add-on
+# client, enqueue -> execute -> structured result, incl. the P3-7 bake_action
+# (real fixture job, re-eval <= 0.5 deg) and render_turntable — self-contained
 # (no models, no local assets). Starts nothing external: 127.0.0.1 only.
 session-verify:
 	bash xtask/session_verify.sh
+
+# P3-7 agent demo (the launch asset): a scripted agent over the server's
+# stdio drives a live Blender inspect -> pose -> animate -> turntable on the
+# LOCAL rigs; GIF + transcript into docs/. Needs out/real_rigs/ + models
+# (git-ignored) — not a CI target.
+agent-demo:
+	bash xtask/agent_demo.sh
 
 gate: lint test media-guard blender-verify session-verify
 	@echo "PHASE 0 GATE: PASS"

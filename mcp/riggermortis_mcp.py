@@ -122,8 +122,8 @@ TOOL_SCHEMAS_V1: list[dict] = [
                        "(stabilize -> detect -> lock, the certified "
                        "composition) with progress notifications; returns the "
                        "action summary + foot-slide metrics. The rig-space "
-                       "BAKE stays not_implemented (it needs the Blender "
-                       "add-on path, D-009)",
+                       "BAKE is the bake_action session action (P3-7): the "
+                       "bake field points at it on session-enabled servers",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -148,9 +148,10 @@ TOOL_SCHEMAS_V1: list[dict] = [
         "name": "enqueue_action",
         "status": "live",
         "description": "Enqueue an action for the live Blender add-on "
-                       "(kinds: inspect_scene, apply_pose, bake_action); "
-                       "returns the action_id — collect via action_result. "
-                       "Needs the server started with --session-port/--session-token",
+                       "(kinds: inspect_scene, apply_pose, bake_action, "
+                       "render_turntable); returns the action_id — collect "
+                       "via action_result. Needs the server started with "
+                       "--session-port/--session-token",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -403,6 +404,28 @@ def animate_from_video(arguments: dict, progress=None) -> dict:
     coverage = round(len(conditioned.frames) / planned, 4) if planned else 0.0
     if progress is not None:
         progress.report("done", 1.0, "canonical action ready")
+    # P3-7: the rig-space half is the bake_action SESSION action. Per-process
+    # honesty: a session-enabled server points at it; a stdio-only server
+    # says so (this process has no Blender either way).
+    runtime = get_session_runtime()
+    if runtime is not None:
+        bake_field = {
+            "status": "session_action",
+            "message": "rig-space baking runs in the Blender add-on: "
+                       "enqueue_action kind=bake_action "
+                       "{job_dir, armature_name?} and collect via "
+                       "action_result",
+            "retryable": False,
+        }
+    else:
+        bake_field = {
+            "status": "not_implemented",
+            "message": "rig-space baking runs in the Blender add-on (D-009); "
+                       "this server has no session bridge — restart with "
+                       "--session-port/--session-token and enqueue "
+                       "bake_action, or bake via the add-on",
+            "retryable": False,
+        }
     return {
         "canonical": {
             "frames": len(conditioned.frames),
@@ -414,13 +437,7 @@ def animate_from_video(arguments: dict, progress=None) -> dict:
             "unit": "canonical u (single-view, scale-normalized; not cm)",
             "notes": list(action.notes) + list(conditioned.notes)[-2:],
         },
-        "bake": {
-            "status": "not_implemented",
-            "message": "rig-space baking runs in the Blender add-on (D-009); "
-                       "load this job there, or export via the make "
-                       "export-verify path",
-            "retryable": False,
-        },
+        "bake": bake_field,
     }
 
 

@@ -77,10 +77,13 @@ Long tools stream **`notifications/progress`** while they run:
 - Capability: `server_info().capabilities.progress_streaming = true`.
 - Current streaming tool: `animate_from_video` (canonical half — load the
   job through the payload contract, stabilize -> detect -> lock, report
-  frames/coverage/foot-slide). Its rig-space BAKE stays honestly
-  `not_implemented` inside an otherwise successful result: it needs the
-  Blender add-on path (D-009). `render`/`compose_manga` stream the same way
-  once they exist.
+  frames/coverage/foot-slide). Since P3-7 the rig-space half exists as the
+  `bake_action` SESSION action: on a server with the session bridge enabled
+  the result's `bake` field answers `status: "session_action"` with the
+  enqueue recipe (`enqueue_action kind=bake_action {job_dir, armature_name?}`,
+  collect via `action_result`); on a stdio-only server it stays honestly
+  `not_implemented` (the server process has no Blender). `render`/
+  `compose_manga` stream the same way once they exist.
 
 ## Example client config (Claude Desktop)
 
@@ -194,7 +197,8 @@ queued ──poll claims──> dispatched ──result──> done | failed
 |---|---|---|---|
 | `inspect_scene` | live | `{}` | armature inventory: name, bone count, mapped-role count per object |
 | `apply_pose` | live | `payload_path`, `armature_name?`, `mirror?` | the add-on's REAL payload-apply path (D-009) on the named (or active) armature; full structured report incl. per-bone self-check |
-| `bake_action` | declared | `{}` | honestly answers `not_implemented` through the full queue round trip (lands with P3-7) |
+| `bake_action` | live (P3-7) | `job_dir`, `armature_name?`, `hip_stabilize?` (0..1 \| null, default 0.7), `action_name?` | the add-on's REAL bake path (P2-3/P2-5) over a video job: conditional tail repair FIRST (D-016 — repair changes rest tails, so it precedes any posing) -> `core.load_action(job_dir)` through the payload contract (D-009) -> the certified composition `condition_action(hip_stabilize=…, min_cutoff=None, tolerance=None)` -> `detect_contacts` -> `lock_feet` -> `bake_action(contacts=…)`. The report carries the bake's FK self-check (`worst_deg`, measured on the UNLOCKED application), the lock cost columns (`locked_frames`, `lock_dev_deg`, `lock_clamped`), the contact summary (`intervals`, slide before/after in canonical u), and the P3-7 gate number: `reeval_worst_deg` — every baked frame is re-set (`scene.frame_set`) and the fcurve evaluation re-measured against the frame's canonical targets (`bone_target_direction`), the RM_BAKE instrument. Bars are asserted by the GATE (`xtask/session_verify.sh`: reeval <= 0.5 deg), not silently by the executor. Root motion stays unbaked (D-008 hip-anchored solve; walk-in-place is the accepted baseline). |
+| `render_turntable` | live (P3-7) | `out_dir`, `armature_name?`, `frames?` (2..120, default 24), `width?`/`height?` (default 640x480), `play_action?` (default true), `prefix?` | headless-safe turntable render of the named (or active) armature with the bone-proxy visualizer (armature bones do not render): octahedron proxy over the MAPPED bones composed through `matrix_world` (imported rigs carry object scale), workbench engine, FLAT unlit shading + an explicit background world (the S9 staging lessons — STUDIO/sun silhouettes from some angles and glTF worlds can swallow the frame), camera target = the deformed proxy's depsgraph bound-box center. With `play_action` and a baked action present, orbit step i also advances the scene frame cyclically through the baked range (the launch-GIF shot: the rig walks in place while the camera comes around); otherwise it renders the current state. `out_dir` is confined to the Blender process cwd or the system temp dir; `..` segments are refused. PNG frames + report `{out_dir, engine, size, played_action, frames[]}`; GIF assembly stays OUTSIDE Blender (shell glue, media rule). Staging mirrors `xtask/render_demos.py` (the xtask-side origin); the session copy lives in `addon/riggermortis_addon/turntable.py` because a real user's Blender has only the add-on on sys.path. |
 
 Executor errors are ALWAYS structured (`{"ok": false, "error": {code,
 message}}`, actionable `message` — never a traceback over the socket).
@@ -226,3 +230,30 @@ message}}`, actionable `message` — never a traceback over the socket).
   shell glue, enqueues `inspect_scene` + a deliberately-failing `apply_pose`,
   and a headless Blender runs the REAL add-on client; the agent side
   collects both results (one done, one honestly failed) over stdio.
+
+### P3-7 — the E2E agent demo (Phase-3 gate)
+
+The demo IS the Phase-3 acceptance: a real MCP client over the server's
+stdio, zero human Blender interaction, driving a live Blender through
+inspect → pose → animate → render turntable, all collected via
+`action_result`. Two artifacts, honest about their inputs:
+
+- **Gate** (`make session-verify`, CI): self-contained. The probe builds a
+  contract-valid walk-shaped fixture job (`xtask/walk_job.py` serializing
+  the published HIPSTAB generator through the payload contract — same
+  SYNTHETIC labeling as every walk instrument), then the agent enqueues
+  five actions: `inspect_scene`, `apply_pose` (valid), `apply_pose`
+  (deliberately missing payload), `bake_action` (the fixture job),
+  `render_turntable`. Asserts: bake done with `reeval_worst_deg <= 0.5`,
+  locked frames >= 1, honest failure on the missing payload, turntable
+  report with rendered files on disk.
+- **Demo** (`make agent-demo`, local — needs the git-ignored rigs): the
+  same protocol over the REAL metarig + a real photo payload, the motion
+  from the labeled synthetic walk job (real-clip NEEDS-HUMAN stands), the
+  transcript committed to `docs/AGENT_DEMO.md` (token redacted), the
+  assembled turntable GIF committed under `docs/media/` with the
+  media-guard allowlist extended in the same commit.
+
+Agent honesty: the "agent" in both artifacts is a deterministic shell
+JSON-RPC client (the session_verify glue) — a real MCP client speaking the
+real protocol, not an LLM improvising. Nothing is labeled otherwise.

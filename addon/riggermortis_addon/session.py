@@ -29,7 +29,7 @@ import socket
 import threading
 from typing import Any
 
-from . import pose_apply, tails
+from . import bpy_bridge, pose_apply, tails
 
 PROTOCOL_VERSION = 1
 LOOPBACK_HOST = "127.0.0.1"
@@ -38,7 +38,9 @@ POLL_MAX = 8
 RECONNECT_MIN = 0.5
 RECONNECT_MAX = 5.0
 #: Known action kinds — mirrors mcp/session_bridge.KNOWN_ACTION_KINDS v1.
-KNOWN_ACTION_KINDS = ("inspect_scene", "apply_pose", "bake_action")
+KNOWN_ACTION_KINDS = (
+    "inspect_scene", "apply_pose", "bake_action", "render_turntable",
+)
 
 _STATE: dict[str, Any] = {}
 
@@ -209,13 +211,9 @@ def execute_action(action: dict[str, Any]) -> dict[str, Any]:
         if kind == "inspect_scene":
             return {"ok": True, "report": _exec_inspect_scene(params)}
         if kind == "bake_action":
-            return {"ok": False, "error": {
-                "code": "not_implemented",
-                "message": "bake_action is declared but not implemented "
-                           "(lands with P3-7; meanwhile bake via the add-on "
-                           "bake path or make export-verify)",
-                "retryable": False,
-            }}
+            return {"ok": True, "report": _exec_bake_action(params)}
+        if kind == "render_turntable":
+            return {"ok": True, "report": _exec_render_turntable(params)}
         return {"ok": False, "error": {
             "code": "unknown_action_kind",
             "message": f"unknown action kind: {kind!r}",
@@ -230,13 +228,10 @@ def execute_action(action: dict[str, Any]) -> dict[str, Any]:
         }}
 
 
-def _exec_apply_pose(params: dict[str, Any]) -> dict[str, Any]:
-    """The REAL payload-apply path (D-009) — same machinery as Apply Pose."""
+def _resolve_armature(name: Any):
+    """The named (or active) armature — the shared executor resolution."""
     import bpy
 
-    root = importlib.import_module(__package__)
-    payload = root._load_payload(str(params.get("payload_path") or ""))
-    name = params.get("armature_name")
     if name:
         obj = bpy.data.objects.get(str(name))
     else:
@@ -247,6 +242,25 @@ def _exec_apply_pose(params: dict[str, Any]) -> dict[str, Any]:
             else "no armature selected (hint: pass armature_name, or set the "
                  "active object to the rig first)"
         )
+    return obj
+
+
+def _import_core():
+    """The core package inside Blender (pip-installed or on sys.path)."""
+    try:
+        return importlib.import_module("riggermortis")
+    except ImportError as exc:
+        raise ImportError(bpy_bridge.CORE_MISSING_HINT) from exc
+
+
+def _exec_apply_pose(params: dict[str, Any]) -> dict[str, Any]:
+    """The REAL payload-apply path (D-009) — same machinery as Apply Pose."""
+    import bpy
+
+    payload = importlib.import_module(__package__)._load_payload(
+        str(params.get("payload_path") or "")
+    )
+    obj = _resolve_armature(params.get("armature_name"))
     report = pose_apply.apply_payload(
         obj, payload,
         mirror=bool(params.get("mirror", False)),
@@ -284,6 +298,160 @@ def _exec_inspect_scene(_params: dict[str, Any]) -> dict[str, Any]:
         })
     armatures.sort(key=lambda a: a["name"])  # deterministic for a given scene
     return {"armatures": armatures, "count": len(armatures)}
+
+
+def _exec_bake_action(params: dict[str, Any]) -> dict[str, Any]:
+    """The REAL bake path (P2-3/P2-5) over a video job (P3-7).
+
+    Certified composition (stabilize -> detect -> lock, min_cutoff=None) —
+    the same composition the CI gate and the MCP animate tool run — then the
+    add-on bake with the contact lock, then the RM_BAKE instrument: every
+    baked frame is re-set and the fcurve evaluation re-measured against the
+    frame's canonical targets. FK fidelity (<= 0.5 deg bar, gate-asserted)
+    is reported over the UNLOCKED roles; locked-chain roles on contact
+    frames deviate BY DESIGN (the plant pin) and are reported separately as
+    ``reeval_lock_dev_deg`` — the evaluated twin of the bake's lock_dev_deg.
+    """
+    from pathlib import Path
+
+    core = _import_core()
+    from . import bake as bake_mod
+
+    obj = _resolve_armature(params.get("armature_name"))
+    job_dir = str(params.get("job_dir") or "")
+    if not job_dir or not Path(job_dir).is_dir():
+        raise ValueError(
+            f"job_dir not found: {job_dir!r} (hint: pass the video job "
+            "directory written by rigpose pose-video — it contains job.json)"
+        )
+    strength = params.get("hip_stabilize", 0.7)
+    if strength is not None and (
+        isinstance(strength, bool) or not isinstance(strength, (int, float))
+        or not 0.0 <= float(strength) <= 1.0
+    ):
+        raise ValueError(
+            "hip_stabilize must be a number in [0, 1] or null "
+            f"(got {strength!r})"
+        )
+    action_name = str(params.get("action_name") or "rm_bake")
+
+    # D-016 order: tail repair BEFORE any posing — the repair edits rest
+    # tails, which invalidates stored rotations if done afterwards.
+    tails_repaired = tails.normalize_imported_tails(obj)
+
+    action = core.load_action(Path(job_dir))
+    if not action.frames:
+        raise ValueError(
+            f"the job produced no usable frames ({len(action.failed)} failed; "
+            "hint: check job.json's failure ledger — failed frames are never "
+            "fabricated)"
+        )
+    conditioned = core.condition_action(
+        action, hip_stabilize=strength, min_cutoff=None, tolerance=None,
+    )
+    contacts = core.detect_contacts(conditioned.frames)
+    locked, lock = core.lock_feet(conditioned, contacts)
+    baked = bake_mod.bake_action(
+        obj, locked.frames, core, name=action_name, contacts=contacts,
+    )
+
+    # Frames x side of the plant pins — the re-eval's honest classifier.
+    lock_at: set[tuple[int, str]] = set()
+    for interval in contacts.intervals:
+        for f in range(interval.start, interval.end + 1):
+            lock_at.add((f, interval.foot[-2:]))
+
+    import math
+
+    import bpy
+    from mathutils import Vector
+
+    mapping = pose_apply.mapping_from_props(obj, core) or core.map_rig(
+        core.RigData.from_dict(bpy_bridge.rig_data_from_armature(obj))
+    )
+    scene = bpy.context.scene
+    worst_role, worst_deg = "", 0.0
+    lock_role, lock_deg = "", 0.0
+    checks = 0
+    for af in locked.frames:
+        scene.frame_set(af.frame + 1)  # the bake's default frame_offset
+        bpy.context.view_layer.update()
+        for role, assignment in sorted(mapping.assignments.items()):
+            target = core.bone_target_direction(af.pose, role)
+            if target is None:
+                continue
+            pb = obj.pose.bones.get(assignment.bone)
+            if pb is None:
+                continue
+            d = pb.matrix.to_3x3() @ Vector((0.0, 1.0, 0.0))
+            d.normalize()
+            dot = max(-1.0, min(1.0, d.dot(Vector(target))))
+            deg = math.degrees(math.acos(dot))
+            base = role.rsplit(".", 1)[0]
+            side = role[-2:] if role.endswith((".L", ".R")) else ""
+            is_locked = (
+                (af.frame, side) in lock_at and base in core.LOCK_CHAIN_BASES
+            )
+            checks += 1
+            if is_locked:
+                if deg > lock_deg:
+                    lock_role, lock_deg = role, deg
+            elif deg > worst_deg:
+                worst_role, worst_deg = role, deg
+
+    return {
+        **baked,
+        "job_dir": job_dir,
+        "hip_stabilize": strength,
+        "tails_repaired": tails_repaired,
+        "contacts": {
+            "intervals": len(contacts.intervals),
+            "slide_before_u": round(lock.slide_before.total, 4),
+            "slide_after_u": round(lock.slide_after.total, 4),
+            "unit": "canonical u (single-view, scale-normalized)",
+        },
+        "reeval_worst_deg": worst_deg,
+        "reeval_worst_role": worst_role,
+        "reeval_lock_dev_deg": lock_deg,
+        "reeval_lock_role": lock_role,
+        "reeval_checks": checks,
+        "reeval_frames": len(locked.frames),
+    }
+
+
+def _exec_render_turntable(params: dict[str, Any]) -> dict[str, Any]:
+    """The P3-7 turntable: bone-proxy staging (FLAT + explicit world) around
+    the named (or active) armature; everything staged is restored."""
+    from . import turntable
+
+    core = _import_core()
+    obj = _resolve_armature(params.get("armature_name"))
+    raw_out = params.get("out_dir")
+    if not isinstance(raw_out, str) or not raw_out.strip():
+        raise ValueError(
+            "out_dir is required (hint: an absolute path inside the Blender "
+            "process cwd or the system temp dir)"
+        )
+    out_dir = turntable.safe_out_dir(raw_out)
+
+    def _int(key: str, default: int) -> int:
+        value = params.get(key, default)
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ValueError(f"{key} must be an integer (got {value!r})")
+        return value
+
+    mapping = pose_apply.mapping_from_props(obj, core) or core.map_rig(
+        core.RigData.from_dict(bpy_bridge.rig_data_from_armature(obj))
+    )
+    bone_names = {a.bone for a in mapping.assignments.values()}
+    return turntable.render_turntable(
+        obj, bone_names, out_dir,
+        frames=_int("frames", 24),
+        width=_int("width", 640),
+        height=_int("height", 480),
+        play_action=bool(params.get("play_action", True)),
+        prefix=str(params.get("prefix") or "turn"),
+    )
 
 
 # ---------------------------------------------------------------------------

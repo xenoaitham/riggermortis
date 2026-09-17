@@ -1,14 +1,18 @@
-"""In-Blender probe for the P3-5 session gate (run INSIDE Blender, headless).
+"""In-Blender probe for the session gate (run INSIDE Blender, headless).
 
-Builds the gate rig, writes a contract-valid v2 payload for the apply action,
-registers the add-on, connects to the MCP server's loopback bridge, and pumps
-the main-thread executor until every enqueued action has a staged result.
-The AGENT-side half of the verification (collecting the structured results
-via ``action_result`` over the server's stdio) lives in
+Builds the gate rig, writes a contract-valid v2 payload for the apply action
+and a contract-valid walk fixture job for the bake action (P3-7, via
+``xtask/walk_job.py`` — the SYNTHETIC generator through the payload
+contract), registers the add-on, connects to the MCP server's loopback
+bridge, and pumps the main-thread executor until every enqueued action has a
+staged result. The AGENT-side half of the verification (collecting the
+structured results via ``action_result`` over the server's stdio) lives in
 ``xtask/session_verify.sh`` — this probe asserts the ADD-ON half: the client
-connects, claims, executes through the real apply path, and reports.
+connects, claims, executes through the real add-on machinery (payload apply
+= the D-009 path; bake = the P2-3/P2-5 path under the certified
+composition), and reports.
 
-Usage: blender -b --python xtask/session_probe.py -- PORT TOKEN PAYLOAD_OUT
+Usage: blender -b --python xtask/session_probe.py -- PORT TOKEN PAYLOAD_OUT JOB_DIR
 Exits 0 only if all expected actions were executed and staged.
 """
 from __future__ import annotations
@@ -22,8 +26,8 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "addon"))
 sys.path.insert(0, str(REPO / "core" / "src"))
 
-EXPECTED_ACTIONS = 3
-TIMEOUT_S = 60.0
+EXPECTED_ACTIONS = 5
+TIMEOUT_S = 120.0
 
 
 def build_gate_rig() -> str:
@@ -109,9 +113,22 @@ def write_stand_payload(out_path: str) -> None:
 def main() -> int:
     argv = sys.argv
     if "--" not in argv:
-        print("RM_SESSION_PROBE FAIL: expected -- PORT TOKEN PAYLOAD_OUT")
+        print("RM_SESSION_PROBE FAIL: expected -- PORT TOKEN PAYLOAD_OUT JOB_DIR")
         return 2
-    port_s, token, payload_out = argv[argv.index("--") + 1: argv.index("--") + 4]
+    args = argv[argv.index("--") + 1:]
+    if len(args) < 4:
+        print("RM_SESSION_PROBE FAIL: expected -- PORT TOKEN PAYLOAD_OUT JOB_DIR")
+        return 2
+    port_s, token, payload_out, job_dir = args[:4]
+
+    sys.path.insert(0, str(REPO / "xtask"))
+    import walk_job
+
+    stats = walk_job.build_walk_job(Path(job_dir))
+    print(
+        f"RM_SESSION_PROBE JOB: frames={stats['frames']} "
+        f"failed={stats['failed']} (SYNTHETIC generator-cited fixture)"
+    )
 
     rig_name = build_gate_rig()
     write_stand_payload(payload_out)
