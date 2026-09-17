@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "name": "anime",
+  "light_direction": [0.5, -0.4, 0.75],
+  "bands": {
+    "positions": [0.3, 0.62],
+    "colors": ["#232a36", "#4a6a99", "#eaf0f8"]
+  },
+  "rim": {
+    "facing": 0.7,
+    "start": 0.62,
+    "color": "#ffffff"
+  },
+  "notes": "cel-style three-band diffuse keyed to a fixed light direction, hard white rim"
+}

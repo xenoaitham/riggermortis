@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "name": "manga",
+  "light_direction": [0.35, -0.5, 0.8],
+  "bands": {
+    "positions": [0.45],
+    "colors": ["#101010", "#f5f5f0"]
+  },
+  "rim": {
+    "facing": 0.75,
+    "start": 0.7,
+    "color": "#000000"
+  },
+  "notes": "two-band ink-on-paper look; a DARK contour rim (halftones are P4-3, not faked here)"
+}

@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "name": "western",
+  "light_direction": [0.6, -0.3, 0.7],
+  "bands": {
+    "positions": [0.22, 0.48, 0.74],
+    "colors": ["#3a2a24", "#8a5a3c", "#c98d5f", "#f2d9b8"]
+  },
+  "rim": {
+    "facing": 0.6,
+    "start": 0.5,
+    "color": "#ffe9c4"
+  },
+  "notes": "four-band warm cartoon ramp with a soft warm rim"
+}
