@@ -9,7 +9,7 @@ test:
 	cd core && $(PY) -m pytest tests
 
 lint:
-	$(PY) -m ruff check core/src core/tests addon/riggermortis_addon xtask/export_fixture_rigs.py xtask/build_rigify_rigs.py xtask/import_and_extract.py xtask/render_demos.py xtask/benchmark_poses.py xtask/foot_lock_gate.py xtask/hip_stab_gate.py xtask/walk_media.py xtask/assemble_walk.py xtask/walk_docs.py
+	$(PY) -m ruff check core/src core/tests addon/riggermortis_addon mcp/riggermortis_mcp.py mcp/session_bridge.py xtask/export_fixture_rigs.py xtask/build_rigify_rigs.py xtask/import_and_extract.py xtask/render_demos.py xtask/benchmark_poses.py xtask/foot_lock_gate.py xtask/hip_stab_gate.py xtask/walk_media.py xtask/assemble_walk.py xtask/walk_docs.py xtask/session_probe.py
 
 fixtures:
 	$(PY) xtask/export_fixture_rigs.py
@@ -64,5 +64,11 @@ export-verify:
 walk-gifs:
 	bash xtask/render_walk_gifs.sh
 
-gate: lint test media-guard blender-verify
+# P3-5 session-bridge gate: MCP server loopback <-> REAL Blender add-on
+# client, enqueue -> execute -> structured result, self-contained
+# (no models, no local assets). Starts nothing external: 127.0.0.1 only.
+session-verify:
+	bash xtask/session_verify.sh
+
+gate: lint test media-guard blender-verify session-verify
 	@echo "PHASE 0 GATE: PASS"

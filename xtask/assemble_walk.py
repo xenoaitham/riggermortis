@@ -99,7 +99,7 @@ def main() -> int:
     scaled: list[list[Image.Image]] = [[] for _ in cells]
     for frame in order:
         row_scaled = []
-        for col, paths in enumerate(by_frame):
+        for _col, paths in enumerate(by_frame):
             img = Image.open(paths[frame]).convert("RGB")
             img = img.resize((int(img.width * height / img.height), height))
             row_scaled.append(img)

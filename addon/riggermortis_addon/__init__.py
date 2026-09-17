@@ -29,12 +29,13 @@ import bpy
 from bpy.props import (
     BoolProperty,
     EnumProperty,
+    IntProperty,
     PointerProperty,
     StringProperty,
 )
 from bpy.types import AddonPreferences, Operator, Panel, PropertyGroup
 
-from . import bpy_bridge, overlay, pose_apply
+from . import bpy_bridge, overlay, pose_apply, session, tails
 
 POLICY_NOTICE = (
     "Default build is SFW. An opt-in adult module (off by default, requires "
@@ -158,6 +159,27 @@ class RM_SceneSettings(PropertyGroup):
     )
 
 
+class RM_WM_Session(PropertyGroup):
+    """Agent-session settings (P3-5). Lives on the WindowManager: session-only
+    state, never saved to disk or into .blend files — the token especially."""
+
+    port: IntProperty(  # type: ignore[valid-type]
+        name="Port",
+        description="TCP port of the MCP server's session bridge "
+                    "(always 127.0.0.1 — the add-on dials out, nothing listens here)",
+        default=8765,
+        min=1,
+        max=65535,
+    )
+    token: StringProperty(  # type: ignore[valid-type]
+        name="Token",
+        description="Session token the MCP server was started with "
+                    "(--session-token). Session-only: never saved to disk.",
+        subtype="PASSWORD",
+        default="",
+    )
+
+
 # ---------------------------------------------------------------------------
 # operators
 # ---------------------------------------------------------------------------
@@ -181,6 +203,10 @@ class RM_OT_inspect_and_map(Operator):
         except ImportError as exc:
             self.report({"ERROR"}, str(exc))
             return {"CANCELLED"}
+        # P2-8a (D-015): conditional glTF/VRM tail repair BEFORE mapping or
+        # posing — garbage tails break Blender's evaluated placement. Sane
+        # rigs are a bit-for-bit no-op; the count is reported, never silent.
+        repaired = tails.normalize_imported_tails(obj)
         rig_dict = bpy_bridge.rig_data_from_armature(obj)
         rig = core.RigData.from_dict(rig_dict)
         mapping = core.map_rig(rig)
@@ -202,6 +228,9 @@ class RM_OT_inspect_and_map(Operator):
                 f"mapped {len(mapping.assignments)} roles cleanly; "
                 f"{len(mapping.ambiguities)} item(s) flagged for review",
             )
+        if repaired:
+            unit = "tail" if repaired == 1 else "tails"
+            self.report({"INFO"}, f"normalized {repaired} imported bone {unit} (D-015)")
         return {"REGISTER"}
 
 
@@ -460,6 +489,44 @@ class RM_OT_clear_pose(Operator):
         return {"REGISTER"}
 
 
+class RM_OT_session_connect(Operator):
+    """Connect to the MCP server's session bridge (127.0.0.1, opt-in)"""
+
+    bl_idname = "rm.session_connect"
+    bl_label = "Connect Agent Session"
+    bl_options: ClassVar[set[str]] = {"REGISTER"}
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        return not session.running()
+
+    def execute(self, context: bpy.types.Context) -> set[str]:
+        wm_session = context.window_manager.rm_session
+        error = session.start_session(wm_session.port, wm_session.token)
+        if error:
+            self.report({"ERROR"}, error)
+            return {"CANCELLED"}
+        self.report({"INFO"}, f"session connecting on 127.0.0.1:{wm_session.port}")
+        return {"FINISHED"}
+
+
+class RM_OT_session_disconnect(Operator):
+    """Disconnect the agent session (stop polling for actions)"""
+
+    bl_idname = "rm.session_disconnect"
+    bl_label = "Disconnect Agent Session"
+    bl_options: ClassVar[set[str]] = {"REGISTER"}
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        return session.running()
+
+    def execute(self, context: bpy.types.Context) -> set[str]:
+        session.stop_session()
+        self.report({"INFO"}, "agent session disconnected")
+        return {"FINISHED"}
+
+
 # ---------------------------------------------------------------------------
 # UI
 # ---------------------------------------------------------------------------
@@ -547,6 +614,18 @@ class RM_PT_main_panel(Panel):
         box.operator("rm.clear_pose", icon="X")
 
         box = layout.box()
+        box.label(text="Agent session (MCP)", icon="LINKED")
+        wm_session = context.window_manager.rm_session
+        box.prop(wm_session, "port")
+        box.prop(wm_session, "token")
+        if session.running():
+            box.operator("rm.session_disconnect", icon="UNCHECKED")
+        else:
+            box.operator("rm.session_connect", icon="CHECKMARK")
+        for line in session.ui_status().splitlines():
+            box.label(text=line)
+
+        box = layout.box()
         box.label(text="Review overlay", icon="HIDE_OFF")
         box.prop(settings, "image_path")
         box.prop(settings, "overlay_enabled")
@@ -618,6 +697,7 @@ class RM_AddonPreferences(AddonPreferences):
 
 _CLASSES = (
     RM_SceneSettings,
+    RM_WM_Session,
     RM_OT_inspect_and_map,
     RM_OT_show_report,
     RM_OT_apply_pose,
@@ -625,24 +705,30 @@ _CLASSES = (
     RM_OT_pick_joint,
     RM_OT_flip_reset,
     RM_OT_clear_pose,
+    RM_OT_session_connect,
+    RM_OT_session_disconnect,
     RM_PT_main_panel,
     RM_AddonPreferences,
 )
 
 
 def register() -> None:
+    session.stop_session()  # addon reload: never carry a stale client over
     for cls in _CLASSES:
         bpy.utils.register_class(cls)
     bpy.types.Scene.rm_settings = PointerProperty(type=RM_SceneSettings)
+    bpy.types.WindowManager.rm_session = PointerProperty(type=RM_WM_Session)
     from . import overlay
 
     overlay.register()
 
 
 def unregister() -> None:
+    session.stop_session()  # kills the client thread + pump, if any
     from . import overlay
 
     overlay.unregister()
+    del bpy.types.WindowManager.rm_session
     del bpy.types.Scene.rm_settings
     for cls in reversed(_CLASSES):
         bpy.utils.unregister_class(cls)

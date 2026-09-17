@@ -43,13 +43,16 @@ def test_initialize_returns_server_info() -> None:
 
 
 def test_tools_list_matches_golden_schema() -> None:
-    """Golden-schema test: the v1 tool table is pinned (name, status, required)."""
+    """Golden-schema test: the v1 tool table is pinned (name, status, required).
+    P3-5 extends it additively with the three session tools (same-commit pin
+    update, per the P3-3 precedent)."""
     response = _rpc("tools/list")
     tools = response["result"]["tools"]
     by_name = {t["name"]: t for t in tools}
     assert set(by_name) == {
         "inspect_rig", "policy_status", "policy_check", "map_rig",
         "pose_from_image", "animate_from_video",
+        "session_status", "enqueue_action", "action_result",
     }
     assert by_name["inspect_rig"]["status"] == "live"
     assert by_name["inspect_rig"]["input_schema"]["required"] == ["path"]
@@ -61,7 +64,22 @@ def test_tools_list_matches_golden_schema() -> None:
     assert by_name["animate_from_video"]["input_schema"]["required"] == [
         "rig", "job_dir",
     ]
+    assert by_name["session_status"]["status"] == "live"
+    assert by_name["session_status"]["input_schema"]["properties"] == {}
+    assert by_name["enqueue_action"]["status"] == "live"
+    assert by_name["enqueue_action"]["input_schema"]["required"] == ["kind"]
+    assert by_name["action_result"]["status"] == "live"
+    assert by_name["action_result"]["input_schema"]["required"] == ["action_id"]
     assert tools == server.TOOL_SCHEMAS_V1  # deterministic output
+
+
+def test_server_without_the_bridge_reports_the_capability_honestly() -> None:
+    """P3-5: session_bridge capability is per-process — False on a server
+    started without --session-port/--session-token (the full enabled path
+    lives in test_mcp_session.py)."""
+    info = _rpc("initialize")["result"]["serverInfo"]
+    assert info["capabilities"]["session_bridge"] is False
+    assert info["capabilities"]["progress_streaming"] is True
 
 
 def test_server_declares_progress_streaming() -> None:

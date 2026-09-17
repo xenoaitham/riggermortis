@@ -347,6 +347,51 @@ gate — it bakes in one rig's scale (seedsan misses it by ~5% on its 9
 clamp-cost frames while locking 12x). Published ratios and absolute numbers
 together; nothing hidden.
 
+## D-016 P2-8a tail-normalization rule: absurd-ratio threshold + co-located skip (2026-09-17, S10)
+
+The add-on tail repair (P2-8a) exposed that D-015's "sane rigs are
+bit-for-bit untouched" claim was true only for the rigs the rule had been
+certified on — the pose gate's new noop assertion FAILED on the
+Blender-native metarig (the 1%-disagreement trigger wanted to repair ~20
+artist-intended tails: palm/forehead/hand chain bones at 1.7–2.7x, pelvis/
+breast leaf flanks at 3.4–5.1x). The rule is re-keyed on measured data:
+
+- **Absurd-ratio threshold (10x).** A chain tail is repaired only when its
+  length exceeds 10x the distance to the nearest child's head; a childless
+  leaf only above 10x the rig's median joint span. Measured separation:
+  sane max ~5.1x (metarig pelvis flanks), importer garbage starts at ~76x
+  and sits at ~100x (Xbot) — an order of magnitude of clean margin on both
+  sides. The 2-bone lock solve is unaffected either way (bake derives
+  lengths from head-to-head distances since D-015).
+- **Co-located-child skip.** A child whose head sits within 5% of the
+  median joint span of the bone's head gives no tail evidence and is
+  skipped (the metarig's spine/spine.006 have such children; treating
+  span~0 as an infinite ratio would snap artist tails to zero length).
+- **Lockstep.** The rule lives in `addon/riggermortis_addon/tails.py` AND
+  `xtask/walk_media.py::_repair_imported_tails`, textually identical.
+- **Add-on wiring.** Inspect & Map runs the repair BEFORE mapping; the
+  session bridge's `apply_pose` runs it before applying (P2-8a's whole
+  point: an agent posing an imported garbage-tail rig must not hit the
+  evaluated-placement breakage). The count is always REPORTED, never
+  silently applied.
+- **Gate (pose-apply, local).** `RM_TAILS XBOT`: raw lift 1.5177 m ->
+  repaired 0.2817 m, inside the MEASURED sane-rig band (the same canonical
+  pose lifts seedsan 0.2464 m and metarig 0.3214 m); bars: fixed in
+  [0.15, 0.40] m, raw > 1.0 m and > 3x fixed. `RM_TAILS METARIG_NOOP`:
+  0 bones repaired. All pre-existing gate numbers byte-identical
+  (0.0242 deg x 3). Instrument lessons (do not reintroduce):
+  `pose_bone.matrix` is ARMATURE-space (world needs `matrix_world`), and a
+  glTF import bakes a skin pose into `matrix_basis` (66/67 bones
+  non-identity on Xbot) — so evaluated-vs-rest is only meaningful as a
+  grounded-lift comparison against calibrated sane rigs, never as an
+  absolute.
+- **WALKRIGS regeneration (rule lockstep).** seedsan + xbot rows
+  byte-identical; the metarig row moved 0.1732 -> 0.1741 m unlocked drift,
+  ratio 21.3x -> 21.7x (the walk pipeline had been silently repairing ~20
+  artist tails on the native metarig; corrected rule repairs 0). All rows
+  still PASS the >=5x gate; the 4 GIFs regenerated in place by
+  `make walk-gifs` (same allowlisted filenames).
+
 ## NEEDS-HUMAN queue (updated 2026-09-16 S8)
 
 - RETIRED — anime sourcing: set complete at 10/10 (SOURCES.md; Commons CC BY-SA crop provenance).

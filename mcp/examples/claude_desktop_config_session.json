@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "riggermortis": {
+      "command": "python3",
+      "args": [
+        "/ABSOLUTE/PATH/TO/riggermortis/mcp/riggermortis_mcp.py",
+        "--session-port", "8765",
+        "--session-token", "REPLACE_WITH_GENERATED_TOKEN"
+      ]
+    }
+  }
+}

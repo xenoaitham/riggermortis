@@ -348,7 +348,7 @@ Per-rig bake numbers (WORLD units, so rigs of different scales compare). Drift =
 
 | rig | format | bones | mapping | unlocked drift (m) | locked drift (m) | lock ratio | >=5x gate | 0.010 m bar | FK worst (deg) | lock_dev (deg) | clamped | locked frames |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| metarig | blend | 159 | live map_rig | 0.1732 | 0.0081 | 21.3x | PASS | PASS | 0.0000 | 24.74 | 5 | 59 |
+| metarig | blend | 159 | live map_rig | 0.1741 | 0.0080 | 21.7x | PASS | PASS | 0.0000 | 24.74 | 5 | 59 |
 | seedsan | vrm | 132 | live map_rig | 0.1261 | 0.0105 | 12.0x | PASS | miss (clamp cost) | 0.0000 | 26.38 | 9 | 59 |
 | xbot | glb | 67 | live map_rig | 0.1467 | 0.0070 | 21.1x | PASS | PASS | 0.0001 | 24.73 | 5 | 59 |
 

@@ -1,0 +1,16 @@
+# Repo-wide ruff standard — the SAME rules core/pyproject.toml has used since
+# Phase 0, now pinned for addon/, mcp/ and xtask/ too (nearest-config wins:
+# core/ keeps reading core/pyproject.toml). Deliberate S10 change, recorded in
+# STATE/PROGRESS.md; CI installs the latest ruff, so the standard is pinned
+# in-repo rather than left to ambient defaults.
+#
+# E402 is ignored repo-wide: the add-on's bl_info dict MUST precede imports
+# (Blender file layout), and xtask/mcp scripts insert sys.path entries before
+# importing riggermortis by design (D-003/D-009 glue). Core/ keeps its
+# targeted `# noqa: E402` comments under its own config.
+line-length = 100
+target-version = "py310"
+
+[lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = ["E402", "E501"]

@@ -18,12 +18,15 @@ METARIG_BLEND="$REPO/out/real_rigs/metarig.blend"
 METARIG_RIG="$REPO/out/real_rigs/metarig.rig.json"
 SEEDSAN_VRM="$REPO/out/real_rigs/Seed-san.vrm"
 SEEDSAN_RIG="$REPO/out/real_rigs/seedsan.rig.json"
+XBOT_GLB="$REPO/out/real_rigs/Xbot.glb"
+XBOT_RIG="$REPO/out/real_rigs/xbot.rig.json"
 PAYLOADS="$REPO/out/payloads"
 
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
-for f in "$IMG" "$MULTI_IMG" "$METARIG_BLEND" "$METARIG_RIG" "$SEEDSAN_VRM" "$SEEDSAN_RIG"; do
+for f in "$IMG" "$MULTI_IMG" "$METARIG_BLEND" "$METARIG_RIG" "$SEEDSAN_VRM" \
+         "$SEEDSAN_RIG" "$XBOT_GLB" "$XBOT_RIG"; do
   if [ ! -s "$f" ]; then
     echo "missing $f — build it first (see docs/BENCHMARKS.md reproduce block)" >&2
     exit 1
@@ -42,6 +45,10 @@ if [ ! -s "$PAYLOADS/seedsan_payload.json" ] || [ "$(fmt "$PAYLOADS/seedsan_payl
 fi
 echo "== generating multi-figure payload (B1: real models, --all-figures)"
 "$RIGPOSE" pose "$MULTI_IMG" "$METARIG_RIG" --all-figures --out "$PAYLOADS/girls_multi.json" > /dev/null
+if [ ! -s "$PAYLOADS/xbot_payload.json" ] || [ "$(fmt "$PAYLOADS/xbot_payload.json")" != "2" ]; then
+  echo "== generating xbot payload (real models; P2-8a tail probe)"
+  "$RIGPOSE" pose "$IMG" "$XBOT_RIG" --out "$PAYLOADS/xbot_payload.json" > /dev/null
+fi
 
 cat > "$TMP/probe.py" <<'PY'
 import json
@@ -405,6 +412,82 @@ def run_foot_lock():
 
 ok &= run_foot_lock()
 
+# -- P2-8a: glTF tail normalization — garbage tails ladder posed children -----
+def run_xbot_tails():
+    """On Xbot.glb (D-015: glTF-synthesized tails ~100x garbage) applying the
+    standing-photo payload throws the EVALUATED ankle ~1.5 m above its rest
+    height — children ladder through the garbage tails. With the add-on's
+    conditional repair (absurd-ratio rule, lockstep with xtask/walk_media.py)
+    applied BEFORE posing, the same payload's evaluated ankle lift lands
+    INSIDE the measured sane-rig band: the certified rigs lifting the same
+    canonical pose measure 0.2464 m (seedsan) and 0.3214 m (metarig); the
+    repaired Xbot lands at 0.2817 m while the raw one is at 1.5177 m. Bars:
+    fixed lift in [0.15, 0.40] m (sane band + margin), raw > 1.0 m and
+    > 3x fixed. Also proves the sane-rig no-op: the metarig repairs 0 bones
+    (co-located-child bones give no tail evidence and are skipped)."""
+    try:
+        from riggermortis.payload import pose_for_figure  # noqa: E402
+        from riggermortis_addon import tails  # noqa: E402
+
+        with open(os.path.join(os.environ["RM_PAYLOADS"], "xbot_payload.json"),
+                  encoding="utf-8") as fh:
+            payload = json.load(fh)
+
+        def fresh_xbot():
+            bpy.ops.wm.read_factory_settings(use_empty=True)
+            bpy.ops.import_scene.gltf(filepath=os.environ["RM_XBOT_GLB"])
+            obj = first_armature()
+            mapping = pose_apply.mapping_from_props(obj, core) or core.map_rig(
+                core.RigData.from_dict(bpy_bridge.rig_data_from_armature(obj))
+            )
+            return obj, mapping.assignments["foot.L"].bone
+
+        def ankle_lift(obj, ankle):
+            """Evaluated ankle world Z after apply vs its rest Z (the payload
+            pose is upright — a sane evaluated rig keeps the lift in the
+            measured sane band; garbage tails throw the foot into the air)."""
+            rest_z = (obj.matrix_world @ obj.data.bones[ankle].head_local).z
+            pose_apply.apply_payload(obj, payload)
+            bpy.context.view_layer.update()
+            applied_z = (
+                obj.matrix_world @ obj.pose.bones[ankle].matrix.to_translation()
+            ).z
+            return applied_z - rest_z
+
+        obj, ankle = fresh_xbot()
+        raw_lift = ankle_lift(obj, ankle)
+
+        obj, ankle = fresh_xbot()
+        repaired = tails.normalize_imported_tails(obj)
+        fixed_lift = ankle_lift(obj, ankle)
+
+        # Sane-rig no-op: the Blender-native metarig must repair 0 bones.
+        bpy.ops.wm.open_mainfile(filepath=os.environ["RM_METARIG_BLEND"])
+        sane_repaired = tails.normalize_imported_tails(first_armature())
+
+        noop_ok = sane_repaired == 0
+        fixed_ok = repaired > 0 and 0.15 <= fixed_lift <= 0.40
+        contrast_ok = raw_lift > 1.0 and raw_lift > 3.0 * fixed_lift
+        passed = noop_ok and fixed_ok and contrast_ok
+        print(
+            f"RM_TAILS XBOT: {'PASS' if passed else 'FAIL'} "
+            f"raw_lift={raw_lift:.4f}m fixed_lift={fixed_lift:.4f}m "
+            f"repaired={repaired} "
+            f"bars: fixed in [0.15,0.40]m (sane band 0.246-0.321 measured), "
+            f"raw>1.0m and >3x fixed"
+        )
+        print(
+            f"RM_TAILS METARIG_NOOP: {'PASS' if noop_ok else 'FAIL'} "
+            f"(sane rig repaired {sane_repaired} bones — must be 0)"
+        )
+        return passed
+    except Exception as exc:  # noqa: BLE001
+        print(f"RM_TAILS: FAIL ({exc.__class__.__name__}: {exc})")
+        return False
+
+
+ok &= run_xbot_tails()
+
 print("RM_POSE_APPLY GATE:", "PASS" if ok else "FAIL")
 PY
 
@@ -413,6 +496,7 @@ RM_CORE_SRC="$REPO/core/src" \
 RM_ADDON_DIR="$REPO/addon" \
 RM_METARIG_BLEND="$METARIG_BLEND" \
 RM_SEEDSAN_VRM="$SEEDSAN_VRM" \
+RM_XBOT_GLB="$XBOT_GLB" \
 RM_PAYLOADS="$PAYLOADS" \
   "$BLENDER" -b --python "$TMP/probe.py" 2>&1 | tee "$TMP/probe.log"
 
@@ -429,6 +513,8 @@ grep -q "RM_BAKE BAKE: PASS" "$TMP/probe.log"
 grep -q "RM_BAKE EVAL: PASS" "$TMP/probe.log"
 grep -q "RM_FOOT_LOCK BEFORE: " "$TMP/probe.log"
 grep -q "RM_FOOT_LOCK LOCK: PASS" "$TMP/probe.log"
+grep -q "RM_TAILS XBOT: PASS" "$TMP/probe.log"
+grep -q "RM_TAILS METARIG_NOOP: PASS" "$TMP/probe.log"
 grep -q "RM_OVERLAY HANDLER: PASS" "$TMP/probe.log"
 grep -qE "RM_OVERLAY OFFSCREEN: (PASS|SKIPPED)" "$TMP/probe.log"
 grep -q "RM_POSE_APPLY GATE: PASS" "$TMP/probe.log"

@@ -1,17 +1,22 @@
-"""riggermortis MCP server (P3-1..P3-4) — stdio JSON-RPC 2.0.
+"""riggermortis MCP server (P3-1..P3-5) — stdio JSON-RPC 2.0 + opt-in session bridge.
 
-Local-only by construction: stdio transport, no sockets opened here yet (the
-loopback session bridge is P3-5), no telemetry, no spawns (D-003/D-009: the
-server CONSUMES payloads and core APIs; it never launches processes).
+Local-only by construction: the DEFAULT transport is stdio and opens ZERO
+sockets; the loopback session bridge (P3-5, ``mcp/session_bridge.py``) starts
+ONLY with both ``--session-port`` and ``--session-token`` and binds
+``127.0.0.1`` and nothing else (mcp/DESIGN.md is the source of record). No
+telemetry, no spawns (D-003/D-009: the server CONSUMES payloads and core
+APIs; it never launches processes).
 
 Protocol: newline-delimited JSON-RPC 2.0 over stdin/stdout, per the MCP
 conventions. Implemented methods:
 
 - ``initialize``            -> server_info (contract version, capabilities)
-- ``tools/list``            -> schema v1 for the Phase-0/1 tool subset
+- ``tools/list``            -> schema v1 for the Phase-0/1/3 tool subset
 - ``tools/call``            -> ``inspect_rig``, ``policy_status``,
-                               ``policy_check`` and ``animate_from_video``
-                               (canonical half) are LIVE; ``pose_from_image``
+                               ``policy_check``, ``animate_from_video``
+                               (canonical half) and the P3-5 session tools
+                               (``session_status``, ``enqueue_action``,
+                               ``action_result``) are LIVE; ``pose_from_image``
                                returns a structured ``not_implemented`` result
                                (honest, still schema-listed so agents can
                                plan against it)
@@ -29,21 +34,25 @@ and the error shape is ``Refusal.to_dict()`` —
 ``{"code", "message", "category", "retryable"}`` per mcp/DESIGN.md.
 
 Run: ``python3 mcp/riggermortis_mcp.py`` (an agent client owns the process —
-spawn lives outside Python per D-009).
+spawn lives outside Python per D-009). Session bridge:
+``python3 mcp/riggermortis_mcp.py --session-port 8765 --session-token HEX``.
 """
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "core" / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import riggermortis as core  # noqa: E402
+import session_bridge  # noqa: E402
 from riggermortis.io import load_rig  # noqa: E402
 
 PROTOCOL_VERSION = "2024-11-05"
-SERVER_VERSION = "0.2.0"
+SERVER_VERSION = "0.3.0"
 
 #: Schema v1 for the implemented + design-declared tools (mcp/DESIGN.md).
 #: Honest: ``status`` separates live tools from declared-but-pending ones.
@@ -128,7 +137,77 @@ TOOL_SCHEMAS_V1: list[dict] = [
             "required": ["rig", "job_dir"],
         },
     },
+    {
+        "name": "session_status",
+        "status": "live",
+        "description": "P3-5 session bridge state: enabled, listening port, "
+                       "add-on connections, queue counts, recent ledger",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "enqueue_action",
+        "status": "live",
+        "description": "Enqueue an action for the live Blender add-on "
+                       "(kinds: inspect_scene, apply_pose, bake_action); "
+                       "returns the action_id — collect via action_result. "
+                       "Needs the server started with --session-port/--session-token",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "kind": {"type": "string"},
+                "params": {"type": "object"},
+            },
+            "required": ["kind"],
+        },
+    },
+    {
+        "name": "action_result",
+        "status": "live",
+        "description": "Collect one enqueued action's state: queued / "
+                       "dispatched (stale if the add-on connection dropped) / "
+                       "done / failed, with the structured report or error",
+        "input_schema": {
+            "type": "object",
+            "properties": {"action_id": {"type": "string"}},
+            "required": ["action_id"],
+        },
+    },
 ]
+
+
+#: The session bridge runtime (P3-5) — None unless the server was started
+#: with --session-port AND --session-token. The stdio loop owns the lifetime.
+class SessionRuntime:
+    """Hub + loopback transport, wired for one server process."""
+
+    def __init__(self, hub: session_bridge.SessionHub, port: int) -> None:
+        self.hub = hub
+        self.transport = session_bridge.LoopbackTransport(hub, port)
+
+    def start(self) -> int:
+        return self.transport.start()
+
+    def stop(self) -> None:
+        self.transport.stop()
+
+    def status(self) -> dict:
+        info = self.hub.status()
+        info["addon_connected"] = self.hub.authenticated_connections() > 0
+        info.update(self.transport.info())
+        info["enabled"] = True
+        return info
+
+
+_SESSION_RUNTIME: SessionRuntime | None = None
+
+
+def set_session_runtime(runtime: SessionRuntime | None) -> None:
+    global _SESSION_RUNTIME
+    _SESSION_RUNTIME = runtime
+
+
+def get_session_runtime() -> SessionRuntime | None:
+    return _SESSION_RUNTIME
 
 
 def server_info() -> dict:
@@ -138,7 +217,13 @@ def server_info() -> dict:
         "protocol_version": PROTOCOL_VERSION,
         "core_version": core.__version__,
         "local_only": True,
-        "capabilities": {"tools": True, "progress_streaming": True},
+        "capabilities": {
+            "tools": True,
+            "progress_streaming": True,
+            # P3-5: honest per-process — False unless the loopback session
+            # bridge was started (--session-port AND --session-token).
+            "session_bridge": get_session_runtime() is not None,
+        },
         "tool_schema_version": 1,
     }
 
@@ -339,6 +424,88 @@ def animate_from_video(arguments: dict, progress=None) -> dict:
     }
 
 
+def session_status() -> dict:
+    """P3-5 bridge state. Disabled servers answer honestly (never a stub)."""
+    runtime = get_session_runtime()
+    if runtime is None:
+        return {
+            "enabled": False,
+            "note": "server started without the session bridge "
+                    "(hint: restart with --session-port N --session-token HEX)",
+        }
+    return runtime.status()
+
+
+def enqueue_action(arguments: dict) -> dict:
+    """Queue one action for the live Blender add-on (P3-5)."""
+    runtime = get_session_runtime()
+    if runtime is None:
+        return {
+            "error": {
+                "code": "session_disabled",
+                "message": "the session bridge is not enabled on this server",
+                "retryable": False,
+                "hint": "restart the server with --session-port N --session-token HEX",
+            }
+        }
+    kind = arguments.get("kind")
+    if not isinstance(kind, str) or kind not in session_bridge.KNOWN_ACTION_KINDS:
+        return {
+            "error": {
+                "code": "invalid_request",
+                "message": f"unknown action kind: {kind!r}",
+                "retryable": False,
+                "hint": "known kinds: " + ", ".join(session_bridge.KNOWN_ACTION_KINDS),
+            }
+        }
+    params = arguments.get("params", {})
+    if params is None:
+        params = {}
+    if not isinstance(params, dict):
+        return {
+            "error": {
+                "code": "invalid_request",
+                "message": "params must be an object",
+                "retryable": False,
+            }
+        }
+    return runtime.hub.enqueue(kind, params)
+
+
+def action_result(arguments: dict) -> dict:
+    """Collect one enqueued action's state (P3-5)."""
+    runtime = get_session_runtime()
+    if runtime is None:
+        return {
+            "error": {
+                "code": "session_disabled",
+                "message": "the session bridge is not enabled on this server",
+                "retryable": False,
+                "hint": "restart the server with --session-port N --session-token HEX",
+            }
+        }
+    action_id = arguments.get("action_id")
+    if not isinstance(action_id, str) or not action_id:
+        return {
+            "error": {
+                "code": "invalid_request",
+                "message": "action_id must be a non-empty string",
+                "retryable": False,
+            }
+        }
+    record = runtime.hub.result(action_id)
+    if record is None:
+        return {
+            "error": {
+                "code": "invalid_request",
+                "message": f"unknown action_id: {action_id!r}",
+                "retryable": False,
+                "hint": "ids are returned by enqueue_action (e.g. 'a-0001')",
+            }
+        }
+    return record
+
+
 def call_tool(name: str, arguments: dict, progress=None) -> dict:
     if name == "inspect_rig":
         return inspect_rig(arguments)
@@ -348,6 +515,12 @@ def call_tool(name: str, arguments: dict, progress=None) -> dict:
         return policy_check(arguments)
     if name == "animate_from_video":
         return animate_from_video(arguments, progress)
+    if name == "session_status":
+        return session_status()
+    if name == "enqueue_action":
+        return enqueue_action(arguments)
+    if name == "action_result":
+        return action_result(arguments)
     return {
         "error": {
             "code": "not_implemented",
@@ -409,31 +582,75 @@ def handle(request: dict, emit=None) -> dict | None:
     return error(-32601, f"method not found: {method}")
 
 
-def serve_stdin_stdout() -> int:
-    """Newline-delimited JSON-RPC loop over stdin/stdout."""
+def serve_stdin_stdout(runtime: SessionRuntime | None = None) -> int:
+    """Newline-delimited JSON-RPC loop over stdin/stdout.
+
+    ``runtime`` (optional) enables the P3-5 session bridge for this process;
+    it is stopped (listener + connections closed) when stdin reaches EOF.
+    """
+    set_session_runtime(runtime)
+    if runtime is not None:
+        runtime.start()
 
     def emit(line: str) -> None:
         sys.stdout.write(line + "\n")
         sys.stdout.flush()
 
-    for line in sys.stdin:
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            request = json.loads(line)
-        except json.JSONDecodeError as exc:
-            response = {
-                "jsonrpc": "2.0", "id": None,
-                "error": {"code": -32700, "message": f"parse error: {exc}"},
-            }
-        else:
-            response = handle(request, emit=emit)
-        if response is not None:
-            sys.stdout.write(json.dumps(response, sort_keys=True) + "\n")
-            sys.stdout.flush()
+    try:
+        for line in sys.stdin:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                request = json.loads(line)
+            except json.JSONDecodeError as exc:
+                response = {
+                    "jsonrpc": "2.0", "id": None,
+                    "error": {"code": -32700, "message": f"parse error: {exc}"},
+                }
+            else:
+                response = handle(request, emit=emit)
+            if response is not None:
+                sys.stdout.write(json.dumps(response, sort_keys=True) + "\n")
+                sys.stdout.flush()
+    finally:
+        set_session_runtime(None)
+        if runtime is not None:
+            runtime.stop()
     return 0
 
 
+def main(argv: list[str] | None = None) -> int:
+    """CLI entry: stdio by default; the session bridge is strictly opt-in.
+
+    The bridge needs BOTH --session-port and --session-token (a partial
+    config is a hard error on STDERR — stdout belongs to the protocol).
+    """
+    parser = argparse.ArgumentParser(prog="riggermortis-mcp")
+    parser.add_argument("--session-port", type=int, default=None,
+                        help="enable the loopback session bridge on 127.0.0.1:<port>")
+    parser.add_argument("--session-token", default=None,
+                        help="session token the Blender add-on must present "
+                             "(generate: python3 -c 'import secrets; "
+                             "print(secrets.token_hex(16))')")
+    args = parser.parse_args(argv)
+
+    runtime: SessionRuntime | None = None
+    if (args.session_port is None) != (args.session_token is None):
+        sys.stderr.write(
+            "error: --session-port and --session-token must be given TOGETHER "
+            "(the bridge never starts half-configured, and never without a token)\n"
+        )
+        return 2
+    if args.session_port is not None:
+        try:
+            hub = session_bridge.SessionHub(args.session_token)  # type: ignore[arg-type]
+            runtime = SessionRuntime(hub, args.session_port)
+        except ValueError as exc:
+            sys.stderr.write(f"error: {exc}\n")
+            return 2
+    return serve_stdin_stdout(runtime)
+
+
 if __name__ == "__main__":
-    sys.exit(serve_stdin_stdout())
+    sys.exit(main())

@@ -180,14 +180,19 @@ def _repair_imported_tails(armature) -> int:
     garbage tails break three consumers: the 2-bone lock solve (fixed
     separately in bake via head distances), Blender's EVALUATED bone
     placement (children ladder away from their parents), and the bone-proxy
-    visualizer. Deterministic and conditional: a bone whose rest tail
-    already matches its nearest child's head (or is a sane leaf stub) is
-    left untouched, so Blender-native rigs are bit-for-bit no-ops.
+    visualizer. Deterministic and conditional, keyed on an ABSURD-RATIO
+    threshold (10x — S10 measurement: the metarig's worst artist-intended
+    tails are ~5.1x, the glTF garbage class starts at ~76x, so sane rigs —
+    native OR imported-sane — are bit-for-bit no-ops while the whole garbage
+    class is caught with margin). Kept in LOCKSTEP with the add-on copy
+    (riggermortis_addon.tails, P2-8a).
     Returns the number of bones repaired (0 = nothing touched).
     """
     import bpy
     from mathutils import Vector
 
+    absurd = 10.0
+    colocated = 0.05  # child co-located with the head: no tail evidence
     data = armature.data
     children: dict[str, list] = {}
     for bone in data.bones:
@@ -212,15 +217,17 @@ def _repair_imported_tails(armature) -> int:
         for bone in data.bones:
             expected = _nearest_child_span(bone)
             if expected is not None:
-                if abs(bone.length - expected) <= 0.01 * expected:
-                    continue  # sane chain tail — untouched
+                if expected <= colocated * median_span:
+                    continue  # co-located child — no tail evidence, untouched
+                if bone.length <= absurd * expected:
+                    continue  # plausible chain tail (sane: <= ~5x) — untouched
                 new_tail = min(
                     children[bone.name],
                     key=lambda k: (k.head_local - bone.head_local).length,
                 ).head_local
             elif bone.parent is not None:
-                if bone.length <= 3.0 * median_span:
-                    continue  # leaf stub of plausible size — untouched
+                if bone.length <= absurd * median_span:
+                    continue  # plausible leaf stub — untouched
                 direction = Vector(bone.head_local) - Vector(bone.parent.head_local)
                 if direction.length <= 1e-9:
                     continue

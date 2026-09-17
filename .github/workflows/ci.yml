@@ -63,6 +63,11 @@ jobs:
           5.1.0 with ~0.02 deg round-trip error; CI exercises it on 4.0.2,
           where Action.fcurves uses the pre-5.x API the probe handles)
         run: make export-verify
+      - name: >-
+          Session-bridge gate (P3-5: MCP server loopback <-> REAL Blender
+          add-on client, enqueue -> execute -> structured result; self-
+          contained — no models/assets, 127.0.0.1 only)
+        run: make session-verify
 
   media-guard:
     runs-on: ubuntu-24.04
