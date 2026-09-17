@@ -95,7 +95,17 @@ and honest failure ledger are specified in [DESIGN.md](DESIGN.md)
      "armature_name": "Rig"}}` → the add-on runs its REAL payload-apply path
      (D-009) on Blender's main thread and returns the structured report,
      self-check numbers included;
-   - `bake_action` is declared but honestly `not_implemented` until P3-7.
+   - `enqueue_action {"kind": "bake_action", "params": {"job_dir": "..."}}`
+     → the REAL bake path over a video job (certified composition, foot
+     lock, RM_BAKE re-eval — gate: `make session-verify`);
+   - `enqueue_action {"kind": "render_turntable", "params": {"out_dir":
+     "..."}}` → a bone-proxy turntable of the live rig (GIF assembly stays
+     in your shell).
+
+The whole loop — inspect → pose → animate → bake → turntable — is scripted
+end-to-end in `xtask/agent_demo.sh` (`make agent-demo`, local rigs); the
+committed transcript + honest labels live in
+[docs/AGENT_DEMO.md](../docs/AGENT_DEMO.md).
 
 Queue semantics in one line: actions are claimed by polling, dispatched
 exactly once, and never silently re-sent — if Blender quits mid-action the

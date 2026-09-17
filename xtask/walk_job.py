@@ -76,3 +76,9 @@ def build_walk_job(job_dir: Path) -> dict[str, object]:
         "failed": len(action.failed),
         "generator": GENERATOR_NOTE,
     }
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        raise SystemExit("usage: walk_job.py JOB_DIR")
+    print(json.dumps(build_walk_job(Path(sys.argv[1])), sort_keys=True))

@@ -9,7 +9,7 @@ test:
 	cd core && $(PY) -m pytest tests
 
 lint:
-	$(PY) -m ruff check core/src core/tests addon/riggermortis_addon mcp/riggermortis_mcp.py mcp/session_bridge.py xtask/export_fixture_rigs.py xtask/build_rigify_rigs.py xtask/import_and_extract.py xtask/render_demos.py xtask/benchmark_poses.py xtask/foot_lock_gate.py xtask/hip_stab_gate.py xtask/walk_media.py xtask/assemble_walk.py xtask/walk_docs.py xtask/session_probe.py xtask/walk_job.py
+	$(PY) -m ruff check core/src core/tests addon/riggermortis_addon mcp/riggermortis_mcp.py mcp/session_bridge.py xtask/export_fixture_rigs.py xtask/build_rigify_rigs.py xtask/import_and_extract.py xtask/render_demos.py xtask/benchmark_poses.py xtask/foot_lock_gate.py xtask/hip_stab_gate.py xtask/walk_media.py xtask/assemble_walk.py xtask/walk_docs.py xtask/session_probe.py xtask/walk_job.py xtask/agent_demo_docs.py xtask/agent_demo_blender.py
 
 fixtures:
 	$(PY) xtask/export_fixture_rigs.py
@@ -23,6 +23,7 @@ dist:
 
 WALK_GIFS = docs/media/walk_lock_metarig.gif docs/media/walk_lock_seedsan.gif \
 	docs/media/walk_lock_xbot.gif docs/media/walk_3rigs.gif
+AGENT_GIF = docs/media/agent_turntable.gif
 
 media-guard:
 	@n=$$(git ls-files media/ | wc -l); \
@@ -30,18 +31,18 @@ media-guard:
 		echo "media/ contains $$n committed file(s) — demo media is generated headlessly and never hand-committed" >&2; \
 		exit 1; \
 	fi; \
-	for want in docs/media/boom.gif docs/media/ui_screenshot.png $(WALK_GIFS); do \
+	for want in docs/media/boom.gif docs/media/ui_screenshot.png $(WALK_GIFS) $(AGENT_GIF); do \
 		if ! git ls-files --error-unmatch "$$want" > /dev/null 2>&1; then \
-			echo "missing $$want — hero media is pinned to pipeline outputs (regen: bash xtask/render_boom.sh / xtask/ui_screenshot.sh / make walk-gifs)" >&2; \
+			echo "missing $$want — hero media is pinned to pipeline outputs (regen: bash xtask/render_boom.sh / xtask/ui_screenshot.sh / make walk-gifs / make agent-demo)" >&2; \
 			exit 1; \
 		fi; \
 	done; \
-	extra=$$(git ls-files docs/media/ | grep -Fxv -e docs/media/boom.gif -e docs/media/ui_screenshot.png $(patsubst %,-e %,$(WALK_GIFS)) || true); \
+	extra=$$(git ls-files docs/media/ | grep -Fxv -e docs/media/boom.gif -e docs/media/ui_screenshot.png $(patsubst %,-e %,$(WALK_GIFS)) -e $(AGENT_GIF) || true); \
 	if [ -n "$$extra" ]; then \
 		echo "docs/media/ contains unallowlisted file(s): $$extra — hero media is pinned to the pipeline outputs (extending the allowlist is a deliberate, documented change in the same commit as the media)" >&2; \
 		exit 1; \
 	fi; \
-	echo "media guard clean: media/ empty; docs/media/ = the 6 pinned pipeline outputs"
+	echo "media guard clean: media/ empty; docs/media/ = the 7 pinned pipeline outputs"
 
 # Full Phase 0 gate against a real local Blender (needs `make install` first)
 blender-verify:

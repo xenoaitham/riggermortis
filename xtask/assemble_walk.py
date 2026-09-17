@@ -52,7 +52,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--cell", action="append", required=True,
-        help="label=manifest.json (repeat 2-3 times; left-to-right order)",
+        help="label=manifest.json (repeat 1-3 times; left-to-right order)",
     )
     parser.add_argument("--out", required=True, help="output GIF path")
     parser.add_argument("--fps", type=int, default=10, help="GIF frame rate")
@@ -75,8 +75,8 @@ def main() -> int:
         label, manifest_path = spec.split("=", 1)
         manifest = json.loads(safe_path(manifest_path).read_text(encoding="utf-8"))
         cells.append((label, manifest))
-    if not 2 <= len(cells) <= 3:
-        raise SystemExit(f"error: need 2-3 cells, got {len(cells)}")
+    if not 1 <= len(cells) <= 3:
+        raise SystemExit(f"error: need 1-3 cells, got {len(cells)}")
 
     # Align by source frame index: the intersection, sorted (deterministic).
     frame_sets = [

@@ -225,7 +225,10 @@ def render_turntable(
             direction = target - cam.location
             cam.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
             if played:
-                scene.frame_set(frame_start + (i % span))
+                # Proportional: the action distributes evenly over the orbit
+                # (i * span // frames), so the loop point lands back on the
+                # first action frame — a cyclic GIF, never a mid-cycle pop.
+                scene.frame_set(frame_start + (i * span // frames))
                 bpy.context.view_layer.update()
             scene.render.filepath = str(out_dir / f"{prefix}_{i:02d}.png")
             bpy.ops.render.render(write_still=True)
