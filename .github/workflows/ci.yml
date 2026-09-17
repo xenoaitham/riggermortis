@@ -51,7 +51,11 @@ jobs:
           # and the apt build does NOT bundle it (Blender 5.x does — the dev
           # box gate passes without this). Without it the export gate
           # degrades to an honest per-format SKIP.
-          sudo apt-get install -y blender python3-numpy
+          # libegl1: the P3-7 session gate renders a turntable (the first
+          # real RENDER in CI) — workbench needs an EGL/GL context; the
+          # runner image lacks libEGL.so.1 and Blender aborts (core dump)
+          # without it. Same dependency-gap class as python3-numpy above.
+          sudo apt-get install -y blender python3-numpy libegl1 libgl1 libgl1-mesa-dri
           blender --version | head -1
       - name: Install core
         run: make install PY=python
