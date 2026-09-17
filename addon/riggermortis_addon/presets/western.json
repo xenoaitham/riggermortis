@@ -11,5 +11,13 @@
     "start": 0.5,
     "color": "#ffe9c4"
   },
-  "notes": "four-band warm cartoon ramp with a soft warm rim"
+  "lineart": {
+    "radius": 0.0035,
+    "opacity": 1.0,
+    "contour": true,
+    "crease": true,
+    "crease_threshold": 1.57,
+    "color": "#000000"
+  },
+  "notes": "four-band warm cartoon ramp with a soft warm rim, medium black outline"
 }

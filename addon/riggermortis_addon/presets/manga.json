@@ -11,5 +11,13 @@
     "start": 0.7,
     "color": "#000000"
   },
-  "notes": "two-band ink-on-paper look; a DARK contour rim (halftones are P4-3, not faked here)"
+  "lineart": {
+    "radius": 0.005,
+    "opacity": 1.0,
+    "contour": true,
+    "crease": true,
+    "crease_threshold": 1.57,
+    "color": "#000000"
+  },
+  "notes": "two-band ink-on-paper look, heavy black line art (halftones are P4-3, not faked here)"
 }

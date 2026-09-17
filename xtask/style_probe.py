@@ -1,11 +1,17 @@
-"""In-Blender probe for the P4-1 style gate (headless).
+"""In-Blender probe for the style gate (headless).
 
-Applies all shipped toon presets to a shaded test object (a UV sphere —
-the material needs real normals; armature bones do not shade), asserts the
+P4-1: applies all shipped toon presets to a shaded test object (a UV sphere
+— the material needs real normals; armature bones do not shade), asserts the
 node graph against each build report, rebuilds to prove determinism (same
 preset = byte-identical report), then renders one EEVEE frame per preset.
-A GPU-less environment degrades honestly: the graph checks still PASS, the
-render reports RM_STYLE RENDER SKIPPED and no media is claimed.
+P4-2: for presets carrying a ``lineart`` section, builds the LineArt ink
+overlay over the banded fill (ops LINEART_OBJECT wiring, canonical renames —
+docs/STYLE.md), asserts the report + determinism, HARD-checks that strokes
+actually evaluate on the depsgraph (engine-independent), and renders one
+composed bands+ink frame per preset.
+
+A GPU-less environment degrades honestly: the graph/stroke checks still
+PASS, the renders report RM_STYLE RENDER SKIPPED and no media is claimed.
 
 Usage: blender -b --python xtask/style_probe.py -- OUT_DIR
 """
@@ -17,6 +23,27 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "addon"))
+
+
+def _evaluated_strokes() -> int:
+    """Count strokes on the canonical ``rm_lineart`` overlay after a
+    depsgraph evaluation — the engine-independent proof the build is not
+    an empty shell."""
+    import bpy
+
+    overlay = bpy.data.objects.get("rm_lineart")
+    if overlay is None:
+        return 0
+    bpy.context.scene.frame_set(1)
+    bpy.context.view_layer.update()
+    dg = bpy.context.evaluated_depsgraph_get()
+    total = 0
+    for layer in overlay.evaluated_get(dg).data.layers:
+        for frame in layer.frames:
+            drawing = getattr(frame, "drawing", None)
+            if drawing is not None and hasattr(drawing, "strokes"):
+                total += len(drawing.strokes)
+    return total
 
 
 def main() -> int:
@@ -108,9 +135,13 @@ def main() -> int:
             f"nodes={report['nodes']}"
         )
         scene.render.filepath = str(out_dir / f"style_{name}.png")
+        base_px: list[float] | None = None
         try:
             bpy.ops.render.render(write_still=True)
             rendered.append(name)
+            base_img = bpy.data.images.load(str(out_dir / f"style_{name}.png"))
+            base_px = list(base_img.pixels)
+            bpy.data.images.remove(base_img)
             print(f"RM_STYLE {name.upper()} RENDER: {scene.render.filepath}")
         except Exception as exc:  # noqa: BLE001 — honest degradation, no faked media
             skipped.append(name)
@@ -118,6 +149,91 @@ def main() -> int:
                 f"RM_STYLE {name.upper()} RENDER SKIPPED: "
                 f"({exc.__class__.__name__}: {exc})"
             )
+
+        # P4-2: line art composes OVER the banded fill (bands + ink in one
+        # frame). Stroke evaluation is checked even when renders skip.
+        if preset.get("lineart") is not None:
+            la = style.build_lineart(obj, preset)
+            la_rebuild = style.build_lineart(obj, preset)
+            if la != la_rebuild:
+                print(
+                    f"RM_STYLE {name.upper()} LINEART: FAIL — "
+                    "rebuild differs (not deterministic)"
+                )
+                ok = False
+                continue
+            la_failed = [
+                key
+                for key, want in {
+                    "object": la["object"] == "rm_lineart",
+                    "layer": la["layer"] == "Lines",
+                    "modifier": la["modifier"] == "rm_lineart",
+                    "material": la["material"] == f"rm_ink_{name}",
+                    "source": la["source"] == obj.name,
+                    "values": (
+                        la["radius"] == float(preset["lineart"]["radius"])
+                        and la["opacity"] == float(preset["lineart"]["opacity"])
+                        and la["contour"] is preset["lineart"]["contour"]
+                        and la["crease"] is preset["lineart"]["crease"]
+                        and la["crease_threshold"]
+                        == float(preset["lineart"]["crease_threshold"])
+                        and la["color"] == preset["lineart"]["color"]
+                    ),
+                }.items()
+                if not want
+            ]
+            if la_failed:
+                print(f"RM_STYLE {name.upper()} LINEART: FAIL — {la_failed}")
+                ok = False
+                continue
+            strokes = _evaluated_strokes()
+            if strokes <= 0:
+                print(
+                    f"RM_STYLE {name.upper()} LINEART: FAIL — 0 strokes "
+                    "evaluated (the overlay is an empty shell)"
+                )
+                ok = False
+                continue
+            print(
+                f"RM_STYLE {name.upper()} LINEART: PASS strokes={strokes} "
+                f"radius={la['radius']} color={la['color']}"
+            )
+            scene.render.filepath = str(out_dir / f"style_{name}_ink.png")
+            try:
+                bpy.ops.render.render(write_still=True)
+                rendered.append(f"{name}_ink")
+                ink_img = bpy.data.images.load(
+                    str(out_dir / f"style_{name}_ink.png")
+                )
+                ink_px = list(ink_img.pixels)
+                bpy.data.images.remove(ink_img)
+                if base_px is not None and len(base_px) == len(ink_px):
+                    darkened = sum(
+                        1
+                        for a, b in zip(base_px, ink_px, strict=True)
+                        if b < a - 0.05 and a > 0.05
+                    )
+                    print(
+                        f"RM_STYLE {name.upper()} INK PIXELS: darkened="
+                        f"{darkened}"
+                    )
+                    if darkened <= 0:
+                        print(
+                            f"RM_STYLE {name.upper()} LINEART: FAIL — ink "
+                            "evaluates but is invisible in the render"
+                        )
+                        ok = False
+                print(
+                    f"RM_STYLE {name.upper()} COMPOSE RENDER: "
+                    f"{scene.render.filepath}"
+                )
+            except Exception as exc:  # noqa: BLE001 — honest degradation
+                skipped.append(f"{name}_ink")
+                print(
+                    f"RM_STYLE {name.upper()} COMPOSE RENDER SKIPPED: "
+                    f"({exc.__class__.__name__}: {exc})"
+                )
+            style.remove_lineart()  # next preset's base render must be ink-free
 
     if not ok:
         return 1

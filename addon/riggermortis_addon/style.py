@@ -34,6 +34,8 @@ from typing import Any
 
 PRESETS_DIR = Path(__file__).resolve().parent / "presets"
 MATERIAL_PREFIX = "rm_style_"
+LINEART_OBJECT = "rm_lineart"
+INK_PREFIX = "rm_ink_"
 
 
 def known_presets() -> list[str]:
@@ -71,7 +73,15 @@ def _hex_to_rgba(raw: Any) -> tuple[float, float, float, float]:
 
 
 def _validate(preset: dict[str, Any], source: str) -> None:
-    allowed = {"format", "name", "light_direction", "bands", "rim", "notes"}
+    allowed = {
+        "format",
+        "name",
+        "light_direction",
+        "bands",
+        "rim",
+        "lineart",
+        "notes",
+    }
     unknown = set(preset) - allowed
     if unknown:
         raise ValueError(f"{source}: unknown preset fields: {sorted(unknown)}")
@@ -103,6 +113,26 @@ def _validate(preset: dict[str, Any], source: str) -> None:
         for key in ("facing", "start"):
             if not isinstance(rim.get(key), (int, float)) or not 0 <= rim[key] < 1:
                 raise ValueError(f"{source}: rim.{key} must be a number in [0, 1)")
+    line = preset.get("lineart")
+    if line is not None:
+        _hex_to_rgba(line.get("color", ""))
+        for key in ("contour", "crease"):
+            if not isinstance(line.get(key), bool):
+                raise ValueError(f"{source}: lineart.{key} must be a boolean")
+        for key in ("radius", "opacity", "crease_threshold"):
+            if not isinstance(line.get(key), (int, float)):
+                raise ValueError(f"{source}: lineart.{key} must be a number")
+        if not line["radius"] > 0:
+            raise ValueError(
+                f"{source}: lineart.radius must be > 0 (WORLD METERS — a "
+                "character rig at ~1.7 m wants ~0.002-0.004)"
+            )
+        if not 0 <= line["opacity"] <= 1:
+            raise ValueError(f"{source}: lineart.opacity must be in [0, 1]")
+        if not 0 < line["crease_threshold"] <= 3.1416:
+            raise ValueError(
+                f"{source}: lineart.crease_threshold must be in (0, pi] radians"
+            )
 
 
 def _rgba_to_hex(color: Any) -> str:
@@ -284,3 +314,161 @@ def build_toon_material(obj: Any, preset: dict[str, Any]) -> dict[str, Any]:
     else:
         obj.data.materials.append(mat)  # type: ignore[union-attr]
     return graph
+
+
+def remove_lineart() -> bool:
+    """Remove this module's LineArt overlay (object + data + ink materials).
+
+    Returns True when an overlay object was removed. Ink materials are
+    removed only when orphaned (a rebuild re-owns them by name anyway).
+    """
+    import bpy
+
+    removed = False
+    for obj in list(bpy.data.objects):
+        if obj.type == "GREASEPENCIL" and obj.name == LINEART_OBJECT:
+            data = obj.data
+            bpy.data.objects.remove(obj)
+            removed = True
+            if data is not None and data.users == 0:
+                bpy.data.grease_pencils.remove(data)
+    for mat in list(bpy.data.materials):
+        if mat.name.startswith(INK_PREFIX) and mat.users == 0:
+            bpy.data.materials.remove(mat)
+    return removed
+
+
+def build_lineart(source_obj: Any, preset: dict[str, Any]) -> dict[str, Any]:
+    """Build (or rebuild) the preset's LineArt ink overlay tracing
+    ``source_obj``. Composes OVER ``build_toon_material`` — banded fill +
+    ink lines in the same scene (the manga look).
+
+    The GPv3 ``LINEART`` modifier only yields strokes through the ops
+    ``LINEART_OBJECT`` preset wiring: a data-API build (own layer + frame +
+    props) evaluates 0 strokes, and assigning ``target_material`` is
+    Blender-blocked ("has to be used by the Grease Pencil object already")
+    even when the material IS in the GP's list — probe-recorded in
+    docs/STYLE.md. So this builder ops-creates, then RENAMES every datablock
+    to the canonical names below; determinism comes from remove-first (same
+    discipline as ``build_toon_material``). Returns the report the gate
+    asserts; rebuilding must produce an equal report.
+    """
+    import bpy
+
+    line = preset.get("lineart")
+    if line is None:
+        raise ValueError(
+            f"preset {preset.get('name', '?')!r} has no 'lineart' section "
+            "(hint: add one — schema in docs/STYLE.md)"
+        )
+    _validate(preset, f"{preset.get('name', 'preset')}.json")
+    if source_obj is None or getattr(source_obj, "type", None) not in {
+        "MESH",
+        "SURFACE",
+        "META",
+        "CURVE",
+    }:
+        kind = getattr(source_obj, "type", None)
+        raise ValueError(
+            f"line art needs a shaded source object (got {kind!r} — hint: "
+            "the bone proxy is the visualizer for armatures)"
+        )
+
+    remove_lineart()
+    for mat in list(bpy.data.materials):
+        if mat.name.startswith(INK_PREFIX):
+            bpy.data.materials.remove(mat)
+    ink_name = f"{INK_PREFIX}{preset['name']}"
+
+    view_layer = bpy.context.view_layer
+    prev_active = view_layer.objects.active
+    source_obj.select_set(True)
+    view_layer.objects.active = source_obj
+    known = set(bpy.data.objects.keys())
+    try:
+        bpy.ops.object.grease_pencil_add(type="LINEART_OBJECT")
+    finally:
+        view_layer.objects.active = prev_active
+    # Context-independent capture: bpy.context.object is NOT reliable here
+    # (after a render it still points at the previous active object), so
+    # diff the datablocks the ops actually created.
+    created = [
+        o
+        for o in bpy.data.objects
+        if o.name not in known and o.type == "GREASEPENCIL"
+    ]
+    if len(created) != 1:
+        raise ValueError(
+            f"ops LINEART_OBJECT preset created {len(created)} Grease Pencil "
+            "objects (expected exactly 1 — hint: re-check this Blender "
+            "version against xtask/lineart_probe.py)"
+        )
+    gp = created[0]
+    mod = next((m for m in gp.modifiers if m.type == "LINEART"), None)
+    if mod is None:
+        raise ValueError(
+            "ops LINEART_OBJECT preset created no LINEART modifier (hint: "
+            "re-check this Blender version against xtask/lineart_probe.py)"
+        )
+    if not len(gp.data.layers):
+        raise ValueError(
+            "ops LINEART_OBJECT preset created no layer (hint: the modifier "
+            "writes strokes into a target layer — see docs/STYLE.md)"
+        )
+    ink = mod.target_material
+    if ink is None and len(gp.data.materials):
+        ink = gp.data.materials[0]
+    if ink is None:
+        raise ValueError(
+            "ops LINEART_OBJECT preset left no ink material to re-own "
+            "(hint: it normally creates a 'Black' material — see docs/STYLE.md)"
+        )
+
+    # Canonical renames — the names were freed by remove-first.
+    gp.data.name = LINEART_OBJECT
+    gp.name = LINEART_OBJECT
+    mod.name = "rm_lineart"
+    gp.data.layers[0].name = "Lines"
+    ink.name = ink_name
+    if gp.name != LINEART_OBJECT or ink.name != ink_name:
+        raise ValueError(
+            f"line-art rename collided (object={gp.name!r}, "
+            f"material={ink.name!r} — hint: a user datablock owns the "
+            "canonical rm_* name; clear it or rename it first)"
+        )
+
+    # The ink color must land where THIS Blender renders it from: the GP
+    # material color AND the node surface (the ops preset's material uses
+    # nodes; leaving Base Color black would pin every style's ink to black).
+    ink_rgba = _hex_to_rgba(line["color"])
+    if hasattr(ink, "grease_pencil") and hasattr(ink.grease_pencil, "color"):
+        ink.grease_pencil.color = ink_rgba
+    if ink.use_nodes:
+        for node in ink.node_tree.nodes:  # type: ignore[union-attr]
+            bsdf = getattr(node, "type", "")
+            if bsdf == "BSDF_PRINCIPLED" and "Base Color" in node.inputs:
+                node.inputs["Base Color"].default_value = ink_rgba
+
+    mod.source_object = source_obj
+    mod.use_contour = bool(line["contour"])
+    mod.use_crease = bool(line["crease"])
+    mod.crease_threshold = float(line["crease_threshold"])
+    mod.radius = float(line["radius"])
+    mod.opacity = float(line["opacity"])
+    mod.target_layer = "Lines"
+    mod.target_material = ink
+
+    return {
+        "object": gp.name,
+        "data": gp.data.name,
+        "layer": "Lines",
+        "modifier": "rm_lineart",
+        "source": source_obj.name,
+        "material": ink.name,
+        "color": line["color"],
+        "radius": float(line["radius"]),
+        "opacity": float(line["opacity"]),
+        "contour": bool(line["contour"]),
+        "crease": bool(line["crease"]),
+        "crease_threshold": float(line["crease_threshold"]),
+    }
