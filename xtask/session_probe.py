@@ -26,7 +26,7 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "addon"))
 sys.path.insert(0, str(REPO / "core" / "src"))
 
-EXPECTED_ACTIONS = 5
+EXPECTED_ACTIONS = 6
 TIMEOUT_S = 120.0
 
 
@@ -131,6 +131,12 @@ def main() -> int:
     )
 
     rig_name = build_gate_rig()
+    # The apply_style action (S13) styles a SHADED object — armatures have
+    # no shading, so the gate scene carries a sphere to restyle.
+    import bpy
+
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=24, ring_count=12, location=(0, 0, 1))
+    bpy.context.object.name = "RM_StyleSphere"
     write_stand_payload(payload_out)
 
     import riggermortis_addon

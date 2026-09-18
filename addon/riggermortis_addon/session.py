@@ -40,6 +40,7 @@ RECONNECT_MAX = 5.0
 #: Known action kinds — mirrors mcp/session_bridge.KNOWN_ACTION_KINDS v1.
 KNOWN_ACTION_KINDS = (
     "inspect_scene", "apply_pose", "bake_action", "render_turntable",
+    "apply_style",
 )
 
 _STATE: dict[str, Any] = {}
@@ -214,6 +215,8 @@ def execute_action(action: dict[str, Any]) -> dict[str, Any]:
             return {"ok": True, "report": _exec_bake_action(params)}
         if kind == "render_turntable":
             return {"ok": True, "report": _exec_render_turntable(params)}
+        if kind == "apply_style":
+            return {"ok": True, "report": _exec_apply_style(params)}
         return {"ok": False, "error": {
             "code": "unknown_action_kind",
             "message": f"unknown action kind: {kind!r}",
@@ -452,6 +455,61 @@ def _exec_render_turntable(params: dict[str, Any]) -> dict[str, Any]:
         play_action=bool(params.get("play_action", True)),
         prefix=str(params.get("prefix") or "turn"),
     )
+
+
+def _exec_apply_style(params: dict[str, Any]) -> dict[str, Any]:
+    """The P4 style builders as a session action (S13): apply a shipped
+    style preset (bands + line art + tones, exactly what the preset file
+    carries) to a SHADED object. Armatures have no shading — the bone
+    proxy mesh is the visualizer to style (pass its name). Per-panel/per-
+    action style application is PERSISTENT (like every Blender material
+    assignment); the report says exactly what was built."""
+    import bpy
+
+    from . import style
+
+    style_name = str(params.get("style") or "")
+    if not style_name:
+        raise ValueError(
+            "params.style is required (hint: known styles: "
+            + ", ".join(style.known_presets()) + ")"
+        )
+    preset = style.load_preset(style_name)
+    target = params.get("object")
+    if target:
+        obj = bpy.data.objects.get(str(target))
+        if obj is None:
+            shaded = sorted(
+                o.name for o in bpy.data.objects
+                if o.type in {"MESH", "SURFACE", "META", "CURVE"}
+            )
+            raise ValueError(
+                f"object {target!r} not found (hint: shaded objects in this "
+                f"scene: {', '.join(shaded) or 'none'})"
+            )
+    else:
+        obj = bpy.context.active_object
+    if obj is None or obj.type not in {"MESH", "SURFACE", "META", "CURVE"}:
+        kind = getattr(obj, "type", None)
+        raise ValueError(
+            f"apply_style needs a shaded object (got {kind!r} — hint: pass "
+            "'object' with the mesh/proxy to restyle; armatures have no "
+            "shading — the bone proxy mesh is the visualizer to style)"
+        )
+    report: dict[str, Any] = {"style": style_name, "object": obj.name}
+    mat_report = style.build_toon_material(obj, preset)
+    report["material"] = mat_report["material"]
+    if preset.get("lineart") is not None:
+        report["lineart"] = style.build_lineart(obj, preset)
+    else:
+        style.remove_lineart()
+        report["lineart"] = None
+    if preset.get("tones") is not None:
+        report["tones"] = style.build_screentones(bpy.context.scene, preset)
+    else:
+        style.remove_screentones(bpy.context.scene)
+        report["tones"] = None
+    return report
 
 
 # ---------------------------------------------------------------------------

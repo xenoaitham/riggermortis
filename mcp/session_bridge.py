@@ -35,12 +35,14 @@ LEDGER_SIZE = 256
 MAX_CLAIM = 64
 POLL_MAX_DEFAULT = 8
 
-#: Action kinds the add-on executor understands (v1). P3-7: all four are
-#: live — ``bake_action`` (video job -> certified composition -> rig-space
-#: bake + re-eval) and ``render_turntable`` (bone-proxy turntable) execute
-#: in Blender; see mcp/DESIGN.md "Action kinds".
+#: Action kinds the add-on executor understands (v1). All five are live:
+#: ``bake_action`` (video job -> certified composition -> rig-space bake +
+#: re-eval), ``render_turntable`` (bone-proxy turntable) and
+#: ``apply_style`` (P4 style builders on a shaded object) execute in
+#: Blender; see mcp/DESIGN.md "Action kinds".
 KNOWN_ACTION_KINDS = (
     "inspect_scene", "apply_pose", "bake_action", "render_turntable",
+    "apply_style",
 )
 
 

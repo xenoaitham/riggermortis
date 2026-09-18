@@ -338,11 +338,14 @@ def test_enqueue_validates_kind_and_params(runtime) -> None:
     assert value["error"]["message"] == "params must be an object"
 
 
-def test_all_four_action_kinds_are_live_at_the_enqueue_layer(runtime) -> None:
-    """P3-7: bake_action and render_turntable are LIVE kinds — the enqueue
-    layer accepts them (execution itself is gate-verified in real Blender:
-    make session-verify)."""
-    for kind in ("inspect_scene", "apply_pose", "bake_action", "render_turntable"):
+def test_all_five_action_kinds_are_live_at_the_enqueue_layer(runtime) -> None:
+    """P3-7 + S13: bake_action, render_turntable and apply_style are LIVE
+    kinds — the enqueue layer accepts them (execution itself is
+    gate-verified in real Blender: make session-verify)."""
+    for kind in (
+        "inspect_scene", "apply_pose", "bake_action", "render_turntable",
+        "apply_style",
+    ):
         value, meta = _call("enqueue_action", {"kind": kind, "params": {}})
         assert meta["isError"] is False, kind
         assert value["status"] == "queued", kind

@@ -149,9 +149,9 @@ TOOL_SCHEMAS_V1: list[dict] = [
         "status": "live",
         "description": "Enqueue an action for the live Blender add-on "
                        "(kinds: inspect_scene, apply_pose, bake_action, "
-                       "render_turntable); returns the action_id — collect "
-                       "via action_result. Needs the server started with "
-                       "--session-port/--session-token",
+                       "render_turntable, apply_style); returns the "
+                       "action_id — collect via action_result. Needs the "
+                       "server started with --session-port/--session-token",
         "input_schema": {
             "type": "object",
             "properties": {

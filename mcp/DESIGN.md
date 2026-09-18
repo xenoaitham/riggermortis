@@ -199,6 +199,7 @@ queued ──poll claims──> dispatched ──result──> done | failed
 | `apply_pose` | live | `payload_path`, `armature_name?`, `mirror?` | the add-on's REAL payload-apply path (D-009) on the named (or active) armature; full structured report incl. per-bone self-check |
 | `bake_action` | live (P3-7) | `job_dir`, `armature_name?`, `hip_stabilize?` (0..1 \| null, default 0.7), `action_name?` | the add-on's REAL bake path (P2-3/P2-5) over a video job: conditional tail repair FIRST (D-016 — repair changes rest tails, so it precedes any posing) -> `core.load_action(job_dir)` through the payload contract (D-009) -> the certified composition `condition_action(hip_stabilize=…, min_cutoff=None, tolerance=None)` -> `detect_contacts` -> `lock_feet` -> `bake_action(contacts=…)`. The report carries the bake's FK self-check (`worst_deg`, measured on the UNLOCKED application), the lock cost columns (`locked_frames`, `lock_dev_deg`, `lock_clamped`), the contact summary (`intervals`, slide before/after in canonical u), and the P3-7 gate number: `reeval_worst_deg` — every baked frame is re-set (`scene.frame_set`) and the fcurve evaluation re-measured against the frame's canonical targets (`bone_target_direction`), the RM_BAKE instrument. Bars are asserted by the GATE (`xtask/session_verify.sh`: reeval <= 0.5 deg), not silently by the executor. Root motion stays unbaked (D-008 hip-anchored solve; walk-in-place is the accepted baseline). |
 | `render_turntable` | live (P3-7) | `out_dir`, `armature_name?`, `frames?` (2..120, default 24), `width?`/`height?` (default 640x480), `play_action?` (default true), `prefix?` | headless-safe turntable render of the named (or active) armature with the bone-proxy visualizer (armature bones do not render): octahedron proxy over the MAPPED bones composed through `matrix_world` (imported rigs carry object scale), workbench engine, FLAT unlit shading + an explicit background world (the S9 staging lessons — STUDIO/sun silhouettes from some angles and glTF worlds can swallow the frame), camera target = the deformed proxy's depsgraph bound-box center. With `play_action` and a baked action present, orbit step i also advances the scene frame cyclically through the baked range (the launch-GIF shot: the rig walks in place while the camera comes around); otherwise it renders the current state. `out_dir` is confined to the Blender process cwd or the system temp dir; `..` segments are refused. PNG frames + report `{out_dir, engine, size, played_action, frames[]}`; GIF assembly stays OUTSIDE Blender (shell glue, media rule). Staging mirrors `xtask/render_demos.py` (the xtask-side origin); the session copy lives in `addon/riggermortis_addon/turntable.py` because a real user's Blender has only the add-on on sys.path. |
+| `apply_style` | live (S13) | `style` (required, a shipped style preset name), `object?` (default: the active object) | the P4 style builders on a SHADED object: `build_toon_material` +, when the preset carries them, `build_lineart` (P4-2) and `build_screentones` (P4-3); a preset without tones removes a previous tone pass (the anime case) — exactly what `render_panels` does per panel, now agent-drivable. Armatures have no shading (hint points at the bone proxy mesh); application is PERSISTENT like any material assignment, and the report names every built datablock (`material`, `lineart`, `tones`) so the caller can verify or clean up. |
 
 Executor errors are ALWAYS structured (`{"ok": false, "error": {code,
 message}}`, actionable `message` — never a traceback over the socket).
@@ -242,11 +243,13 @@ inspect → pose → animate → render turntable, all collected via
   contract-valid walk-shaped fixture job (`xtask/walk_job.py` serializing
   the published HIPSTAB generator through the payload contract — same
   SYNTHETIC labeling as every walk instrument), then the agent enqueues
-  five actions: `inspect_scene`, `apply_pose` (valid), `apply_pose`
+  six actions: `inspect_scene`, `apply_pose` (valid), `apply_pose`
   (deliberately missing payload), `bake_action` (the fixture job),
-  `render_turntable`. Asserts: bake done with `reeval_worst_deg <= 0.5`,
+  `render_turntable`, `apply_style` (S13, on the probe's sphere).
+  Asserts: bake done with `reeval_worst_deg <= 0.5`,
   locked frames >= 1, honest failure on the missing payload, turntable
-  report with rendered files on disk.
+  report with rendered files on disk, style report naming the built
+  `rm_style_manga` material + `rm_lineart` + `rm_tones` datablocks.
 - **Demo** (`make agent-demo`, local — needs the git-ignored rigs): the
   same protocol over the REAL metarig + a real photo payload, the motion
   from the labeled synthetic walk job (real-clip NEEDS-HUMAN stands), the
