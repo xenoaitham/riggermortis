@@ -9,7 +9,7 @@ test:
 	cd core && $(PY) -m pytest tests
 
 lint:
-	$(PY) -m ruff check core/src core/tests addon/riggermortis_addon mcp/riggermortis_mcp.py mcp/session_bridge.py xtask/export_fixture_rigs.py xtask/build_rigify_rigs.py xtask/import_and_extract.py xtask/render_demos.py xtask/benchmark_poses.py xtask/foot_lock_gate.py xtask/hip_stab_gate.py xtask/walk_media.py xtask/assemble_walk.py xtask/walk_docs.py xtask/session_probe.py xtask/walk_job.py xtask/agent_demo_docs.py xtask/agent_demo_blender.py xtask/style_probe.py xtask/page_probe.py xtask/lineart_probe.py xtask/tone_probe.py
+	$(PY) -m ruff check core/src core/tests addon/riggermortis_addon mcp/riggermortis_mcp.py mcp/session_bridge.py xtask/export_fixture_rigs.py xtask/build_rigify_rigs.py xtask/import_and_extract.py xtask/render_demos.py xtask/benchmark_poses.py xtask/foot_lock_gate.py xtask/hip_stab_gate.py xtask/walk_media.py xtask/assemble_walk.py xtask/walk_docs.py xtask/session_probe.py xtask/walk_job.py xtask/agent_demo_docs.py xtask/agent_demo_blender.py xtask/style_probe.py xtask/page_probe.py xtask/styled_turntable_probe.py xtask/lineart_probe.py xtask/tone_probe.py
 
 fixtures:
 	$(PY) xtask/export_fixture_rigs.py
