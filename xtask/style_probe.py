@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "addon"))
@@ -44,6 +45,20 @@ def _evaluated_strokes() -> int:
             if drawing is not None and hasattr(drawing, "strokes"):
                 total += len(drawing.strokes)
     return total
+
+
+def _has_lineart_api() -> bool:
+    """True when this Blender has the 5.1-class GPv3 LineArt surface."""
+    import bpy
+
+    return hasattr(bpy.types, "GreasePencilLineartModifier") and hasattr(
+        bpy.ops.object, "grease_pencil_add"
+    )
+
+
+def _has_tones_api(scene: Any) -> bool:
+    """True when this Blender composites through a scene node group."""
+    return hasattr(scene, "compositing_node_group")
 
 
 def main() -> int:
@@ -136,6 +151,7 @@ def main() -> int:
         )
         scene.render.filepath = str(out_dir / f"style_{name}.png")
         base_px: list[float] | None = None
+        ink_px: list[float] | None = None
         try:
             bpy.ops.render.render(write_still=True)
             rendered.append(name)
@@ -152,7 +168,16 @@ def main() -> int:
 
         # P4-2: line art composes OVER the banded fill (bands + ink in one
         # frame). Stroke evaluation is checked even when renders skip.
-        if preset.get("lineart") is not None:
+        # A Blender without the GPv3 LineArt surface (apt 4.0.2 in CI)
+        # reports SKIPPED honestly — the graph checks still gate.
+        if preset.get("lineart") is None:
+            pass
+        elif not _has_lineart_api():
+            print(
+                f"RM_STYLE {name.upper()} LINEART: SKIPPED (this Blender "
+                "has no GPv3 LineArt API — apt 4.0.2-class; not a failure)"
+            )
+        else:
             la = style.build_lineart(obj, preset)
             la_rebuild = style.build_lineart(obj, preset)
             if la != la_rebuild:
@@ -234,6 +259,92 @@ def main() -> int:
                     f"({exc.__class__.__name__}: {exc})"
                 )
             style.remove_lineart()  # next preset's base render must be ink-free
+
+        # P4-3: screentones composite over EVERYTHING (this render carries
+        # material + lineart + tones in one frame when all three exist).
+        # A Blender without the scene compositor node group (apt 4.0.2 in
+        # CI) reports SKIPPED honestly.
+        if preset.get("tones") is None:
+            print(f"RM_STYLE {name.upper()} TONES: NONE (no tones field)")
+        elif not _has_tones_api(scene):
+            print(
+                f"RM_STYLE {name.upper()} TONES: SKIPPED (this Blender has "
+                "no scene compositing node group — apt 4.0.2-class; not a "
+                "failure)"
+            )
+        else:
+            tones_report = style.build_screentones(scene, preset)
+            tones_rebuild = style.build_screentones(scene, preset)
+            if tones_report != tones_rebuild:
+                print(
+                    f"RM_STYLE {name.upper()} TONES: FAIL — "
+                    "rebuild differs (not deterministic)"
+                )
+                ok = False
+                continue
+            tones_failed = [
+                key
+                for key, want in {
+                    "group": tones_report["group"] == "rm_tones",
+                    "uv_layer": tones_report["uv_layer"] == "rm_tones_uv",
+                    "uv_material": tones_report["uv_material"] == "rm_tones_uv",
+                    "beauty": tones_report["beauty_layer"]
+                    == scene.view_layers[0].name,
+                    "values": (
+                        tones_report["cells"] == preset["tones"]["cells"]
+                        and tones_report["dot_scale"]
+                        == float(preset["tones"]["dot_scale"])
+                        and tones_report["ink"] == preset["tones"]["ink"]
+                    ),
+                }.items()
+                if not want
+            ]
+            if tones_failed:
+                print(f"RM_STYLE {name.upper()} TONES: FAIL — {tones_failed}")
+                ok = False
+                continue
+            print(
+                f"RM_STYLE {name.upper()} TONES GRAPH: PASS "
+                f"cells={tones_report['cells']} "
+                f"dot_scale={tones_report['dot_scale']} "
+                f"ink={tones_report['ink']}"
+            )
+            scene.render.filepath = str(out_dir / f"style_{name}_tones.png")
+            try:
+                bpy.ops.render.render(write_still=True)
+                rendered.append(f"{name}_tones")
+                tones_img = bpy.data.images.load(
+                    str(out_dir / f"style_{name}_tones.png")
+                )
+                tones_px = list(tones_img.pixels)
+                bpy.data.images.remove(tones_img)
+                if ink_px is not None and len(ink_px) == len(tones_px):
+                    darkened = sum(
+                        1
+                        for a, b in zip(ink_px, tones_px, strict=True)
+                        if b < a - 0.05 and a > 0.05
+                    )
+                    print(
+                        f"RM_STYLE {name.upper()} TONE PIXELS: darkened="
+                        f"{darkened}"
+                    )
+                    if darkened <= 0:
+                        print(
+                            f"RM_STYLE {name.upper()} TONES: FAIL — the tone "
+                            "graph runs but no dot darkened any pixel"
+                        )
+                        ok = False
+                print(
+                    f"RM_STYLE {name.upper()} TONES RENDER: "
+                    f"{scene.render.filepath}"
+                )
+            except Exception as exc:  # noqa: BLE001 — honest degradation
+                skipped.append(f"{name}_tones")
+                print(
+                    f"RM_STYLE {name.upper()} TONES RENDER SKIPPED: "
+                    f"({exc.__class__.__name__}: {exc})"
+                )
+            style.remove_screentones(scene)  # next preset renders clean
 
     if not ok:
         return 1

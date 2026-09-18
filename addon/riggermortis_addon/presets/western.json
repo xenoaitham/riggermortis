@@ -19,5 +19,10 @@
     "crease_threshold": 1.57,
     "color": "#000000"
   },
-  "notes": "four-band warm cartoon ramp with a soft warm rim, medium black outline"
+  "tones": {
+    "cells": 26,
+    "dot_scale": 0.35,
+    "ink": "#222222"
+  },
+  "notes": "four-band warm cartoon ramp with a soft warm rim, medium black outline, ben-day-style dots"
 }

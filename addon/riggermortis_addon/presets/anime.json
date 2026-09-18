@@ -19,5 +19,5 @@
     "crease_threshold": 1.57,
     "color": "#1a1a1e"
   },
-  "notes": "cel-style three-band diffuse keyed to a fixed light direction, hard white rim, thin near-black outline"
+  "notes": "cel-style three-band diffuse keyed to a fixed light direction, hard white rim, thin near-black outline, no screentones (clean cel look)"
 }

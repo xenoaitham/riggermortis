@@ -72,6 +72,13 @@ jobs:
           add-on client, enqueue -> execute -> structured result; self-
           contained — no models/assets, 127.0.0.1 only)
         run: make session-verify
+      - name: >-
+          Style gate (P4-1 toon materials deterministic graphs; P4-2/P4-3
+          halves degrade honestly on 4.0.2 — the GPv3 LineArt modifier and
+          the scene compositor node group are 5.1-class APIs the probe
+          detects and SKIPS; D-014 pin note: the dev box runs the full gate
+          with real EEVEE pixels on 5.1.0)
+        run: make style-verify
 
   media-guard:
     runs-on: ubuntu-24.04

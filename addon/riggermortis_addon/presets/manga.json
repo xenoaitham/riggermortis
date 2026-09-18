@@ -19,5 +19,10 @@
     "crease_threshold": 1.57,
     "color": "#000000"
   },
-  "notes": "two-band ink-on-paper look, heavy black line art (halftones are P4-3, not faked here)"
+  "tones": {
+    "cells": 40,
+    "dot_scale": 0.42,
+    "ink": "#101010"
+  },
+  "notes": "two-band ink-on-paper look, heavy black line art, halftone screentones"
 }

@@ -36,6 +36,9 @@ PRESETS_DIR = Path(__file__).resolve().parent / "presets"
 MATERIAL_PREFIX = "rm_style_"
 LINEART_OBJECT = "rm_lineart"
 INK_PREFIX = "rm_ink_"
+TONES_GROUP = "rm_tones"
+TONES_UV_LAYER = "rm_tones_uv"
+TONES_UV_MATERIAL = "rm_tones_uv"
 
 
 def known_presets() -> list[str]:
@@ -80,6 +83,7 @@ def _validate(preset: dict[str, Any], source: str) -> None:
         "bands",
         "rim",
         "lineart",
+        "tones",
         "notes",
     }
     unknown = set(preset) - allowed
@@ -132,6 +136,18 @@ def _validate(preset: dict[str, Any], source: str) -> None:
         if not 0 < line["crease_threshold"] <= 3.1416:
             raise ValueError(
                 f"{source}: lineart.crease_threshold must be in (0, pi] radians"
+            )
+    tones = preset.get("tones")
+    if tones is not None:
+        _hex_to_rgba(tones.get("ink", ""))
+        cells = tones.get("cells")
+        if not isinstance(cells, int) or isinstance(cells, bool) or not 1 <= cells <= 256:
+            raise ValueError(f"{source}: tones.cells must be an int in [1, 256]")
+        scale = tones.get("dot_scale")
+        if not isinstance(scale, (int, float)) or not 0 < scale <= 1:
+            raise ValueError(
+                f"{source}: tones.dot_scale must be a number in (0, 1] "
+                "(fraction of a cell; 0.71 reaches the cell corners)"
             )
 
 
@@ -471,4 +487,180 @@ def build_lineart(source_obj: Any, preset: dict[str, Any]) -> dict[str, Any]:
         "contour": bool(line["contour"]),
         "crease": bool(line["crease"]),
         "crease_threshold": float(line["crease_threshold"]),
+    }
+
+
+def remove_screentones(scene: Any) -> bool:
+    """Remove this module's tone machinery from ``scene`` (compositor group,
+    UV view layer, override material). Returns True when a group was ours.
+
+    Leaving an unrelated ``scene.compositing_node_group`` alone is the
+    honest behavior — we never touch a graph we didn't build.
+    """
+    import bpy
+
+    removed = False
+    current = getattr(scene, "compositing_node_group", None)
+    if current is not None and current.name == TONES_GROUP:
+        scene.compositing_node_group = None
+        bpy.data.node_groups.remove(current)
+        removed = True
+    elif TONES_GROUP in bpy.data.node_groups:
+        bpy.data.node_groups.remove(bpy.data.node_groups[TONES_GROUP])
+    for layer in list(scene.view_layers):
+        if layer.name == TONES_UV_LAYER or layer.name.startswith(
+            TONES_UV_LAYER + "."
+        ):
+            scene.view_layers.remove(layer)
+    for mat in list(bpy.data.materials):
+        if mat.name == TONES_UV_MATERIAL or mat.name.startswith(
+            TONES_UV_MATERIAL + "."
+        ):
+            bpy.data.materials.remove(mat)
+    return removed
+
+
+def build_screentones(scene: Any, preset: dict[str, Any]) -> dict[str, Any]:
+    """Build (or rebuild) the preset's halftone screentone pass over the
+    rendered image: luminance -> dot radius, Generated coords (via a
+    dedicated view layer whose override material emits them) -> tiled cell
+    distance, ``dist < radius`` -> ink dots composited OVER the image.
+
+    Everything here was probe-verified headless on 5.1 (docs/STYLE.md):
+    the compositor graph lives in ``scene.compositing_node_group`` (the
+    legacy ``scene.node_tree`` is gone), unified ``ShaderNode*`` classes
+    work inside it, and there is NO UV pass — hence the second view layer.
+    Deterministic by remove-first + fixed node names, same as the other
+    builders; the report the gate asserts must be rebuild-equal.
+    """
+    import bpy
+
+    tones = preset.get("tones")
+    if tones is None:
+        raise ValueError(
+            f"preset {preset.get('name', '?')!r} has no 'tones' section "
+            "(hint: add one — schema in docs/STYLE.md)"
+        )
+    _validate(preset, f"{preset.get('name', 'preset')}.json")
+    cells = int(tones["cells"])
+    dot_scale = float(tones["dot_scale"])
+    ink_rgba = _hex_to_rgba(tones["ink"])
+
+    remove_screentones(scene)
+
+    # The coordinate source: a view layer whose override material emits
+    # Generated coords as color (r = u, g = v). EEVEE renders it headless.
+    uv_mat = bpy.data.materials.new(TONES_UV_MATERIAL)
+    uv_mat.use_nodes = True
+    nodes = uv_mat.node_tree.nodes
+    links = uv_mat.node_tree.links
+    nodes.clear()
+    emit = nodes.new("ShaderNodeEmission")
+    emit.name = "Emit"
+    emit.inputs["Strength"].default_value = 1.0
+    coord = nodes.new("ShaderNodeTexCoord")
+    coord.name = "Coords"
+    sep = nodes.new("ShaderNodeSeparateXYZ")
+    sep.name = "UVSep"
+    comb = nodes.new("ShaderNodeCombineColor")
+    comb.name = "UVComb"
+    links.new(coord.outputs["Generated"], sep.inputs["Vector"])
+    links.new(sep.outputs["X"], comb.inputs["Red"])
+    links.new(sep.outputs["Y"], comb.inputs["Green"])
+    out = nodes.new("ShaderNodeOutputMaterial")
+    out.name = "Out"
+    links.new(comb.outputs["Color"], emit.inputs["Color"])
+    links.new(emit.outputs["Emission"], out.inputs["Surface"])
+    vl = scene.view_layers.new(TONES_UV_LAYER)
+    vl.use = True
+    vl.material_override = uv_mat
+
+    # The compositor graph: dots over the beauty image.
+    group = bpy.data.node_groups.new(TONES_GROUP, "CompositorNodeTree")
+    scene.use_nodes = True
+    scene.compositing_node_group = group
+    beauty = group.nodes.new("CompositorNodeRLayers")
+    beauty.name = "BeautyRL"
+    beauty.layer = scene.view_layers[0].name
+    coords = group.nodes.new("CompositorNodeRLayers")
+    coords.name = "CoordsRL"
+    coords.layer = TONES_UV_LAYER
+
+    def math(
+        name: str, op: str, x: Any = None, value: Any = None, y: Any = None
+    ) -> Any:
+        node = group.nodes.new("ShaderNodeMath")
+        node.name = name
+        node.operation = op
+        if x is not None:
+            group.links.new(x, node.inputs[0])
+        if y is not None:
+            group.links.new(y, node.inputs[1])
+        elif value is not None:
+            node.inputs[1].default_value = value
+        return node.outputs["Value"]
+
+    csep = group.nodes.new("ShaderNodeSeparateXYZ")
+    csep.name = "GridSep"
+    group.links.new(coords.outputs["Image"], csep.inputs["Vector"])
+    fx = math("GridX", "MULTIPLY", csep.outputs["X"], value=float(cells))
+    fy = math("GridY", "MULTIPLY", csep.outputs["Y"], value=float(cells))
+    frx = math("FracX", "SUBTRACT", fx, y=math("FloorX", "FLOOR", fx))
+    fry = math("FracY", "SUBTRACT", fy, y=math("FloorY", "FLOOR", fy))
+    dx = math("DX", "SUBTRACT", frx, value=0.5)
+    dy = math("DY", "SUBTRACT", fry, value=0.5)
+    d2 = math("D2", "ADD", y=math("DX2", "MULTIPLY", x=dx, y=dx),
+              x=math("DY2", "MULTIPLY", x=dy, y=dy))
+    dist = math("Dist", "POWER", d2, value=0.5)
+
+    lum = group.nodes.new("CompositorNodeRGBToBW")
+    lum.name = "Lum"
+    group.links.new(beauty.outputs["Image"], lum.inputs[0])
+    # darkness = 1 - luminance: CONSTANT in input 0, link in input 1
+    # (operand order is load-bearing — probe-recorded).
+    darkness = group.nodes.new("ShaderNodeMath")
+    darkness.name = "Darkness"
+    darkness.operation = "SUBTRACT"
+    darkness.inputs[0].default_value = 1.0
+    group.links.new(lum.outputs[0], darkness.inputs[1])
+    radius = math("Radius", "MULTIPLY", darkness.outputs["Value"],
+                  value=dot_scale)
+    mask = math("Mask", "LESS_THAN", dist, y=radius)
+    mix = group.nodes.new("ShaderNodeMix")
+    mix.name = "ToneMix"
+    mix.data_type = "RGBA"
+    mix.blend_type = "MIX"
+    mix_a = next(s for s in mix.inputs if s.identifier == "A_Color")
+    mix_b = next(s for s in mix.inputs if s.identifier == "B_Color")
+    mix_fac = next(s for s in mix.inputs if s.identifier == "Factor_Float")
+    mix_result = next(s for s in mix.outputs if s.identifier == "Result_Color")
+    mix_b.default_value = ink_rgba
+    group.links.new(beauty.outputs["Image"], mix_a)
+    group.links.new(mask, mix_fac)
+
+    # EXACTLY ONE group-output node may exist, and it must be created AFTER
+    # the interface socket (a stale unlinked first node renders black —
+    # debug-caught: Blender reads the first output, not the linked one).
+    for node in list(group.nodes):
+        if node.type == "GROUP_OUTPUT":
+            group.nodes.remove(node)
+    sink = group.nodes.new("NodeGroupOutput")
+    if "Image" not in sink.inputs:
+        group.interface.new_socket(
+            name="Image", in_out="OUTPUT", socket_type="NodeSocketColor"
+        )
+        group.nodes.remove(sink)
+        sink = group.nodes.new("NodeGroupOutput")
+    sink.name = "Sink"
+    group.links.new(mix_result, sink.inputs["Image"])
+
+    return {
+        "group": group.name,
+        "uv_layer": vl.name,
+        "uv_material": uv_mat.name,
+        "beauty_layer": beauty.layer,
+        "cells": cells,
+        "dot_scale": dot_scale,
+        "ink": tones["ink"],
+        "nodes": [node.name for node in group.nodes],
     }
