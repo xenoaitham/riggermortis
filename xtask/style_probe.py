@@ -269,9 +269,9 @@ def main() -> int:
             print(f"RM_STYLE {name.upper()} TONES: NONE (no tones field)")
         elif not _has_tones_api(scene):
             print(
-                f"RM_STYLE {name.upper()} TONES: SKIPPED (this Blender has "
-                "no scene compositing node group — apt 4.0.2-class; not a "
-                "failure)"
+                f"RM_STYLE {name.upper()} TONES GRAPH: SKIPPED (this Blender "
+                "has no scene compositing node group — apt 4.0.2-class; not "
+                "a failure)"
             )
         else:
             tones_report = style.build_screentones(scene, preset)
