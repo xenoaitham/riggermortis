@@ -77,6 +77,7 @@ def main() -> int:
     if names != ["anime", "manga", "western"]:
         print(f"RM_STYLE FAIL: unexpected preset set {names}")
         return 1
+    print(f"RM_STYLE BLENDER: {bpy.app.version_string}")
     print(f"RM_STYLE PRESETS: {', '.join(names)}")
 
     bpy.ops.wm.read_factory_settings(use_empty=True)

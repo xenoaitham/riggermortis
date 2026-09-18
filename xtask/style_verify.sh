@@ -20,19 +20,30 @@ trap 'rm -rf "$TMP"' EXIT
 "$BLENDER" -b --python "$REPO/xtask/style_probe.py" -- "$TMP" \
   > "$TMP/probe.log" 2>&1 || { cat "$TMP/probe.log" >&2; exit 1; }
 
-grep -q "RM_STYLE PRESETS: anime, manga, western" "$TMP/probe.log"
-grep -q "RM_STYLE ANIME GRAPH: PASS" "$TMP/probe.log"
-grep -q "RM_STYLE MANGA GRAPH: PASS" "$TMP/probe.log"
-grep -q "RM_STYLE WESTERN GRAPH: PASS" "$TMP/probe.log"
+# Every expectation is checked verbosely: a miss dumps the probe log —
+# a silent grep -q kill under set -e cost us the real 4.0.2 diagnosis once.
+check() {
+  if ! grep -qE "$1" "$TMP/probe.log"; then
+    echo "error: probe log lacks: $1" >&2
+    cat "$TMP/probe.log" >&2
+    exit 1
+  fi
+}
+
+check "RM_STYLE BLENDER: "
+check "RM_STYLE PRESETS: anime, manga, western"
+check "RM_STYLE ANIME GRAPH: PASS"
+check "RM_STYLE MANGA GRAPH: PASS"
+check "RM_STYLE WESTERN GRAPH: PASS"
 # LINEART/TONES accept SKIPPED for pre-5.1 Blenders (apt 4.0.2 in CI lacks
 # the GPv3 LineArt + scene-node-group APIs); the dev box shows PASS.
-grep -qE "RM_STYLE ANIME LINEART: (PASS|SKIPPED)" "$TMP/probe.log"
-grep -qE "RM_STYLE MANGA LINEART: (PASS|SKIPPED)" "$TMP/probe.log"
-grep -qE "RM_STYLE WESTERN LINEART: (PASS|SKIPPED)" "$TMP/probe.log"
-grep -qE "RM_STYLE ANIME TONES: (NONE|SKIPPED)" "$TMP/probe.log"
-grep -qE "RM_STYLE MANGA TONES GRAPH: (PASS|SKIPPED)" "$TMP/probe.log"
-grep -qE "RM_STYLE WESTERN TONES GRAPH: (PASS|SKIPPED)" "$TMP/probe.log"
-grep -q "RM_STYLE PROBE OK" "$TMP/probe.log"
+check "RM_STYLE ANIME LINEART: (PASS|SKIPPED)"
+check "RM_STYLE MANGA LINEART: (PASS|SKIPPED)"
+check "RM_STYLE WESTERN LINEART: (PASS|SKIPPED)"
+check "RM_STYLE ANIME TONES: (NONE|SKIPPED)"
+check "RM_STYLE MANGA TONES GRAPH: (PASS|SKIPPED)"
+check "RM_STYLE WESTERN TONES GRAPH: (PASS|SKIPPED)"
+check "RM_STYLE PROBE OK"
 grep "RM_STYLE" "$TMP/probe.log" | sed 's/^/   /'
 
 if grep -q "RM_STYLE PROBE OK rendered=\[" "$TMP/probe.log"; then
