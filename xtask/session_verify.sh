@@ -175,14 +175,18 @@ fi
 echo "   ok: turntable frames on disk ($TURN_PNG)"
 
 # -- S13: apply_style (the P4 style builders as a session action) ---------------
+# Capability-tolerant like the style gate: a 5.x-class Blender builds the
+# lineart overlay + tone compositor (manga carries both); a pre-5.x one
+# reports SKIPPED honestly for those halves while the material still builds.
 check "$R6" "v['result']['content'][0]['json']['status'] == 'done'" \
   "apply_style completed through the real P4 builders"
 check "$R6" "v['result']['content'][0]['json']['report']['style'] == 'manga' and v['result']['content'][0]['json']['report']['object'] == 'RM_StyleSphere'" \
   "apply_style named the style and the styled object"
 check "$R6" "v['result']['content'][0]['json']['report']['material'] == 'rm_style_manga'" \
   "apply_style built the deterministic toon material"
-check "$R6" "v['result']['content'][0]['json']['report']['lineart']['object'] == 'rm_lineart' and v['result']['content'][0]['json']['report']['tones']['group'] == 'rm_tones'" \
-  "apply_style built the line-art overlay + tone compositor (manga carries both)"
+R6REP="v['result']['content'][0]['json']['report']"
+check "$R6" "(isinstance($R6REP['lineart'], dict) and $R6REP['lineart']['object'] == 'rm_lineart' and isinstance($R6REP['tones'], dict) and $R6REP['tones']['group'] == 'rm_tones') or ('SKIPPED' in str($R6REP['lineart']) and 'SKIPPED' in str($R6REP['tones']))" \
+  "apply_style built lineart+tones (5.x) or reported SKIPPED honestly (pre-5.x)"
 
 # unknown action_id -> structured invalid_request, isError flagged
 rpc 13 action_result "{\"action_id\":\"a-9999\"}"

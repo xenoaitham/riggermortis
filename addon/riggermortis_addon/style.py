@@ -377,6 +377,13 @@ def build_lineart(source_obj: Any, preset: dict[str, Any]) -> dict[str, Any]:
             f"preset {preset.get('name', '?')!r} has no 'lineart' section "
             "(hint: add one — schema in docs/STYLE.md)"
         )
+    # Honest capability check: the GPv3 LINEART modifier needs a 4.3+-class
+    # Blender (apt 4.0.2 has only the LRT_* ops enums — probe-recorded).
+    if not hasattr(bpy.types, "GreasePencilLineartModifier"):
+        raise ValueError(
+            "this Blender has no GPv3 LineArt API (pre-4.3-class — hint: the "
+            "'lineart' field needs a 4.3+/5.x Blender; see docs/STYLE.md)"
+        )
     _validate(preset, f"{preset.get('name', 'preset')}.json")
     if source_obj is None or getattr(source_obj, "type", None) not in {
         "MESH",
@@ -540,6 +547,15 @@ def build_screentones(scene: Any, preset: dict[str, Any]) -> dict[str, Any]:
         raise ValueError(
             f"preset {preset.get('name', '?')!r} has no 'tones' section "
             "(hint: add one — schema in docs/STYLE.md)"
+        )
+    # Honest capability check: the compositor graph lives in
+    # scene.compositing_node_group only on 4.5+/5.x-class Blenders (the
+    # legacy scene.node_tree is gone there and absent here).
+    if not hasattr(scene, "compositing_node_group"):
+        raise ValueError(
+            "this Blender has no scene compositing node group (pre-5.x-class "
+            "— hint: the 'tones' field needs a 5.x-class Blender; see "
+            "docs/STYLE.md)"
         )
     _validate(preset, f"{preset.get('name', 'preset')}.json")
     cells = int(tones["cells"])

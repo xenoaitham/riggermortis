@@ -223,10 +223,13 @@ def execute_action(action: dict[str, Any]) -> dict[str, Any]:
             "retryable": False,
             "hint": "known kinds: " + ", ".join(KNOWN_ACTION_KINDS),
         }}
-    except (ValueError, ImportError, OSError) as exc:
+    except Exception as exc:  # noqa: BLE001 — the socket contract: an executor
+        # failure is ALWAYS a structured error, never a raised exception (the
+        # S13 CI catch: a 4.0.2 ops-enum TypeError escaped the old narrow
+        # tuple and crashed the main-thread pump).
         return {"ok": False, "error": {
             "code": "executor_error",
-            "message": str(exc),
+            "message": f"{exc.__class__.__name__}: {exc}",
             "retryable": False,
         }}
 
@@ -499,13 +502,28 @@ def _exec_apply_style(params: dict[str, Any]) -> dict[str, Any]:
     report: dict[str, Any] = {"style": style_name, "object": obj.name}
     mat_report = style.build_toon_material(obj, preset)
     report["material"] = mat_report["material"]
+    # Per-feature honest degradation (the style gate's SKIPPED semantics):
+    # the material builds on every supported Blender; line art needs the
+    # GPv3 API (4.3+) and tones the scene compositor node group (5.x). The
+    # report says which happened — never a silent partial apply.
     if preset.get("lineart") is not None:
-        report["lineart"] = style.build_lineart(obj, preset)
+        if hasattr(bpy.types, "GreasePencilLineartModifier"):
+            report["lineart"] = style.build_lineart(obj, preset)
+        else:
+            report["lineart"] = (
+                "SKIPPED (this Blender has no GPv3 LineArt API — pre-4.3-class)"
+            )
     else:
         style.remove_lineart()
         report["lineart"] = None
     if preset.get("tones") is not None:
-        report["tones"] = style.build_screentones(bpy.context.scene, preset)
+        if hasattr(bpy.context.scene, "compositing_node_group"):
+            report["tones"] = style.build_screentones(bpy.context.scene, preset)
+        else:
+            report["tones"] = (
+                "SKIPPED (this Blender has no scene compositing node group — "
+                "pre-5.x-class)"
+            )
     else:
         style.remove_screentones(bpy.context.scene)
         report["tones"] = None
