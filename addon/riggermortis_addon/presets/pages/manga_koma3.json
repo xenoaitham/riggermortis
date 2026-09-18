@@ -1,0 +1,20 @@
+{
+  "format": 1,
+  "name": "manga_koma3",
+  "reading_direction": "rtl",
+  "style": "manga",
+  "page": {
+    "width_px": 1200,
+    "height_px": 1800,
+    "background": "#ffffff",
+    "bleed": 0.0,
+    "border": {"width_px": 6, "color": "#101010"}
+  },
+  "gutter": 0.02,
+  "panels": [
+    {"rect": [0.0, 0.62, 1.0, 0.38], "camera": "rm_cam_1"},
+    {"rect": [0.51, 0.31, 0.49, 0.29], "camera": "rm_cam_2", "style": "anime"},
+    {"rect": [0.0, 0.0, 1.0, 0.29], "camera": "rm_cam_3"}
+  ],
+  "notes": "three-koma manga page: full-width establishing panel, a right-column beat, full-width bottom; RTL reading order (the right column is read before anything to its left). The beat panel deliberately carries style=anime (no tones, cooler bands) — the mixed-style showcase and the per-panel tone-removal path in one page. The empty left-middle is composition whitespace, a data choice"
+}

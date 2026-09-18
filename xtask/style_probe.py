@@ -9,6 +9,12 @@ overlay over the banded fill (ops LINEART_OBJECT wiring, canonical renames —
 docs/STYLE.md), asserts the report + determinism, HARD-checks that strokes
 actually evaluate on the depsgraph (engine-independent), and renders one
 composed bands+ink frame per preset.
+P4-4: for shipped page presets (``presets/pages/*.json``), creates
+deterministic page cameras, renders one PNG per panel at the preset's pixel
+size, assembles the compositor page graph (rebuild-deterministic), renders
+the page, and pixel-checks it (size, background, border ring, per-panel
+byte-fidelity roundtrip) — SKIPPED honestly on Blenders without the scene
+compositor node group.
 
 A GPU-less environment degrades honestly: the graph/stroke checks still
 PASS, the renders report RM_STYLE RENDER SKIPPED and no media is claimed.
@@ -59,6 +65,13 @@ def _has_lineart_api() -> bool:
 def _has_tones_api(scene: Any) -> bool:
     """True when this Blender composites through a scene node group."""
     return hasattr(scene, "compositing_node_group")
+
+
+def _sample_px(
+    px: list[float], width: int, x: int, y: int
+) -> tuple[float, float, float]:
+    i = (y * width + x) * 4
+    return px[i], px[i + 1], px[i + 2]
 
 
 def main() -> int:
@@ -346,6 +359,187 @@ def main() -> int:
                     f"({exc.__class__.__name__}: {exc})"
                 )
             style.remove_screentones(scene)  # next preset renders clean
+
+    # P4-4: multi-camera panel pages — needs the 5.1 scene compositor
+    # node group (the same API class as tones; apt 4.0.2 SKIPS honestly).
+    # Each shipped page: deterministic page cameras aimed at the sphere,
+    # a base style for unstyled panels, per-panel renders at exact px
+    # sizes, a rebuild-deterministic assembly graph, and pixel checks on
+    # the assembled page (size, background corner, border ring, and a
+    # byte-fidelity roundtrip sample per panel).
+    if not _has_tones_api(scene):
+        print(
+            "RM_STYLE PAGES: SKIPPED (this Blender has no scene compositing "
+            "node group — apt 4.0.2-class; not a failure)"
+        )
+    else:
+        import math
+
+        from riggermortis_addon import pages
+
+        def _hex_rgb(raw: str) -> tuple[float, float, float]:
+            return tuple(  # type: ignore[return-value]
+                int(raw[k:k + 2], 16) / 255.0 for k in (1, 3, 5)
+            )
+
+        pages_ok = True
+        for page_name in pages.known_pages():
+            page = pages.load_page(page_name)
+            count = len(page["panels"])
+            for i in range(count):
+                angle = 2.0 * math.pi * i / count
+                data = bpy.data.cameras.new(f"rm_cam_{i + 1}")
+                cam = bpy.data.objects.new(f"rm_cam_{i + 1}", data)
+                cam.location = (
+                    2.2 * math.sin(angle),
+                    -3.6 * math.cos(angle),
+                    1.0 + 0.35 * (i % 2),
+                )
+                aim = Vector((0.0, 0.0, 1.0)) - cam.location
+                cam.rotation_euler = aim.to_track_quat("-Z", "Y").to_euler()
+                bpy.context.collection.objects.link(cam)
+            # Base look for unstyled panels: the page-level ``style``
+            # field (the explicit semantic — the old "first style named
+            # in any panel" heuristic made the whole page that style,
+            # visual-check-caught).
+            base_name = page.get("style") or "manga"
+            base = style.load_preset(base_name)
+            obj.data.materials.clear()
+            style.build_toon_material(obj, base)
+            if base.get("lineart") is not None:
+                style.build_lineart(obj, base)
+            if base.get("tones") is not None:
+                style.build_screentones(scene, base)
+
+            preport = pages.render_panels(
+                scene, page, out_dir / f"panels_{page_name}", subject=obj
+            )
+            style.remove_screentones(scene)  # its group is replaced next
+            px_bad = [
+                e["index"]
+                for e in preport["panels"]
+                if (e["width_px"], e["height_px"])
+                != pages.panel_px(page, e["index"])[2:]
+            ]
+            if len(preport["panels"]) != count or px_bad:
+                print(
+                    f"RM_STYLE PAGES {page_name}: FAIL — panel px mismatch "
+                    f"{px_bad} (expected {count} panels)"
+                )
+                ok = False
+                pages_ok = False
+                continue
+            files = [e["file"] for e in preport["panels"]]
+            graph = pages.build_page_graph(scene, page, files)
+            graph2 = pages.build_page_graph(scene, page, files)
+            if graph != graph2:
+                print(
+                    f"RM_STYLE PAGES {page_name}: FAIL — graph rebuild "
+                    "differs (not deterministic)"
+                )
+                ok = False
+                pages_ok = False
+                continue
+            page_png = out_dir / f"page_{page_name}.png"
+            pages.render_page(scene, page, page_png)
+
+            page_img = bpy.data.images.load(str(page_png))
+            got_size = tuple(page_img.size)
+            page_px = list(page_img.pixels)
+            bpy.data.images.remove(page_img)
+            width = page["page"]["width_px"]
+            height = page["page"]["height_px"]
+
+            checks: dict[str, bool] = {
+                "size": got_size == (width, height),
+            }
+            border_px = (page["page"].get("border") or {}).get("width_px", 0)
+            # Exposed-background point: the first scan hit outside every
+            # panel (+border margin). A corner assumption is WRONG for
+            # layouts with a full-width bottom panel (gate-caught: the
+            # corner is panel content there). Layouts that cover the page
+            # entirely skip this check honestly.
+            margin = border_px
+            bg_pt = None
+            for yy in range(2, height, 24):
+                for xx in range(2, width, 24):
+                    covered = any(
+                        e["x"] - margin <= xx < e["x"] + e["w"] + margin
+                        and e["y"] - margin <= yy < e["y"] + e["h"] + margin
+                        for e in graph["panels"]
+                    )
+                    if not covered:
+                        bg_pt = (xx, yy)
+                        break
+                if bg_pt is not None:
+                    break
+            if bg_pt is not None:
+                bgc = _hex_rgb(page["page"]["background"])
+                corner = _sample_px(page_px, width, bg_pt[0], bg_pt[1])
+                checks["background"] = all(
+                    abs(a - b) <= 1.5 / 255.0
+                    for a, b in zip(corner, bgc, strict=True)
+                )
+            else:
+                print(f"RM_STYLE PAGES {page_name}: note — no exposed background, skipped that check")
+            if border_px > 0:
+                bcol = _hex_rgb(page["page"]["border"]["color"])
+                ring = next(
+                    (
+                        e
+                        for e in graph["panels"]
+                        if e["x"] >= border_px and e["h"] > 0
+                    ),
+                    None,
+                )
+                if ring is not None:
+                    pt = _sample_px(
+                        page_px,
+                        width,
+                        ring["x"] - border_px // 2,
+                        ring["y"] + ring["h"] // 2,
+                    )
+                    checks["border"] = all(
+                        abs(a - b) <= 1.5 / 255.0
+                        for a, b in zip(pt, bcol, strict=True)
+                    )
+            for entry, file_path in zip(
+                graph["panels"], files, strict=True
+            ):
+                panel_img = bpy.data.images.load(str(file_path))
+                iw, ih = panel_img.size
+                panel_px_list = list(panel_img.pixels)
+                bpy.data.images.remove(panel_img)
+                cx = entry["x"] + entry["w"] // 2
+                cy = entry["y"] + entry["h"] // 2
+                si = ((cy - entry["y"]) * iw + (cx - entry["x"])) * 4
+                want = (
+                    panel_px_list[si],
+                    panel_px_list[si + 1],
+                    panel_px_list[si + 2],
+                )
+                got = _sample_px(page_px, width, cx, cy)
+                checks[f"roundtrip_p{entry['index']:02d}"] = all(
+                    abs(a - b) <= 1.5 / 255.0
+                    for a, b in zip(want, got, strict=True)
+                )
+            failed = [k for k, v in checks.items() if not v]
+            if failed:
+                print(
+                    f"RM_STYLE PAGES {page_name}: FAIL — {failed} "
+                    f"(size={got_size}, bg_pt={bg_pt})"
+                )
+                ok = False
+                pages_ok = False
+                continue
+            print(
+                f"RM_STYLE PAGES {page_name}: PASS panels={count} "
+                f"page={width}x{height} nodes={len(graph['nodes'])} "
+                f"file={page_png.name}"
+            )
+            pages.remove_page(scene)
+        if pages_ok:
+            print("RM_STYLE PAGES: PASS")
 
     if not ok:
         return 1

@@ -1,0 +1,20 @@
+{
+  "format": 1,
+  "name": "western_cross3",
+  "reading_direction": "ltr",
+  "style": "western",
+  "page": {
+    "width_px": 1400,
+    "height_px": 2100,
+    "background": "#ffffff",
+    "bleed": 0.0,
+    "border": {"width_px": 8, "color": "#141414"}
+  },
+  "gutter": 0.02,
+  "panels": [
+    {"rect": [0.0, 0.60, 0.55, 0.40], "camera": "rm_cam_1", "style": "western"},
+    {"rect": [0.57, 0.60, 0.43, 0.40], "camera": "rm_cam_2"},
+    {"rect": [0.0, 0.0, 1.0, 0.58], "camera": "rm_cam_3"}
+  ],
+  "notes": "western comics page: two top panels then a bottom splash; LTR reading order. Same schema as the manga page — RTL vs LTR is layout data, never a code fork"
+}

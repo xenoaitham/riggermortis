@@ -166,3 +166,154 @@ and stay clean, shadows grow toward solid ink — the manga behavior.
   is a known v1 limit; a screen-space unified grid is future work.
 - Verified single-frame headless; animated tone stability re-checks with
   the styled turntable before any claim.
+
+## P4-4 — multi-camera panel pages (design + probe-verified 2026-09-18 S13)
+
+A manga/comics page is a LAYOUT over renders: N rectangles ("panels"), each
+showing the SAME scene through a DIFFERENT camera. P4-4 makes the layout
+DATA (same discipline as P4-1..P4-3) and the assembly a DETERMINISTIC
+builder. Two shipped layouts prove RTL vs LTR is layout data, not a code
+fork.
+
+### Probe findings (`xtask/page_probe.py`, `RM_PAGE` lines, Blender 5.1.0 headless)
+
+The mechanism was chosen before probing; the probe answered the open
+questions and CAUGHT THREE ASSUMPTIONS THAT WOULD HAVE SHIPPED A BROKEN
+BUILDER (the first page render came out as a top sliver + black — bisected
+stage by stage):
+
+- **Q-PANELS — YES**: per-render `scene.camera` + `resolution_x/y` +
+  `filepath` swapping yields one PNG per panel at the exact expected pixel
+  size, headless EEVEE, styled subject (manga bands + ink + tones in the
+  panel PNGs). Two cameras proven to produce distinct frames (mean channel
+  diff 0.1614 on the sampled stride).
+- **Q-COMPOSE — YES, with two traps**: `CompositorNodeImage` (file-loaded
+  PNG) + `Translate` + `AlphaOver` work inside the 5.1 scene node group.
+  BUT (1) **the compositor CENTERS images smaller than the render buffer
+  before `Translate` applies** — every offset must be corrected:
+  `t = desired - (page - img) // 2` per axis (uncorrected offsets
+  overshoot by exactly the centering term — the sliver+black render);
+  (2) **a bare `RGB` node does not work as the page background**: outside
+  any image's footprint the chain carries no data and goes
+  transparent-black — the background is a FULL-PAGE solid generated image.
+  Socket shapes recorded: 5.1 `Translate` takes SEPARATE `X`/`Y` value
+  inputs (the old single `Vector` input is gone); `AlphaOver`'s inputs are
+  named `Background`/`Foreground` (+ `Factor`).
+- **Q-FIDELITY — YES, via the sRGB/Standard identity**: panel PNGs survive
+  the compositor round-trip BYTE-FAITHFUL (5/5 computed samples exact)
+  when panel images load with the DEFAULT sRGB colorspace and the page
+  renders with view transform `Standard` + dither 0 — Standard's write
+  encode is the same curve the loader decodes with, so
+  decode(encode(bytes)) is the identity. The "obvious" `Non-Color` loads
+  FAIL (Standard still encodes → every value lifted by the sRGB curve:
+  0.227 read back as 0.514) — bisect-recorded.
+- Positioning proven by computed pixel samples: gutter white
+  (600,1101)=(1,1,1), border-ring ink (609,819)=(0.063³), page corner
+  white — panels sit at the preset's exact pixel offsets.
+
+### Mechanism (as built)
+
+1. **Per-panel renders** — a panel is one camera's full frame at the
+   panel's own pixel size: the builder swaps `scene.camera` +
+   `render.resolution_x/y` + `render.filepath` per panel and renders,
+   staging + RESTORING each. No border-render: each panel shows its
+   camera's complete frame (v1 semantics — a panel that crops INTO a
+   camera frame is later scope). Per-panel `style` (optional) restyles
+   the subject through the P4-1/2/3 builders BEFORE that panel's render,
+   so mixed-style pages (the P4-8 3-style hero) are the same mechanism as
+   single-style pages. A panel with no `style` keeps whatever is applied.
+2. **Compositor page assembly** — the page is a second compositor node
+   group on the same scene (5.1 `scene.compositing_node_group`): the
+   full-page solid background image, then per panel a loaded panel image +
+   `Translate` (centering-corrected pixel offset) + `AlphaOver` chain
+   (panel borders = solid-color "under-rects" images offset by
+   `-border_px`, generated deterministically, NOT hand-drawn frames), one
+   group-output INTERFACE sink (the P4-3 rule: exactly one, created after
+   the interface socket), rendered once at page resolution with
+   `Standard` + dither 0 (the byte-identity contract above). This
+   REPLACES the tones graph on the scene — the two are sequential stages:
+   panels render styled+toned FIRST, then the page graph takes over for
+   assembly.
+
+### Page preset data (schema format 1, `presets/pages/*.json`)
+
+```json
+{
+  "format": 1,
+  "name": "manga_koma3",
+  "reading_direction": "rtl",   // "rtl" | "ltr" — DATA for panel order
+                                // and P4-6 export; the builder never branches on it
+  "style": "manga",             // optional page-level BASE look for unstyled panels
+  "page": {
+    "width_px": 1200, "height_px": 1800,
+    "background": "#ffffff",
+    "bleed": 0.0,               // panels may extend to [-bleed, 1+bleed]
+    "border": {"width_px": 6, "color": "#101010"}   // 0 = borderless
+  },
+  "gutter": 0.02,               // MIN gap between panel rects (fraction of
+                                // the respective page axis, checked in px)
+  "panels": [
+    {"rect": [0.0, 0.62, 1.0, 0.38], "camera": "rm_cam_1"},
+    {"rect": [0.51, 0.31, 0.49, 0.29], "camera": "rm_cam_2", "style": "anime"},
+    {"rect": [0.0, 0.0, 1.0, 0.29], "camera": "rm_cam_3"}
+  ],
+  "notes": "..."
+}
+```
+
+- `rect` = `[x, y, w, h]` normalized page fractions, origin BOTTOM-LEFT
+  (Blender image convention; y up). Pixel math is edge-based
+  (`panel_px`: `x0 = round(x0f·W)`, `x1 = round((x0f+wf)·W)`, `w = x1-x0`)
+  so gutters stay exact in pixels.
+- `camera` is a SCENE OBJECT NAME — the page is scene-independent
+  layout data; a missing camera is an actionable error listing the
+  scene's cameras. Cameras are authored in the scene (the gate creates
+  `rm_cam_*` aimed at the subject).
+- `style`: the page-level field is the BASE look for unstyled panels;
+  a per-panel `style` (a shipped style preset name, validated at load
+  time) restyles that panel only. Style application is PERSISTENT in the
+  scene, so `render_panels` renders UNSTYLED panels first (they carry
+  the base look) and styled panels after (each restyled for its own
+  render) — the report is in reading order regardless. The shipped
+  manga page's beat panel carries `anime` (no tones, cooler bands): the
+  mixed-style showcase AND the per-panel tone-removal path in one page
+  (visual-check-verified distinct).
+- Panels are listed in READING ORDER; for RTL the first panel is the
+  top-RIGHT one. The validator enforces GEOMETRY (rects within the
+  bleed-extended page, positive sizes, pairwise gaps ≥ `gutter` in
+  pixels), never reading direction.
+- Page presets live in a `pages/` SUBDIRECTORY of the presets dir —
+  `known_presets()` globs only the top level, so a page can never be
+  mistaken for a style preset and vice versa.
+
+### Builder contract — `addon/riggermortis_addon/pages.py`
+
+- `load_page(name_or_path)` validates loudly (unknown fields fail, like
+  every preset loader here); `panel_px(page, panel)` is pure pixel math
+  (unit-tested WITHOUT bpy in CI, like the payload contract).
+- `render_panels(scene, page, out_dir, subject=None)` → one PNG per
+  panel (list order, deterministic names `rm_panel_XX.png`) + report
+  (files + pixel sizes + cameras). Missing camera / unknown style /
+  `style` without a `subject` = actionable errors. Render staging
+  (camera/resolution/filepath/view transform/dither) is RESTORED.
+- `build_page_graph(scene, page, panel_files)` → remove-first
+  (`rm_page` group, `rm_page_*` images), fixed node names/order,
+  exactly-one Group Output AFTER the interface socket; returns the
+  report the gate asserts (rebuild must be report-equal). Replaces the
+  scene's compositor group (sequential stages, above).
+- `render_page(scene, page, out_path)` stages + RESTORES
+  resolution/percentage/filepath/view transform/dither.
+- `remove_page(scene)` → group + generated/loaded images removed; an
+  unrelated compositor group is never touched (the `remove_screentones`
+  rule).
+
+### Honest scope
+
+- Panels are SINGLE FRAMES: no per-panel camera animation, no panel
+  transitions (P4-7 animatic is separate).
+- Borders are compositor under-rects (deterministic generated images) —
+  not hand-drawn frames; no "hand-lettered"/"hand-inked" claims, ever.
+- Verified single-page headless on the gate sphere; production framing
+  and per-page composition tuning is P4-8 (data edits, no code change).
+- PDF/EPUB export of pages is P4-6; speech bubbles are P4-5; the 6-page
+  manga that exercises all of it is P4-8.

@@ -43,6 +43,8 @@ check "RM_STYLE WESTERN LINEART: (PASS|SKIPPED)"
 check "RM_STYLE ANIME TONES: (NONE|SKIPPED)"
 check "RM_STYLE MANGA TONES GRAPH: (PASS|SKIPPED)"
 check "RM_STYLE WESTERN TONES GRAPH: (PASS|SKIPPED)"
+# P4-4 pages need the scene compositor node group too (apt 4.0.2 SKIPS).
+check "RM_STYLE PAGES: (PASS|SKIPPED)"
 check "RM_STYLE PROBE OK"
 grep "RM_STYLE" "$TMP/probe.log" | sed 's/^/   /'
 
@@ -59,4 +61,4 @@ else
 fi
 
 echo ""
-echo "STYLE GATE (P4-1 materials + P4-2 line art + P4-3 screentones): PASS"
+echo "STYLE GATE (P4-1 materials + P4-2 line art + P4-3 screentones + P4-4 pages): PASS"
