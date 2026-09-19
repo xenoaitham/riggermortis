@@ -15,6 +15,11 @@ size, assembles the compositor page graph (rebuild-deterministic), renders
 the page, and pixel-checks it (size, background, border ring, per-panel
 byte-fidelity roundtrip) — SKIPPED honestly on Blenders without the scene
 compositor node group.
+P4-5: pages carrying ``bubbles`` render one RGBA overlay PNG per bubble
+(pure bubble stage: mesh body + GP ink + typeset text; re-render
+pixel-identical), composite them over the panels, and pixel-check the
+result (ring ink, white body, dark lettering; panel roundtrip samples skip
+bubble-covered points).
 
 A GPU-less environment degrades honestly: the graph/stroke checks still
 PASS, the renders report RM_STYLE RENDER SKIPPED and no media is claimed.
@@ -429,9 +434,62 @@ def main() -> int:
                 ok = False
                 pages_ok = False
                 continue
+
+            # P4-5: bubbles — one RGBA overlay PNG per bubble, rendered
+            # OUTSIDE the page pipeline (compositor unset, film transparent,
+            # everything else hidden), then composited over the panels by
+            # the page graph. Re-render determinism is pixel-identity (the
+            # only file-byte difference is Blender's RenderTime stamp).
+            nbubbles = pages.page_bubble_count(page)
+            breport = None
+            bfiles = None
+            if nbubbles:
+                if not hasattr(bpy.types, "GreasePencilDrawing"):
+                    print(
+                        f"RM_STYLE PAGES {page_name}: BUBBLES SKIPPED (this "
+                        "Blender has no GPv3 drawings API — pre-4.3-class; "
+                        "not a failure)"
+                    )
+                    continue
+                from riggermortis_addon import bubbles
+
+                breport = bubbles.render_bubbles(
+                    scene, page, out_dir / f"bubbles_{page_name}"
+                )
+                bfiles = [e["file"] for e in breport["bubbles"]]
+                breport2 = bubbles.render_bubbles(
+                    scene, page, out_dir / f"bubbles_{page_name}_2"
+                )
+                det_bad = []
+                for e1, e2 in zip(
+                    breport["bubbles"], breport2["bubbles"], strict=True
+                ):
+                    img1 = bpy.data.images.load(e1["file"])
+                    p1, s1 = list(img1.pixels), tuple(img1.size)
+                    bpy.data.images.remove(img1)
+                    img2 = bpy.data.images.load(e2["file"])
+                    p2 = list(img2.pixels)
+                    bpy.data.images.remove(img2)
+                    if s1 != (e1["w"], e1["h"]) or p1 != p2:
+                        det_bad.append(e1["bubble"])
+                if det_bad or len(bfiles) != nbubbles:
+                    print(
+                        f"RM_STYLE PAGES {page_name}: FAIL — bubble render "
+                        f"mismatch {det_bad} (expected {nbubbles})"
+                    )
+                    ok = False
+                    pages_ok = False
+                    continue
+                print(
+                    f"RM_STYLE PAGES {page_name}: BUBBLES RENDER n={nbubbles} "
+                    "det=PASS"
+                )
+
             files = [e["file"] for e in preport["panels"]]
-            graph = pages.build_page_graph(scene, page, files)
-            graph2 = pages.build_page_graph(scene, page, files)
+            graph = pages.build_page_graph(scene, page, files, bubble_files=bfiles)
+            graph2 = pages.build_page_graph(
+                scene, page, files, bubble_files=bfiles
+            )
             if graph != graph2:
                 print(
                     f"RM_STYLE PAGES {page_name}: FAIL — graph rebuild "
@@ -461,12 +519,17 @@ def main() -> int:
             # entirely skip this check honestly.
             margin = border_px
             bg_pt = None
+            bubble_rects = graph.get("bubbles", [])
             for yy in range(2, height, 24):
                 for xx in range(2, width, 24):
                     covered = any(
                         e["x"] - margin <= xx < e["x"] + e["w"] + margin
                         and e["y"] - margin <= yy < e["y"] + e["h"] + margin
                         for e in graph["panels"]
+                    ) or any(
+                        b["x"] <= xx < b["x"] + b["w"]
+                        and b["y"] <= yy < b["y"] + b["h"]
+                        for b in bubble_rects
                     )
                     if not covered:
                         bg_pt = (xx, yy)
@@ -510,8 +573,41 @@ def main() -> int:
                 iw, ih = panel_img.size
                 panel_px_list = list(panel_img.pixels)
                 bpy.data.images.remove(panel_img)
+
+                def _under_bubble(
+                    px_x: int, px_y: int, rects: list = bubble_rects
+                ) -> bool:
+                    return any(
+                        b["x"] <= px_x < b["x"] + b["w"]
+                        and b["y"] <= px_y < b["y"] + b["h"]
+                        for b in rects
+                    )
+
+                # byte-fidelity sample: the panel center, unless a bubble
+                # covers it (bubbles intentionally change those pixels) —
+                # then the first uncovered point in the panel; a fully
+                # covered panel skips the check honestly.
                 cx = entry["x"] + entry["w"] // 2
                 cy = entry["y"] + entry["h"] // 2
+                if _under_bubble(cx, cy):
+                    found = None
+                    for yy in range(entry["y"] + 2, entry["y"] + entry["h"], 8):
+                        for xx in range(
+                            entry["x"] + 2, entry["x"] + entry["w"], 8
+                        ):
+                            if not _under_bubble(xx, yy):
+                                found = (xx, yy)
+                                break
+                        if found is not None:
+                            break
+                    if found is None:
+                        print(
+                            f"RM_STYLE PAGES {page_name}: note — panel "
+                            f"{entry['index']} fully covered by bubbles, "
+                            "roundtrip sample skipped"
+                        )
+                        continue
+                    cx, cy = found
                 si = ((cy - entry["y"]) * iw + (cx - entry["x"])) * 4
                 want = (
                     panel_px_list[si],
@@ -523,6 +619,42 @@ def main() -> int:
                     abs(a - b) <= 1.5 / 255.0
                     for a, b in zip(want, got, strict=True)
                 )
+            # P4-5 bubble checks on the assembled page: ring ink, white
+            # body above the text box, and (when the bubble carries text)
+            # dark lettering pixels inside the ellipse mid band.
+            for gi, (be, ge) in enumerate(
+                zip(
+                    (breport["bubbles"] if breport else []),
+                    bubble_rects,
+                    strict=True,
+                )
+            ):
+                el = be["ellipse_px"]
+                bx, by = ge["x"], ge["y"]
+                ecx = bx + int(round(el["cx_px"]))
+                # the assembled page is opaque (RGB samples; alpha 1 everywhere)
+                ring = _sample_px(
+                    page_px, width, ecx, by + int(round(el["cy_px"] + el["ry_px"]))
+                )
+                checks[f"bubble_{gi:02d}_ring"] = ring[0] < 0.5
+                body = _sample_px(
+                    page_px,
+                    width,
+                    ecx,
+                    by + int(round(el["cy_px"] + el["ry_px"] * 0.75)),
+                )
+                checks[f"bubble_{gi:02d}_body"] = body[0] > 0.9 and body[1] > 0.9
+                if be["has_text"]:
+                    rx = int(round(el["rx_px"]))
+                    ry = int(round(el["ry_px"]))
+                    ecy = by + int(round(el["cy_px"]))
+                    dark = sum(
+                        1
+                        for yy in range(ecy - int(ry * 0.35), ecy + int(ry * 0.35), 2)
+                        for xx in range(ecx - int(rx * 0.5), ecx + int(rx * 0.5), 2)
+                        if _sample_px(page_px, width, xx, yy)[0] < 0.35
+                    )
+                    checks[f"bubble_{gi:02d}_text"] = dark > 0
             failed = [k for k, v in checks.items() if not v]
             if failed:
                 print(
@@ -534,8 +666,8 @@ def main() -> int:
                 continue
             print(
                 f"RM_STYLE PAGES {page_name}: PASS panels={count} "
-                f"page={width}x{height} nodes={len(graph['nodes'])} "
-                f"file={page_png.name}"
+                f"bubbles={nbubbles} page={width}x{height} "
+                f"nodes={len(graph['nodes'])} file={page_png.name}"
             )
             pages.remove_page(scene)
         if pages_ok:

@@ -57,6 +57,8 @@ _ALLOWED = {
     "notes",
 }
 
+_BUBBLE_TAILS = ("n", "ne", "e", "se", "s", "sw", "w", "nw", "none")
+
 
 def known_pages() -> list[str]:
     """Shipped page presets, sorted (deterministic)."""
@@ -163,7 +165,7 @@ def _validate_page(page: dict[str, Any], source: str) -> None:
     for index, panel in enumerate(panels):
         if not isinstance(panel, dict):
             raise ValueError(f"{source}: panel {index} must be an object")
-        panel_unknown = set(panel) - {"rect", "camera", "style"}
+        panel_unknown = set(panel) - {"rect", "camera", "style", "bubbles"}
         if panel_unknown:
             raise ValueError(
                 f"{source}: unknown panel {index} fields: {sorted(panel_unknown)}"
@@ -198,6 +200,16 @@ def _validate_page(page: dict[str, Any], source: str) -> None:
                 f"shipped style preset (hint: known styles: "
                 f"{', '.join(styles)})"
             )
+        bubbles = panel.get("bubbles")
+        if bubbles is not None:
+            if not isinstance(bubbles, list):
+                raise ValueError(
+                    f"{source}: panel {index}.bubbles must be a list"
+                )
+            for b_index, bubble in enumerate(bubbles):
+                _validate_bubble(
+                    page, index, b_index, bubble, source, bleed
+                )
         rects.append((x, y, w, h))
 
     # Geometry: pairwise overlaps are always an error; axis-aligned
@@ -242,6 +254,89 @@ def panel_px(page: dict[str, Any], index: int) -> tuple[int, int, int, int]:
     x0, x1 = round(x * width), round((x + w) * width)
     y0, y1 = round(y * height), round((y + h) * height)
     return (x0, y0, x1 - x0, y1 - y0)
+
+
+def _validate_bubble(
+    page: dict[str, Any],
+    panel_index: int,
+    bubble_index: int,
+    bubble: Any,
+    source: str,
+    bleed: float,
+) -> None:
+    """Validate one bubble of panel ``panel_index`` (P4-5, loud failures)."""
+    where = f"{source}: panel {panel_index} bubble {bubble_index}"
+    if not isinstance(bubble, dict):
+        raise ValueError(f"{where} must be an object")
+    unknown = set(bubble) - {"pos", "size", "tail", "text"}
+    if unknown:
+        raise ValueError(f"{where}: unknown bubble fields: {sorted(unknown)}")
+    pos = bubble.get("pos")
+    if (
+        not isinstance(pos, list)
+        or len(pos) != 2
+        or not all(_is_num(v) for v in pos)
+    ):
+        raise ValueError(f"{where}.pos must be [x, y] numbers (panel fractions)")
+    size = bubble.get("size")
+    if (
+        not isinstance(size, list)
+        or len(size) != 2
+        or not all(_is_num(v) for v in size)
+    ):
+        raise ValueError(f"{where}.size must be [w, h] numbers (panel fractions)")
+    if float(size[0]) <= 0 or float(size[1]) <= 0:
+        raise ValueError(f"{where}.size must be positive")
+    tail = bubble.get("tail", "none")
+    if tail not in _BUBBLE_TAILS:
+        raise ValueError(
+            f"{where}.tail {tail!r} is not one of: {', '.join(_BUBBLE_TAILS)}"
+        )
+    if not isinstance(bubble.get("text"), str):
+        raise ValueError(f"{where}.text must be a string ('' = wordless)")
+    # geometry: the FULL footprint (ellipse + tail band) in page fractions
+    # must stay inside the bleed-extended page — same rule as panels.
+    panel = page["panels"][panel_index]
+    px_, py_, pw_, ph_ = (float(v) for v in panel["rect"])
+    pos_x, pos_y = float(pos[0]), float(pos[1])
+    size_x, size_y = float(size[0]), float(size[1])
+    fx = px_ + (pos_x - size_x / 2) * pw_
+    fy = py_ + (pos_y - size_y / 2) * ph_
+    limit = 1.0 + bleed
+    if not (
+        -bleed <= fx
+        and fx + size_x * pw_ <= limit
+        and -bleed <= fy
+        and fy + size_y * ph_ <= limit
+    ):
+        raise ValueError(
+            f"{where} footprint leaves the page "
+            f"(bleed allows [{-bleed}, {limit}])"
+        )
+
+
+def bubble_px(
+    page: dict[str, Any], panel_index: int, bubble_index: int
+) -> tuple[int, int, int, int]:
+    """Bubble footprint in PAGE pixels (x, y, w, h), origin bottom-left.
+
+    The bubble's ``pos`` is its CENTER and ``size`` its extents, both as
+    PANEL fractions; edge-based rounding like ``panel_px``.
+    """
+    px_, py_, pw_, ph_ = panel_px(page, panel_index)
+    bubble = page["panels"][panel_index]["bubbles"][bubble_index]
+    pos_x, pos_y = (float(v) for v in bubble["pos"])
+    size_x, size_y = (float(v) for v in bubble["size"])
+    x0 = round(px_ + (pos_x - size_x / 2) * pw_)
+    x1 = round(px_ + (pos_x + size_x / 2) * pw_)
+    y0 = round(py_ + (pos_y - size_y / 2) * ph_)
+    y1 = round(py_ + (pos_y + size_y / 2) * ph_)
+    return (x0, y0, x1 - x0, y1 - y0)
+
+
+def page_bubble_count(page: dict[str, Any]) -> int:
+    """Total bubbles on the page (reading order: panel order, then index)."""
+    return sum(len(p.get("bubbles") or []) for p in page["panels"])
 
 
 def render_panels(
@@ -349,6 +444,7 @@ def build_page_graph(
     scene: Any,
     page: dict[str, Any],
     panel_files: list[Any],
+    bubble_files: list[Any] | None = None,
 ) -> dict[str, Any]:
     """Assemble the page as the scene's compositor node group (``rm_page``).
 
@@ -359,6 +455,15 @@ def build_page_graph(
     the ``rm_page`` group and ``rm_page_*`` images are removed before
     creation; node/image names are fixed. The sink follows the P4-3 rule
     (interface socket first, then EXACTLY ONE Group Output node).
+
+    P4-5: bubbles (optional ``bubble_files``, one RGBA PNG per bubble in
+    the deterministic global order — panel order, then bubble index; the
+    order ``render_bubbles`` returns) composite AFTER the panels — a
+    bubble overlays its panel and may cross gutters; borders stay under
+    panels. A page with bubbles but no files, the wrong count, or files
+    without bubbles = actionable errors. Bubble-less pages build
+    byte-identical graphs to the pre-P4-5 builder (the report grows no
+    key).
     """
     import bpy
 
@@ -368,6 +473,24 @@ def build_page_graph(
             f"expected {len(page['panels'])} panel files, got "
             f"{len(panel_files)} (hint: render_panels returns exactly one "
             "PNG per panel in reading order)"
+        )
+    bubble_total = page_bubble_count(page)
+    if bubble_total and bubble_files is None:
+        raise ValueError(
+            f"the page carries {bubble_total} bubble(s) but no bubble files "
+            "(hint: call bubbles.render_bubbles and pass its file list)"
+        )
+    if bubble_files is not None and len(bubble_files) != bubble_total:
+        raise ValueError(
+            f"expected {bubble_total} bubble files, got {len(bubble_files)} "
+            "(hint: render_bubbles returns one PNG per bubble in reading "
+            "order)"
+        )
+    if not bubble_total and bubble_files:
+        raise ValueError(
+            f"got {len(bubble_files)} bubble files but the page carries no "
+            "bubbles (hint: add a 'bubbles' list to a panel, or drop the "
+            "argument)"
         )
     remove_page(scene)
     pg = page["page"]
@@ -458,6 +581,40 @@ def build_page_graph(
             }
         )
 
+    bubble_entries = []
+    if bubble_total:
+        g_index = 0
+        for p_index, panel in enumerate(page["panels"]):
+            for b_index, bubble in enumerate(panel.get("bubbles") or []):
+                x, y, w, h = bubble_px(page, p_index, b_index)
+                expected = f"{PAGE_IMAGE_PREFIX}bubble_{g_index:02d}"
+                bubble_img = bpy.data.images.load(str(bubble_files[g_index]))
+                bubble_img.name = expected
+                if bubble_img.name != expected:
+                    raise ValueError(
+                        f"page image name collision: {expected!r} is owned "
+                        "by a user datablock (hint: clear or rename it first)"
+                    )
+                images.append(bubble_img.name)
+                chain = over(
+                    f"BB{g_index:02d}Over",
+                    chain,
+                    placed(f"BB{g_index:02d}Img", bubble_img, x, y),
+                )
+                bubble_entries.append(
+                    {
+                        "panel": p_index,
+                        "bubble": b_index,
+                        "x": x,
+                        "y": y,
+                        "w": w,
+                        "h": h,
+                        "tail": bubble.get("tail", "none"),
+                        "text": bubble.get("text", ""),
+                    }
+                )
+                g_index += 1
+
     group.interface.new_socket(
         name="Image", in_out="OUTPUT", socket_type="NodeSocketColor"
     )
@@ -472,6 +629,7 @@ def build_page_graph(
         "panels": entries,
         "background": pg.get("background", "#ffffff"),
         "size": [width, height],
+        **({"bubbles": bubble_entries} if bubble_total else {}),
     }
 
 

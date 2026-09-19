@@ -333,3 +333,154 @@ stage by stage):
   and per-page composition tuning is P4-8 (data edits, no code change).
 - PDF/EPUB export of pages is P4-6; speech bubbles are P4-5; the 6-page
   manga that exercises all of it is P4-8.
+
+## P4-5 — speech bubbles as page DATA (design 2026-09-19 S14; probe + build below)
+
+Bubbles are PAGE-LEVEL DATA attached to the P4-4 page preset schema — a
+per-panel `"bubbles"` list — because their placement semantics are panel
+semantics: a bubble is positioned relative to a panel's rectangle, the
+same coordinate system the page graph already composites in. Three
+candidate mechanisms existed (3D GP scene placement in front of each
+camera / text-as-texture / compositor overlay); the third is chosen by
+the same argument that chose P4-4's assembly:
+
+- **Placement must be deterministic from preset data alone.** 3D scene
+  placement would make a bubble's page position camera- and
+  scene-dependent (two scenes, same page preset, different bubble
+  positions) — that breaks the determinism discipline every P4 builder
+  is held to. Overlay placement is pure page-pixel math.
+- **The page graph already does exactly this.** P4-4's `Translate` +
+  `AlphaOver` chain composites images at preset pixel offsets with the
+  centering correction; a bubble RGBA overlay is one more layer over
+  its panel (panels stay byte-faithful outside the bubble footprint —
+  alpha 0 foreground returns the background exactly in the over
+  operator).
+- **Bubbles render OUTSIDE the page pipeline** as one RGBA PNG per
+  bubble (a mini-scene: GPv3 ellipse + tail + TEXT object lettering
+  under an orthographic camera, `film_transparent` on), so the look is
+  style-independent data rendered by its own deterministic builder —
+  the tones compositor never dots the lettering and the persistent
+  style semantics (P4-4) never leak into it.
+
+Honest labeling rule (unchanged): bubbles are GENERATED GEOMETRY +
+TYPESET TEXT (GPv3 strokes + a Blender font object). No "hand-lettered"
+claim, ever, anywhere.
+
+### Bubble preset data (additive per-panel `"bubbles"` field, schema format 1)
+
+```json
+"panels": [
+  {"rect": [...], "camera": "rm_cam_1",
+   "bubbles": [
+     {"pos":  [0.42, 0.72],   // bubble CENTER, panel fractions (x, y)
+      "size": [0.62, 0.34],   // bubble footprint, PANEL fractions — the
+                              // full rect incl. the tail's band
+      "tail": "se",           // "n"|"ne"|"e"|"se"|"s"|"sw"|"w"|"nw"|"none"
+      "text": "KA-BOOM!"}     // typeset lettering; "\n" = line break
+   ]}
+]
+```
+
+- The bubble RECT (`pos` center, `size` extents, panel fractions) is the
+  FULL FOOTPRINT: the ellipse body and the tail both fit inside it (a
+  tailed bubble's ellipse occupies the upper portion; the tail hangs in
+  the reserved band toward its direction). The validator maps the rect
+  to page pixels (`bubble_px`) and requires it inside the bleed-extended
+  page and strictly positive — same edge-based px discipline as panels.
+- `tail` positions the triangle tip at the footprint edge midpoint
+  (cardinal) or corner bisector (diagonal) of the named direction;
+  `none` is a plain ellipse. Default `none` (data says what it wants).
+- `text` is typeset centered in the ellipse interior, auto-fit
+  deterministically (the builder measures the font object's bounding box
+  and scales to fit a fixed interior box — same string, same layout,
+  always). An empty string is a wordless bubble.
+- Validation follows the house rules: unknown fields fail loudly
+  (page, panel AND bubble level), `bubbles` must be a list of objects,
+  numbers are numbers (bools are not numbers), every bubble validates
+  against the page it sits on. The shipped pages keep format 1 — the
+  field is additive and the shipped pages gain it as DATA where a bubble
+  belongs.
+
+### Builder contract — `addon/riggermortis_addon/bubbles.py`
+
+- `build_bubble_object(name, w_m, h_m, tail, text)` — remove-first
+  creation of the bubble stage: GPv3 object (deterministic 64-point
+  closed ellipse + closed 3-point tail stroke, point radius =
+  outline world width, opacity 1) + font object (centered, auto-fit) +
+  orthographic camera framing the footprint exactly; ink + fill are the
+  classic two GP materials (black stroke / white fill, unlit by
+  construction like P4-1's Emission trick). Everything canonically named
+  `rm_bubble*` (the P4-1 rename discipline).
+- `render_bubbles(scene, page, out_dir)` — one RGBA PNG per bubble in
+  deterministic global order (panel order, then bubble index; names
+  `rm_bubble_XX.png`), rendered at the footprint's exact pixel size.
+  Stages + RESTORES: camera, resolution, `film_transparent`, view
+  transform (`Standard` + dither 0 — the ink/white identity transform),
+  filepath, compositor group (UNSET during bubble renders — the tones
+  graph must never dot the lettering; a stale page graph must never
+  composite them), and `hide_render` on every non-bubble object (no
+  photobombing). Returns the report the gate asserts.
+- `remove_bubbles()` — all `rm_bubble*` objects/data/materials/images.
+- `pages.build_page_graph(scene, page, panel_files, bubble_files=None)`
+  composites bubbles AFTER panels (bubbles overlay panels and may cross
+  gutters; borders stay under panels). A page with bubbles but no
+  bubble files — or the reverse — is an actionable error, never a
+  silent no-op. Bubble-less pages build byte-identical graphs to the
+  pre-P4-5 builder (the report grows no key).
+
+### Probe findings (`xtask/bubble_probe.py`, `RM_BUBBLE` lines, Blender 5.1.0 headless)
+
+The mechanism above is the POST-probe design — the probe changed it twice
+(the S12/S13 discipline paying for itself again):
+
+- **The GPv3 fill is a dead end for data-authored bubbles, recorded so it
+  is never faked.** Probed exhaustively: material fills (``show_fill`` +
+  SOLID + white) DO NOT render on lit layers — they render ONLY on
+  ``use_lights=False`` layers (lit fills are the broken path in 5.1);
+  stroke-level ``fill_color``/``fill_opacity`` never render; per-point
+  ``vertex_color`` drives only the STROKE (color from it, opacity from
+  ``point.opacity`` — the material color does not tint strokes at all);
+  the only fill ops are interactive cursor tools (``grease_pencil.fill``
+  needs a click); the MONKEY preset's authored fills render black-unlit /
+  vanish-lit. **The body is therefore a MESH** (ellipse n-gon + tail
+  triangle, z-layered, unlit Emission — the P4-1 house trick), which also
+  z-orders the tail join explicitly instead of relying on GP stroke-order
+  fill semantics.
+- **Stroke authoring works through `drawing.add_strokes([n, ...])`** (the
+  GPv3 write API; `stroke.points.add` does not exist). The closed flag is
+  named **`cyclic`** (not `closed`). The ops `EMPTY` preset creates the GP
+  with one layer/one frame/a 'Black' material; a fresh
+  `bpy.data.materials.new()` carries `grease_pencil == None` — the ink
+  material is the ops material RENAMED (the P4-2 capture-by-datablock-diff
+  discipline, since `bpy.context.object` is stale after a render).
+- **Q-TEXT — YES**: a TEXT object with an unlit Emission black material
+  renders legible typeset lettering into the RGBA (1070 dark pixels in
+  the auto-fit band on the probe bubble).
+- **Q-COMPOSE — YES**: the RGBA overlay composites over the panel via the
+  P4-4 mechanics; the panel is byte-faithful OUTSIDE the bubble footprint
+  (alpha-0 foreground returns the background exactly), the body reads
+  white and the ring inked ON the page.
+- **Q-DET — YES at pixel level**: same inputs re-render pixel-identical
+  (0 differing channels). File bytes differ ONLY in Blender's
+  `tEXt RenderTime` metadata stamp (chunk-located) — the IDAT pixel data
+  is byte-identical; pixel-level determinism is the standard (same as the
+  P4-4 page round-trip).
+- **Placement — YES**: the composite position is `pages.bubble_px` math
+  alone; shifting the offset moves the ink exactly.
+- Visual check (probe + gate page): white ellipse body, black ink outline,
+  legible "KA-BOOM!", tail join reads clean (the tail mesh covers the
+  ellipse ink), tail inked on its two long edges.
+
+### Gate results (S14)
+
+`make style-verify` PAGES section: pages carrying bubbles render their
+overlays (re-render pixel-identity asserted per bubble), composite them
+(``build_page_graph(..., bubble_files=...)`` — rebuild-report-deterministic),
+and pixel-check the assembled page (ring ink / white body / dark lettering
+per bubble; the panel byte-fidelity roundtrip samples SKIP bubble-covered
+points — a fully covered panel skips that check with a note). The shipped
+manga page's beat panel carries the bubble; the western page stays
+bubble-less and builds a graph byte-identical to the pre-P4-5 builder
+(back-compat is gated, not assumed). Honest SKIPPED degradation on
+pre-4.3-class Blenders (no GPv3 drawings API). Bubble stage objects are
+removed after rendering (scene left as found, plus the PNGs).

@@ -134,3 +134,81 @@ def test_borderless_page_is_valid(tmp_path: Path) -> None:
 
     page = pages.load_page(_mutated(tmp_path, borderless))
     assert page["page"]["border"]["width_px"] == 0
+
+
+# ---- P4-5 speech bubbles (per-panel DATA on the page schema) -----------------
+
+
+def test_manga_page_carries_its_bubble() -> None:
+    manga = pages.load_page("manga_koma3")
+    bubbles = manga["panels"][1]["bubbles"]
+    assert len(bubbles) == 1
+    bubble = bubbles[0]
+    assert bubble["pos"] == [0.42, 0.74]
+    assert bubble["size"] == [0.68, 0.36]
+    assert bubble["tail"] == "s"
+    assert bubble["text"] == "KA-BOOM!"
+    assert pages.page_bubble_count(manga) == 1
+    assert pages.page_bubble_count(pages.load_page("western_cross3")) == 0
+
+
+def test_bubble_px_matches_the_edge_based_math() -> None:
+    manga = pages.load_page("manga_koma3")
+    # panel 1 px (612, 558, 588, 522); pos/size are PANEL fractions of the
+    # bubble CENTER/extents, edges rounded like panel_px.
+    assert pages.bubble_px(manga, 1, 0) == (659, 850, 400, 188)
+
+
+def test_unknown_bubble_field_fails_loudly(tmp_path: Path) -> None:
+    def bubble(p: dict) -> None:
+        p["panels"][1]["bubbles"][0]["oops"] = 1
+
+    with pytest.raises(
+        ValueError, match="panel 1 bubble 0: unknown bubble fields: \\['oops'\\]"
+    ):
+        pages.load_page(_mutated(tmp_path, bubble))
+
+
+def test_bubble_missing_fields_fail(tmp_path: Path) -> None:
+    def no_pos(p: dict) -> None:
+        del p["panels"][1]["bubbles"][0]["pos"]
+
+    with pytest.raises(ValueError, match=r"bubble 0\.pos must be"):
+        pages.load_page(_mutated(tmp_path, no_pos))
+
+    def no_text(p: dict) -> None:
+        del p["panels"][1]["bubbles"][0]["text"]
+
+    with pytest.raises(ValueError, match=r"bubble 0\.text must be a string"):
+        pages.load_page(_mutated(tmp_path, no_text))
+
+
+def test_bubble_bad_tail_and_size_fail(tmp_path: Path) -> None:
+    def tail(p: dict) -> None:
+        p["panels"][1]["bubbles"][0]["tail"] = "up"
+
+    with pytest.raises(ValueError, match=r"bubble 0\.tail 'up' is not one of"):
+        pages.load_page(_mutated(tmp_path, tail))
+
+    def size(p: dict) -> None:
+        p["panels"][1]["bubbles"][0]["size"] = [0.5, -0.2]
+
+    with pytest.raises(ValueError, match=r"bubble 0\.size must be positive"):
+        pages.load_page(_mutated(tmp_path, size))
+
+
+def test_bubble_leaving_the_page_fails(tmp_path: Path) -> None:
+    def off_page(p: dict) -> None:
+        # panel 1 spans y 0.31..0.60; pos -0.95 pushes the footprint above 0
+        p["panels"][1]["bubbles"][0]["pos"] = [0.42, -0.95]
+
+    with pytest.raises(ValueError, match="bubble 0 footprint leaves the page"):
+        pages.load_page(_mutated(tmp_path, off_page))
+
+
+def test_bubbles_not_a_list_fails(tmp_path: Path) -> None:
+    def notlist(p: dict) -> None:
+        p["panels"][1]["bubbles"] = {"pos": [0.5, 0.5]}
+
+    with pytest.raises(ValueError, match="panel 1\\.bubbles must be a list"):
+        pages.load_page(_mutated(tmp_path, notlist))

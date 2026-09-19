@@ -100,12 +100,17 @@ and honest failure ledger are specified in [DESIGN.md](DESIGN.md)
      lock, RM_BAKE re-eval — gate: `make session-verify`);
    - `enqueue_action {"kind": "render_turntable", "params": {"out_dir":
      "..."}}` → a bone-proxy turntable of the live rig (GIF assembly stays
-     in your shell).
+     in your shell);
+   - `enqueue_action {"kind": "apply_style", "params": {"style": "manga",
+     "object": "Mesh"}}` → the P4 style builders on a shaded object (banded
+     material + line art + screentones exactly as the preset carries them;
+     armatures have no shading — style the bone proxy mesh instead).
 
 The whole loop — inspect → pose → animate → bake → turntable — is scripted
 end-to-end in `xtask/agent_demo.sh` (`make agent-demo`, local rigs); the
 committed transcript + honest labels live in
-[docs/AGENT_DEMO.md](../docs/AGENT_DEMO.md).
+[docs/AGENT_DEMO.md](../docs/AGENT_DEMO.md). The full action-kind table
+lives in [DESIGN.md](DESIGN.md) ("Action kinds").
 
 Queue semantics in one line: actions are claimed by polling, dispatched
 exactly once, and never silently re-sent — if Blender quits mid-action the
