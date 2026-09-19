@@ -331,8 +331,9 @@ stage by stage):
   not hand-drawn frames; no "hand-lettered"/"hand-inked" claims, ever.
 - Verified single-page headless on the gate sphere; production framing
   and per-page composition tuning is P4-8 (data edits, no code change).
-- PDF/EPUB export of pages is P4-6; speech bubbles are P4-5; the 6-page
-  manga that exercises all of it is P4-8.
+- PDF/EPUB export of pages SHIPPED as P4-6 (docs/EXPORT.md, the style
+  gate's EXPORT section); the 6-page manga that exercises all of it is
+  P4-8.
 
 ## P4-5 — speech bubbles as page DATA (design 2026-09-19 S14; probe + build below)
 

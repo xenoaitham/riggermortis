@@ -673,6 +673,74 @@ def main() -> int:
         if pages_ok:
             print("RM_STYLE PAGES: PASS")
 
+    # P4-6: export — assemble the PDF + EPUB from THIS probe's page renders
+    # (the unit = the P4-4/P4-5 page PNG). Structure is verified by parsing
+    # the documents back (pdfinfo-free) and byte-determinism is asserted by
+    # writing twice. SKIPPED honestly when the page renders did not happen
+    # (the pages section skipped on this Blender).
+    from riggermortis_addon import pages  # scoped import: SKIPPED path may not have it
+
+    page_pngs = [out_dir / f"page_{name}.png" for name in pages.known_pages()]
+    if not all(p.is_file() for p in page_pngs):
+        print(
+            "RM_STYLE EXPORT: SKIPPED (page renders absent — the pages "
+            "section skipped on this Blender; not a failure)"
+        )
+    else:
+        sys.path.insert(0, str(REPO / "core" / "src"))
+        from riggermortis import pagedoc
+
+        try:
+            pdf1 = out_dir / "pages.pdf"
+            pdf2 = out_dir / "pages_again.pdf"
+            pagedoc.write_pdf(page_pngs, pdf1, title="riggermortis pages")
+            pagedoc.write_pdf(page_pngs, pdf2, title="riggermortis pages")
+            det = pdf1.read_bytes() == pdf2.read_bytes()
+            parsed = pagedoc.read_pdf_pages(pdf1)
+            want_sizes = []
+            for p in page_pngs:
+                img = bpy.data.images.load(str(p))
+                want_sizes.append(tuple(img.size))
+                bpy.data.images.remove(img)
+            pdf_ok = (
+                det
+                and len(parsed) == len(page_pngs)
+                and all(
+                    (e["image_width"], e["image_height"]) == s
+                    for e, s in zip(parsed, want_sizes, strict=True)
+                )
+                and all(
+                    e["image_bytes"] == e["image_width"] * e["image_height"] * 3
+                    for e in parsed
+                )
+            )
+            print(
+                f"RM_STYLE EXPORT PDF: {'PASS' if pdf_ok else 'FAIL'} "
+                f"pages={len(parsed)} det={det}"
+            )
+            ok = ok and pdf_ok
+
+            epub1 = out_dir / "pages.epub"
+            epub2 = out_dir / "pages_again.epub"
+            pagedoc.write_epub(page_pngs, epub1, title="riggermortis pages")
+            pagedoc.write_epub(page_pngs, epub2, title="riggermortis pages")
+            epub_det = epub1.read_bytes() == epub2.read_bytes()
+            structure = pagedoc.read_epub_structure(epub1)
+            epub_ok = (
+                epub_det
+                and structure["page_documents"] == len(page_pngs)
+                and structure["images"] == len(page_pngs)
+                and structure["title"] == "riggermortis pages"
+            )
+            print(
+                f"RM_STYLE EXPORT EPUB: {'PASS' if epub_ok else 'FAIL'} "
+                f"pages={structure['page_documents']} det={epub_det}"
+            )
+            ok = ok and epub_ok
+        except Exception as exc:  # noqa: BLE001 — structured, honest failure
+            print(f"RM_STYLE EXPORT: FAIL ({exc.__class__.__name__}: {exc})")
+            ok = False
+
     if not ok:
         return 1
 

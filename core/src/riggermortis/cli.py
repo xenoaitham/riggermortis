@@ -138,6 +138,30 @@ def _build_parser() -> argparse.ArgumentParser:
         help="opt in to the CUDA onnxruntime provider (CPU is the default)",
     )
 
+    p_pdf = sub.add_parser(
+        "export-pdf",
+        help="assemble page PNGs (the P4-4/P4-5 page renders) into a "
+             "deterministic PDF (pure-stdlib writer, P4-6)",
+    )
+    p_pdf.add_argument("pages", nargs="+", metavar="PAGE_PNG",
+                       help="page PNG files, in reading order")
+    p_pdf.add_argument("--out", required=True, metavar="PATH",
+                       help="output PDF path")
+    p_pdf.add_argument("--title", default=None, metavar="TEXT",
+                       help="optional document title (PDF /Title)")
+
+    p_epub = sub.add_parser(
+        "export-epub",
+        help="package page PNGs (the P4-4/P4-5 page renders) into a "
+             "deterministic EPUB 3 (pure-stdlib writer, P4-6)",
+    )
+    p_epub.add_argument("pages", nargs="+", metavar="PAGE_PNG",
+                        help="page PNG files, in reading order")
+    p_epub.add_argument("--out", required=True, metavar="PATH",
+                        help="output EPUB path")
+    p_epub.add_argument("--title", default="riggermortis pages", metavar="TEXT",
+                        help="document title (default: 'riggermortis pages')")
+
     p_video = sub.add_parser(
         "pose-video",
         help="per-frame posing over an extracted-frames dir: detect -> solve -> "
@@ -557,6 +581,34 @@ def cmd_pose_video(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def cmd_export_pdf(args: argparse.Namespace) -> int:
+    from .pagedoc import read_pdf_pages, write_pdf
+
+    write_pdf(args.pages, args.out, title=args.title)
+    pages = read_pdf_pages(args.out)
+    print(f"wrote {args.out}: {len(pages)} page(s), parse-back verified")
+    for i, p in enumerate(pages):
+        print(
+            f"  page {i + 1}: {p['width_pt']}x{p['height_pt']} pt, "
+            f"image {p['image_width']}x{p['image_height']}, "
+            f"{p['image_bytes']} bytes decoded"
+        )
+    return EXIT_OK
+
+
+def cmd_export_epub(args: argparse.Namespace) -> int:
+    from .pagedoc import read_epub_structure, write_epub
+
+    write_epub(args.pages, args.out, title=args.title)
+    structure = read_epub_structure(args.out)
+    print(f"wrote {args.out}: structure verified")
+    print(
+        f"  title={structure['title']!r} entries={structure['entries']} "
+        f"page_docs={structure['page_documents']} images={structure['images']}"
+    )
+    return EXIT_OK
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -586,6 +638,10 @@ def main(argv: list[str] | None = None) -> int:
             return cmd_pose(args)
         if args.command == "pose-video":
             return cmd_pose_video(args)
+        if args.command == "export-pdf":
+            return cmd_export_pdf(args)
+        if args.command == "export-epub":
+            return cmd_export_epub(args)
         parser.error(f"unknown command {args.command!r}")
         return EXIT_HANDLED_ERROR
     except RiggermortisError as exc:

@@ -44,3 +44,38 @@ It is a deliberate work item, NOT a claim: nothing in this repo writes
 ```bash
 BLENDER=/path/to/blender bash xtask/export_clip.sh
 ```
+
+## Page export — PDF / EPUB / PNG (P4-6)
+
+The unit is the **P4-4/P4-5 page PNG** (the composited page: panels,
+borders, speech bubbles). Assembly is a pure-stdlib LIBRARY call —
+`core/src/riggermortis/pagedoc.py` — never a subprocess (D-003/D-009;
+core stays dependency-free):
+
+- **PDF** (`write_pdf` / the `rigpose export-pdf` CLI): one PNG per page,
+  decoded to raw RGB with a stdlib PNG reader (8-bit truecolor subset —
+  what Blender's writer emits) and embedded as a FlateDecode image
+  XObject; MediaBox = the page's pixel size at 72 dpi. No timestamps, fixed
+  object order — same inputs, byte-identical file (tested + gated).
+- **EPUB** (`write_epub` / `rigpose export-epub`): EPUB 3 container
+  (mimetype first + STORED, fixed date_time, images copied VERBATIM);
+  content identifier = a hash of the image bytes.
+- **PNG**: already the page render itself — nothing to write.
+- **Parse-back verification**: `read_pdf_pages` / `read_epub_structure`
+  verify the assembled documents with the stdlib alone (pdfinfo-free),
+  and the EPUB OPF parser refuses DOCTYPE/ENTITY declarations (the
+  entity-expansion class) — the reader may be pointed at files this
+  writer did not produce.
+
+Gate: the style probe's EXPORT section (`RM_STYLE EXPORT PDF/EPUB` in
+`make style-verify`) assembles a 2-page PDF + EPUB from the probe's own
+page renders, asserts parse-back structure (page/image sizes match the
+presets, decoded stream lengths = w·h·3) and byte-determinism (write
+twice, identical bytes); SKIPPED honestly where the page renders skip
+(pre-5.x Blenders). The writer tests (`core/tests/test_pagedoc.py`)
+cover the full matrix CI-side: all four PNG row filters, RGBA, malformed
+inputs, embedded-pixels-equal-source, EPUB zip rules, in-process CLI.
+
+Honesty: these documents contain GENERATED page renders (and P4-5
+bubbles are generated geometry + typeset text). Nothing hand-lettered,
+nothing hand-drawn, and no doc may claim otherwise.
