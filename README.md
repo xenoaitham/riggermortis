@@ -12,7 +12,7 @@ manga, or cartoon; lay scenes out into manga pages and comic PDFs.
 Everything runs on the user's machine: no cloud, no accounts, no uploads, no
 telemetry — and a CI test keeps that verifiably true.
 
-## Status: Phase 1 + Phase 2 shipped on honest numbers — Phase 3 (MCP) in progress
+## Status: Phases 0–3 closed (mapping, posing, video, MCP) — Phase 4 style system through P4-6 shipped
 
 | | |
 |---|---|
@@ -65,6 +65,19 @@ What exists **right now** (every claim cites a test, gate, or number):
   phase/0..1/message per `mcp/DESIGN.md`); `inspect_rig`, `policy_status`,
   `policy_check` and `animate_from_video`'s canonical half work today;
   `pose_from_image` answers a structured `not_implemented` until it's real.
+  The **session bridge** (P3-5) connects a live Blender to an agent over
+  127.0.0.1-only local sockets: `inspect_scene`, `apply_pose`, `bake_action`,
+  `render_turntable` and `apply_style` execute inside the artist's Blender
+  and return structured results (the six-action gate: `make session-verify`).
+- **Style system + manga maker (Phase 4 through P4-6)** — toon material
+  presets (anime/manga/western), GPv3 line art, screentone compositor
+  graphs, and multi-camera panel page layouts — all as DATA files with
+  deterministic builders, animated stability verified over a 360° orbit
+  (`make style-verify`). Speech bubbles are per-panel page data (generated
+  geometry + typeset text — never "hand-lettered"), and pages export to
+  deterministic PDF/EPUB (`rigpose export-pdf` / `export-epub`, pure
+  stdlib, parse-back-verified). Phase-4 real-pixel halves run on 5.x-class
+  Blenders; CI degrades them to honest SKIPPED lines on the 4.0.2 pin.
 - Content-policy module enforced in the core (SFW default; opt-in 18+ module
   with explicit confirmation; unconditional hard lines).
 
