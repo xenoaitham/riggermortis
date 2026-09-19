@@ -47,7 +47,7 @@ check "RM_STYLE WESTERN TONES GRAPH: (PASS|SKIPPED)"
 check "RM_STYLE PAGES: (PASS|SKIPPED)"
 # P4-6 export rides on the page renders: PDF + EPUB assembled + parse-back
 # verified + byte-determinism; SKIPPED when the pages section skipped.
-check "RM_STYLE EXPORT (PDF: (PASS|FAIL)|: SKIPPED)"
+check "RM_STYLE EXPORT(: SKIPPED| PDF: (PASS|FAIL))"
 check "RM_STYLE EXPORT EPUB: (PASS|FAIL)|RM_STYLE EXPORT: SKIPPED"
 check "RM_STYLE PROBE OK"
 grep "RM_STYLE" "$TMP/probe.log" | sed 's/^/   /'
