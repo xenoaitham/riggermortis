@@ -36,36 +36,60 @@ jobs:
 
   blender-gate:
     runs-on: ubuntu-24.04
+    env:
+      # The gates' env-var interface (BLENDER=... ) is unchanged; CI now
+      # points it at the official 5.1.0 tarball instead of an apt pin.
+      BLENDER: ${{ github.workspace }}/blender-5.1.0-linux-x64/blender
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"  # matches Blender 4.x bundled Python
+          # The rigpose CLI / make install side. Blender 5.1 bundles its own
+          # Python (3.13) — the gates invoke "$BLENDER -b --python", which
+          # uses that bundled interpreter regardless of this pin.
+          python-version: "3.11"
       - name: >-
-          Install Blender (ubuntu-24.04 ships 4.0.2 — deliberate CI pin, D-014:
-          the dev box runs 5.1.0 and both gates were re-verified there with
-          identical numbers; 4.0.2 exercises the oldest supported apt path)
+          Restore Blender 5.1.0 (official linux-x64 tarball, cache keyed on
+          the version string). D-014 EXECUTED 2026-09-20 S15: every Phase-4
+          style-gate half exercised only its SKIPPED path on the apt 4.0.2
+          pin, so CI now runs the SAME full gate as the dev box — real
+          EEVEE pixels on llvmpipe. The honest SKIPPED degradation paths
+          STAY in the gate code (older-Blender/dev-box honesty); CI simply
+          no longer takes them.
+        uses: actions/cache@v4
+        with:
+          path: blender-5.1.0-linux-x64
+          key: blender-5.1.0-linux-x64
+      - name: Download Blender 5.1.0 tarball (no-op on a cache hit)
+        run: |
+          if [ ! -x "$BLENDER" ]; then
+            curl -fsSL --retry 3 -o /tmp/blender.tar.xz \
+              https://download.blender.org/release/Blender5.1/blender-5.1.0-linux-x64.tar.xz
+            tar -xJf /tmp/blender.tar.xz
+          fi
+          "$BLENDER" --version | head -1
+      - name: Install GL + numpy support (headless EEVEE on llvmpipe)
         run: |
           sudo apt-get update
-          # python3-numpy: the apt Blender 4.0.2 glTF exporter imports numpy
-          # and the apt build does NOT bundle it (Blender 5.x does — the dev
-          # box gate passes without this). Without it the export gate
-          # degrades to an honest per-format SKIP.
-          # libegl1: the P3-7 session gate renders a turntable (the first
-          # real RENDER in CI) — workbench needs an EGL/GL context; the
-          # runner image lacks libEGL.so.1 and Blender aborts (core dump)
-          # without it. Same dependency-gap class as python3-numpy above.
-          sudo apt-get install -y blender python3-numpy libegl1 libgl1 libgl1-mesa-dri
-          blender --version | head -1
+          # libegl1/libgl1/libgl1-mesa-dri: the runner has no GPU; every
+          # gate render (blender-gate turntable since P3-7, export round-
+          # trip, style-gate EEVEE frames) runs on llvmpipe software GL.
+          # Without libEGL.so.1 Blender aborts (core dump).
+          # python3-numpy: the apt-4.0.2-era export-gate fix, KEPT per the
+          # D-014 work order — Blender 5.1 bundles numpy, so this is
+          # harmless belt-and-suspenders, and the glTF exporter gate never
+          # degrades to a SKIP over it either way.
+          sudo apt-get install -y python3-numpy libegl1 libgl1 libgl1-mesa-dri
       - name: Install core
         run: make install PY=python
       - name: Blender end-to-end gate (bridge → strict map → add-on registers)
         run: make blender-verify
       - name: >-
           Export round-trip gate (FBX + glTF via builtin exporters; self-
-          contained — no models/assets. D-014 note: verified on the dev box's
-          5.1.0 with ~0.02 deg round-trip error; CI exercises it on 4.0.2,
-          where Action.fcurves uses the pre-5.x API the probe handles)
+          contained — no models/assets. Verified on the dev box's 5.1.0
+          with ~0.02 deg round-trip error; CI now exercises it on the same
+          5.1.0 tarball, where Action.fcurves uses the 5.x slotted API the
+          probe also handles on pre-5.x)
         run: make export-verify
       - name: >-
           Session-bridge gate (P3-5: MCP server loopback <-> REAL Blender
@@ -73,11 +97,12 @@ jobs:
           contained — no models/assets, 127.0.0.1 only)
         run: make session-verify
       - name: >-
-          Style gate (P4-1 toon materials deterministic graphs; P4-2/P4-3
-          halves degrade honestly on 4.0.2 — the GPv3 LineArt modifier and
-          the scene compositor node group are 5.1-class APIs the probe
-          detects and SKIPS; D-014 pin note: the dev box runs the full gate
-          with real EEVEE pixels on 5.1.0)
+          Style gate (P4-1..P4-6: toon materials, GPv3 line art, screentones,
+          pages, bubbles, PDF/EPUB export). On 5.1 the LINEART/TONES/PAGES/
+          EXPORT halves must report PASS — the D-014 bump is exactly that
+          expectation rising to match the dev box. The SKIPPED degradation
+          paths stay in the gate code for older Blenders; if CI shows
+          SKIPPED here, the bump failed, not the gate.
         run: make style-verify
 
   media-guard:
