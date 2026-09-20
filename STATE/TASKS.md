@@ -88,7 +88,7 @@ quadruped) with ≤2 manual corrections each, proven headless.
 - [x] P4-4 [S13] Multi-camera panel system + layout presets (manga RTL, western LTR). — DONE: probe-first (xtask/page_probe.py, RM_PAGE — compositor centering correction, full-page bg image, sRGB/Standard byte-identity; findings in docs/STYLE.md) then page presets as DATA (presets/pages/{manga_koma3 RTL, western_cross3 LTR}.json: rects + camera binds + gutter/bleed/border + page-level base style + per-panel style overrides) + addon/pages.py deterministic builders (render_panels / build_page_graph / render_page / remove_page; unstyled-panels-first render order so persistent style changes never leak backwards) + style-verify PAGES section (per-page px asserts, graph determinism, exposed-background/border-ring/roundtrip pixel checks, honest SKIPPED on apt 4.0.2) — STYLE GATE (P4-1..P4-4) PASS on 5.1 with real pixels, both pages visually checked incl. a genuinely mixed manga/anime page. 277 tests, lint clean.
 - [x] P4-5 [S14] Speech-bubble editor (Grease Pencil + text).
 - [x] P4-6 [S14] PDF/EPUB/PNG export pipeline.
-- [ ] P4-7 Animatic mode from pose sequences.
+- [ ] P4-7 [S15] Animatic mode from pose sequences.
 - [ ] P4-8 The 6-page manga + 3-style hero shot. media: manga PDF + hero stills.
 
 ## Phase 5 — Live mode
