@@ -485,3 +485,199 @@ bubble-less and builds a graph byte-identical to the pre-P4-5 builder
 (back-compat is gated, not assumed). Honest SKIPPED degradation on
 pre-4.3-class Blenders (no GPv3 drawings API). Bubble stage objects are
 removed after rendering (scene left as found, plus the PNGs).
+
+## P4-7 — animatic mode: timed panel sequences from pose actions (shipped 2026-09-21 S15)
+
+An animatic is a TIMED ROUGH of a sequence: the panel cameras of P4-4,
+but sequential in TIME instead of spatial on a page — each SHOT points a
+camera at the posed subject for a preset duration while the subject plays
+its canonical action (the P2/P3 pose-sequence machinery). The output is a
+movie (plus the per-frame PNGs it is encoded from). It is an animatic in
+the production sense: a timing/boarding rough, NOT a final render — every
+claim, filename, and doc line labels it as a rough (no "final render"
+language, ever).
+
+Design decisions, in the house order:
+
+- **Separate preset family** — ``presets/animatics/*.json``, a SUBDIRECTORY
+  of the presets dir like ``pages/`` (so ``known_presets()`` can never
+  mistake an animatic for a style preset and vice versa). An animatic is
+  not a page and gains nothing from hanging off the page schema: its
+  semantics are temporal (shots + fps), while a page's are spatial (rects
+  + gutters). Same discipline as every preset here: ``format`` field,
+  loud validation, unknown fields fail at every level.
+- **The motion is a CanonicalAction through the CERTIFIED bake path** —
+  the animatic builder takes the baked armature as given (``bake_action``
+  is the P2-3/P3-7 gate-verified transport) and does ``frame_set(n)`` per
+  output frame; the animatic owns TIMING (which action frame plays when),
+  never posing math. Action frames are consumed EVENLY and IN ORDER:
+  output frame ``k`` of ``T`` total plays action index
+  ``(k * len(action)) // T`` (integer math, deterministic, loops the
+  action naturally when the shots outrun it). The report records the
+  exact action-frame index used per output frame — auditable, never
+  implied. A 1-frame action degenerates to a held panel (the traditional
+  static animatic) — same code path, documented, not special-cased.
+- **Rendered frames, not a sequencer** — per output frame the builder
+  swaps ``scene.camera`` (the shot's camera) and renders one STILL PNG at
+  the preset resolution. The determinism standard (P4-4/P4-5:
+  pixel-identical re-renders) carries over unchanged — the PNG sequence
+  IS the deterministic artifact. Movie ASSEMBLY is shell glue
+  (``xtask/style_verify.sh``, ffmpeg — D-009: the spawn lives outside
+  any ``.py``), and movie CONTAINER bytes are NOT claimed deterministic
+  (encoder metadata); the claim is frame-level, and the assembly
+  parse-back asserts structure (frame count at the preset fps).
+- **Style semantics reuse the page rules** — a preset-level ``style`` is
+  the base look (applied by the caller like ``render_panels``); a
+  per-shot ``style`` restyles the subject for that shot's frames.
+  Application is persistent in the scene, so frames render in
+  style-groups (base-look frames first in time order, then each styled
+  shot's frames in time order), report in TIME order regardless — the
+  exact P4-4 order discipline. Because the last styled shot persists, a
+  RE-RENDER requires the caller to re-apply the base look first (the
+  pages precedent). The screentones compositor group stays ACTIVE
+  during animatic renders (tones honor per-frame stills — the RM_TT
+  precedent); an active PAGE group is refused with an actionable error
+  (a static page must not composite over moving frames — remove it
+  first; the gate exercises the refusal as its negative path).
+- **Honest SKIPPED degradation** — the animatic renders SKIP loudly on
+  boxes without a render context (the bake + timing checks still gate
+  inside the probe); the ffmpeg assembly half SKIPS honestly when
+  ffmpeg/ffprobe are absent or no frames exist — a WRONG assembled
+  result is a FAIL, never a skip.
+
+### Probe findings (`xtask/animatic_probe.py`, `RM_ANIMATIC` lines, Blender 5.1.0 headless; S15)
+
+The mechanism was probed BEFORE building (six dbg bisect rounds back the
+findings; the traps are in the probe docstrings so they are never
+re-learned):
+
+- **Q-TIME — YES**: a keyframed action evaluates per ``frame_set`` and
+  reaches EEVEE stills; re-renders are pixel-identical (the animatic
+  builder consumes the CERTIFIED bake output — this proves the time
+  machinery bake-output-independent). Probe traps recorded: pose bones
+  default to QUATERNION (keying ``rotation_euler`` silently animates
+  nothing unless ``rotation_mode`` switches to XYZ); a SPHERE is
+  rotationally symmetric (a 0.5-rad swing moves ~no pixels — the probe
+  subject is a CUBE); frames 1 and 5 of a sin cycle are both zero
+  crossings.
+- **VSE MOVIE-APPEND — DEAD END, recorded so it is never faked**: the
+  5.1.0 sequencer strip stack -> FFMPEG render SEGFAULTS racy (~2/3
+  crash rate across 16 bisect runs; garbage ``imb_alloc_buffer`` calloc
+  with a deterministic garbage length) INDEPENDENT of source file class
+  (rendered PNGs / tEXt-stripped / 16-bit / bpy-resaved / shutil-copied
+  data PNGs all crash 3/3 in at least one round), of strip config, of
+  armature presence, of world, of ``use_sequencer``, and of container
+  (MKV/MPEG4). Several single-run "passes" of candidate mitigations
+  were statistical escapes — caught only by re-running each config 3x
+  (the S15 lesson: bisect verdicts need run counts). No ``.py`` path
+  ever renders a VSE movie (a segfault cannot be caught and would kill
+  the gate); the work order's pre-authorized fallback is taken: per-
+  frame PNGs + shell-glue ffmpeg assembly.
+- **Strip AUTHORING works (unused by the builder, kept as evidence)**:
+  ``scene.sequence_editor.strips`` (the legacy ``sequences`` is GONE in
+  5.1), ``new_image`` + ``elements.append``, contiguous preset-shaped
+  timing, rebuild-report-deterministic.
+- **5.0+ movie API (recorded, unused)**: video output is
+  ``render.image_settings.media_type = 'VIDEO'``; the old
+  ``file_format = 'FFMPEG'`` assignment FAILS on 5.x (the enum item is
+  hidden from assignment though present in the static RNA list).
+  ``render(animation=True)`` names its output
+  ``<base><start:04d>-<end:04d><ext>``.
+- **Instrument trap (recorded)**: the scene compositor group IS active
+  for stills AND animation-mode renders — a ``Bright=0.15`` knob
+  provably changes ZERO channels through the dark probe scene's
+  pipeline and once masqueraded as "the compositor is inactive";
+  ``Contrast=5.0`` changes the full frame.
+
+### Animatic preset data (schema format 1, `presets/animatics/*.json`)
+
+```json
+{
+  "format": 1,
+  "name": "demo_shots",
+  "resolution": {"width_px": 480, "height_px": 360},
+  "fps": 12,
+  "style": "manga",             // optional base look for unstyled shots
+  "shots": [
+    {"camera": "rm_cam_1", "frames": 12},
+    {"camera": "rm_cam_2", "frames": 8, "style": "anime"}
+  ],
+  "notes": "..."
+}
+```
+
+- ``shots`` is the TIMELINE in play order: shot k occupies output frames
+  ``[start_k, start_k + frames_k)`` where ``start_k = Σ frames_{<k})`` —
+  timing is fully determined by the data, no overlaps possible by
+  construction, and the validator requires every ``frames`` to be a
+  positive int. ``fps`` is a positive int (the animatic standard is
+  8–15 fps; this is a rough, and the low fps IS the look).
+- ``camera`` is a SCENE OBJECT NAME (page rule): scene-independent data,
+  a missing camera is an actionable error listing the scene's cameras.
+- ``style`` fields follow the page rules verbatim (base look + per-shot
+  overrides validated against shipped style preset names at load time).
+- Unknown fields fail loudly at preset, shot, and resolution level
+  (house rule; 12 CI contract tests pin the schema). There is NO
+  container field by design: assembly is shell glue, and the container
+  belongs to the shell's ffmpeg invocation, not to the scene data.
+
+### Builder contract — `addon/riggermortis_addon/animatics.py`
+
+- ``load_animatic(name_or_path)`` / ``known_animatics()`` — the pages
+  loader pattern (loud validation, sorted names, explicit-path escape
+  hatch); the module imports WITHOUT bpy so the CI suite exercises the
+  schema + timing contract directly (12 tests).
+- ``animatic_frames(animatic, action_len)`` — pure deterministic timing
+  plan: per output frame, the shot index, camera, style, and the
+  action-frame index (the ``(k * action_len) // T`` mapping). The
+  builder and the report both consume it, so timing can never drift
+  between plan and render; a 1-frame action degenerates to a held panel.
+- ``render_animatic_frames(scene, animatic, out_dir, action_len,
+  subject=None)`` — one STILL PNG per output frame
+  (``rm_animatic_0000.png``, 0-based). The CALLER bakes the canonical
+  action first (``bake_action`` — the certified transport) and passes
+  its length; the builder owns TIMING only (``frame_set(action_frame +
+  1)`` + camera swap; the +1 is ``bake_action``'s documented default
+  offset). Staged + RESTORED: camera, resolution, filepath, scene
+  frame. Refuses an active ``rm_page`` group (actionable error); keeps
+  tones machinery as found; hides nothing (scene curation is the
+  caller's job — the gate stages ``hide_render`` around the call, the
+  bubbles precedent inverted). Re-renders re-apply the base look first
+  (persistent-style semantics, pages precedent).
+
+### Gate (S15)
+
+`make style-verify` gained two halves:
+
+- **Probe** (`RM_STYLE ANIMATIC`): the shipped ``demo_shots`` preset
+  renders end-to-end on a tiny mappable rig + deformed cube — the
+  8-frame canonical action bakes through the REAL ``bake_action``, the
+  page-graph refusal fires (negative path), 20 frames render in style
+  groups (manga base, anime second shot), the render plan equals the
+  pure ``animatic_frames`` output, TWO full sweeps are pixel-identical
+  (det), the shot cut and the within-shot swing are visible in the
+  pixels (channel-count checks; the sphere trap is why the subject is a
+  cube), and the first gate run's bug is recorded (reusing the page
+  cameras' sphere aim rendered 20 identical empty frames — the animatic
+  section re-aims the preset's cameras at its own subject). SKIPPED
+  honestly on renderless boxes; bake + timing still gate there.
+- **Shell assembly** (ffmpeg): glues the probe's frames into a movie at
+  the probe's reported fps and parse-backs the frame count (ffprobe,
+  writer-shaped). SKIPPED honestly without ffmpeg/ffprobe or frames;
+  a wrong count is a FAIL.
+
+### Honest scope
+
+- An ANIMATIC IS A TIMED ROUGH — deterministic per-frame PNGs assembled
+  by shell glue; no "final render" language anywhere, ever.
+- Verified on the gate cube (proxy geometry, 9-bone rig); production
+  characters and framing are P4-8 (the lineart radii are per-style DATA
+  re-tuned there, the P4-2 note).
+- Movie container bytes are NOT claimed deterministic (encoder
+  metadata); frame-level determinism is the claim and is gated.
+- No audio, no per-shot transitions, no camera animation within a shot
+  (static cameras are the P4-4 data rule); bubbles do not ride animatic
+  frames (they are PAGE data — a bubble overlay is future scope,
+  recorded, not faked).
+
+

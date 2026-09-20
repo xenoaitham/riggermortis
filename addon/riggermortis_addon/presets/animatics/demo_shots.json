@@ -1,0 +1,12 @@
+{
+  "format": 1,
+  "name": "demo_shots",
+  "resolution": {"width_px": 480, "height_px": 360},
+  "fps": 12,
+  "style": "manga",
+  "shots": [
+    {"camera": "rm_cam_1", "frames": 12},
+    {"camera": "rm_cam_2", "frames": 8, "style": "anime"}
+  ],
+  "notes": "Gate/demo animatic (20 output frames @ 12 fps): shot 1 carries the page-level manga base look, shot 2 restyles anime (no tones). An ANIMATIC IS A TIMED ROUGH — deterministic per-frame PNGs assembled by shell glue; never a 'final render'."
+}

@@ -49,8 +49,38 @@ check "RM_STYLE PAGES: (PASS|SKIPPED)"
 # verified + byte-determinism; SKIPPED when the pages section skipped.
 check "RM_STYLE EXPORT(: SKIPPED| PDF: (PASS|FAIL))"
 check "RM_STYLE EXPORT EPUB: (PASS|FAIL)|RM_STYLE EXPORT: SKIPPED"
+# P4-7 animatic: per-frame stills through the certified bake path (PASS on
+# 5.1-class boxes with a render context; SKIPPED honestly on renderless
+# boxes — the timing/bake checks inside the probe still gate).
+check "RM_STYLE ANIMATIC: (PASS|SKIPPED)"
 check "RM_STYLE PROBE OK"
 grep "RM_STYLE" "$TMP/probe.log" | sed 's/^/   /'
+
+# P4-7 assembly half: ffmpeg glues the deterministic per-frame PNGs into
+# the animatic movie (D-009: the spawn lives HERE, never in a .py; the
+# 5.1 VSE movie-append is a recorded dead end — docs/STYLE.md). The
+# parse-back is writer-shaped: exactly the probe's total frames at the
+# probe's fps. SKIPPED honestly without ffmpeg/ffprobe or without
+# frames; a WRONG assembled result is a FAIL, never a skip.
+if command -v ffmpeg >/dev/null 2>&1 && command -v ffprobe >/dev/null 2>&1 \
+  && ls "$TMP"/animatic_frames/rm_animatic_*.png >/dev/null 2>&1; then
+  ANIM_LINE=$(grep -oE "RM_STYLE ANIMATIC: PASS total=[0-9]+ fps=[0-9]+" "$TMP/probe.log")
+  TOTAL=$(echo "$ANIM_LINE" | grep -oE "total=[0-9]+" | cut -d= -f2)
+  FPS=$(echo "$ANIM_LINE" | grep -oE "fps=[0-9]+" | cut -d= -f2)
+  ffmpeg -y -loglevel error -framerate "$FPS" \
+    -i "$TMP/animatic_frames/rm_animatic_%04d.png" \
+    -c:v libx264 -pix_fmt yuv420p "$TMP/animatic.mkv"
+  GOT=$(ffprobe -v error -select_streams v:0 -count_packets \
+    -show_entries stream=nb_read_packets -of csv=p=0 "$TMP/animatic.mkv")
+  if [ -n "$TOTAL" ] && [ "$GOT" = "$TOTAL" ]; then
+    echo "   ok: ffmpeg animatic assembly PASS ($TOTAL frames @ ${FPS}fps, parse-back verified)"
+  else
+    echo "error: animatic movie has ${GOT:-no} frames, expected $TOTAL" >&2
+    exit 1
+  fi
+else
+  echo "   ok: ffmpeg animatic assembly SKIPPED (no ffmpeg/ffprobe or no frames — honest degradation)"
+fi
 
 if grep -q "RM_STYLE PROBE OK rendered=\[" "$TMP/probe.log"; then
   for f in "$TMP"/style_*.png; do
@@ -65,4 +95,4 @@ else
 fi
 
 echo ""
-echo "STYLE GATE (P4-1 materials + P4-2 line art + P4-3 screentones + P4-4 pages + P4-5 bubbles + P4-6 export): PASS"
+echo "STYLE GATE (P4-1 materials + P4-2 line art + P4-3 screentones + P4-4 pages + P4-5 bubbles + P4-6 export + P4-7 animatic): PASS"

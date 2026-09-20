@@ -12,7 +12,7 @@ manga, or cartoon; lay scenes out into manga pages and comic PDFs.
 Everything runs on the user's machine: no cloud, no accounts, no uploads, no
 telemetry — and a CI test keeps that verifiably true.
 
-## Status: Phases 0–3 closed (mapping, posing, video, MCP) — Phase 4 style system through P4-6 shipped
+## Status: Phases 0–3 closed (mapping, posing, video, MCP) — Phase 4 style system through P4-7 shipped
 
 | | |
 |---|---|
@@ -69,15 +69,19 @@ What exists **right now** (every claim cites a test, gate, or number):
   127.0.0.1-only local sockets: `inspect_scene`, `apply_pose`, `bake_action`,
   `render_turntable` and `apply_style` execute inside the artist's Blender
   and return structured results (the six-action gate: `make session-verify`).
-- **Style system + manga maker (Phase 4 through P4-6)** — toon material
+- **Style system + manga maker (Phase 4 through P4-7)** — toon material
   presets (anime/manga/western), GPv3 line art, screentone compositor
   graphs, and multi-camera panel page layouts — all as DATA files with
   deterministic builders, animated stability verified over a 360° orbit
   (`make style-verify`). Speech bubbles are per-panel page data (generated
-  geometry + typeset text — never "hand-lettered"), and pages export to
+  geometry + typeset text — never "hand-lettered"), pages export to
   deterministic PDF/EPUB (`rigpose export-pdf` / `export-epub`, pure
-  stdlib, parse-back-verified). Phase-4 real-pixel halves run on 5.x-class
-  Blenders; CI degrades them to honest SKIPPED lines on the 4.0.2 pin.
+  stdlib, parse-back-verified), and animatic mode renders timed panel
+  sequences from canonical pose actions (deterministic per-frame PNGs;
+  the movie is shell-glued ffmpeg — labeled a TIMED ROUGH, never a final
+  render). The real-pixel halves run on Blender 5.1 in CI and in the dev
+  box alike (the D-014 bump; the honest SKIPPED degradation paths remain
+  in the gate code for older Blenders).
 - Content-policy module enforced in the core (SFW default; opt-in 18+ module
   with explicit confirmation; unconditional hard lines).
 
