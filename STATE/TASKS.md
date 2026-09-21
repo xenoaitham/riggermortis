@@ -94,7 +94,7 @@ quadruped) with ≤2 manual corrections each, proven headless.
 ## Phase 5 — Live mode
 **Gate:** 5 minutes of recorded live puppeteering; <100 ms mid-laptop.
 
-- [ ] P5-1 Realtime ONNX pose (MediaPipe-class) in a side process.
+- [x] P5-1 [S17] Realtime ONNX pose (MediaPipe-class) in a side process. — DONE (S17): docs/LIVE.md design as-built; probe FIRST (`xtask/live_probe.py`, RM_LIVE lines, 18 configs) decided the fork on MEASURED numbers — REUSE the pinned DWPose models, the detector CADENCE is the realtime lever (full ≈ 550 ms; tracked-every-5 p50 ≈ 88 ms; pose-only ≈ 90 ms flat; input downscale is a dead knob at fixed ONNX input sizes; no new model/download); core `live.py` contract (FrameSource/List/Directory, expand_bbox, mean-body-conf floor, run_live loop, read_live_lines/latest_pose_line consumers) + `estimate_keypoints_at` public pose-only wrapper entry + `rigpose live` CLI (spawn lives in shell glue: `xtask/live_capture.sh` v4l2 → frames dir, UNTESTED-no-stream label); 16 faked-detector CI tests (327 total) incl. contract-validity through payload.figure_entries, tracked cadence/loss/redetect, determinism (pose data byte-identical, envelope excluded as measurement), per-frame-exception ledger; REAL side-process smoke 9/9 pose lines on real models + real metarig (cold-load ~2 s visible on seq 0, tracked frames 78–120 ms); BENCHMARK:LIVE block written by the probe itself. The <100 ms mid-laptop gate is P5-2's end-to-end number, honestly not claimed here. Capture-device half NEEDS-HUMAN (DroidCam node silent).
 - [ ] P5-2 Webcam → rig puppeteer with latency budget; Blender driver hookup.
 - [ ] P5-3 Smoothing/latency UI + failsafe (drop to 30fps pose preview).
 - [ ] P5-4 Recorded demo. media: 5-min live demo video.

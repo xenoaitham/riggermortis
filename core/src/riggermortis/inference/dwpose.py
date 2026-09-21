@@ -454,6 +454,39 @@ def _estimate(session: Any, bgr: Any, boxes: Any, np_mod: Any) -> tuple[Any, Any
 
 # -- public API -------------------------------------------------------------------
 
+def estimate_keypoints_at(
+    image: Any,
+    bbox: tuple[float, float, float, float],
+    *,
+    providers: list[str] | None = None,
+    root: Path | None = None,
+    sessions: Sessions | None = None,
+) -> Figure:
+    """Run ONLY the pose stage at a known person box (P5-1 live/tracked mode).
+
+    ``bbox`` is xyxy in source-image pixels, exactly as emitted by
+    :func:`detect_keypoints` figures — the live loop feeds back a previous
+    detection's box (expanded) so the expensive detector stage can run on a
+    cadence instead of every frame. The returned Figure carries ``score=0.0``:
+    ``Figure.score`` is a DETECTOR score and this path runs no detector;
+    callers judge quality from the keypoint confidences (the same signal the
+    live loop's miss floor reads).
+    """
+    np_mod = _import_numpy()
+    bgr = _load_bgr(image, np_mod)
+    sess = sessions if sessions is not None else load_sessions(providers=providers, root=root)
+    kps, scores = _estimate(sess.pose, bgr, [list(bbox)], np_mod)
+    return Figure(
+        index=0,
+        bbox=(float(bbox[0]), float(bbox[1]), float(bbox[2]), float(bbox[3])),
+        score=0.0,
+        keypoints=[(float(kps[0][j][0]), float(kps[0][j][1])) for j in range(KEYPOINT_COUNT)],
+        confidences=[
+            float(min(1.0, max(0.0, scores[0][j]))) for j in range(KEYPOINT_COUNT)
+        ],
+    )
+
+
 def detect_keypoints(
     image: Any,
     *,

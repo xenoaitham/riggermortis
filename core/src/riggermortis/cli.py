@@ -183,6 +183,39 @@ def _build_parser() -> argparse.ArgumentParser:
         help="opt in to the CUDA onnxruntime provider (CPU is the default)",
     )
 
+    p_live = sub.add_parser(
+        "live",
+        help="P5-1 live side-process: watch a frames dir, emit one D-009 "
+             "payload-v2 JSON line per frame (spawn this from a shell or "
+             "xtask/live_capture.sh — never from a .py, per D-009)",
+    )
+    p_live.add_argument("frames_dir",
+                        help="directory of frame PNGs (shell-glue writer: "
+                             "xtask/extract_frames.sh or xtask/live_capture.sh)")
+    p_live.add_argument("rig", help="rig JSON file to apply poses to")
+    p_live.add_argument("--out", default="live.jsonl", metavar="PATH",
+                        help="stream file, one JSON line per frame "
+                             "(default: live.jsonl)")
+    p_live.add_argument("--detect-every", type=int, default=1, metavar="N",
+                        help="detector every Nth frame; 1 = full regime, >1 = "
+                             "tracked regime with pose-only crops between "
+                             "(default 1)")
+    p_live.add_argument("--margin", type=float, default=None, metavar="F",
+                        help="tracked-regime crop expansion as a fraction of "
+                             "the box per side (default 0.15)")
+    p_live.add_argument("--conf-floor", type=float, default=None, metavar="F",
+                        help="mean body confidence under this marks the frame "
+                             "a miss (default 0.3)")
+    p_live.add_argument("--max-frames", type=int, default=None, metavar="N",
+                        help="stop after N frames (probes/tests)")
+    p_live.add_argument("--idle-timeout", type=float, default=None, metavar="S",
+                        help="stop after S seconds without a new frame "
+                             "(default 10; 0 = wait forever)")
+    p_live.add_argument(
+        "--gpu", action="store_true",
+        help="opt in to the CUDA onnxruntime provider (CPU is the default)",
+    )
+
     return parser
 
 
@@ -581,6 +614,40 @@ def cmd_pose_video(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def cmd_live(args: argparse.Namespace) -> int:
+    """P5-1: the live side-process entry (this process IS the side process)."""
+    from . import live
+
+    frames_dir = Path(args.frames_dir)
+    if not frames_dir.is_dir():
+        raise RiggermortisError(
+            f"frames directory not found: {frames_dir}",
+            hint="feed it from shell glue: bash xtask/extract_frames.sh "
+                 "<video> <dir> (recorded) or bash xtask/live_capture.sh "
+                 "<dir> (capture device; untested on this box)",
+        )
+    source = live.DirectoryFrameSource(
+        frames_dir,
+        idle_timeout=(None if args.idle_timeout in (None, 0) else args.idle_timeout),
+    )
+    report = live.run_live(
+        source,
+        Path(args.rig),
+        Path(args.out),
+        live.default_detector(gpu=args.gpu),
+        detect_every=args.detect_every,
+        margin=(live.DEFAULT_MARGIN if args.margin is None else args.margin),
+        conf_floor=(live.DEFAULT_CONF_FLOOR if args.conf_floor is None else args.conf_floor),
+        max_frames=args.max_frames,
+        on_line=lambda line: print(
+            f"frame {line['frame']}: {line['kind']}",  # type: ignore[index]
+            file=sys.stderr,
+        ),
+    )
+    print(report.summary())
+    return EXIT_OK
+
+
 def cmd_export_pdf(args: argparse.Namespace) -> int:
     from .pagedoc import read_pdf_pages, write_pdf
 
@@ -638,6 +705,8 @@ def main(argv: list[str] | None = None) -> int:
             return cmd_pose(args)
         if args.command == "pose-video":
             return cmd_pose_video(args)
+        if args.command == "live":
+            return cmd_live(args)
         if args.command == "export-pdf":
             return cmd_export_pdf(args)
         if args.command == "export-epub":

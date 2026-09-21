@@ -12,7 +12,7 @@ manga, or cartoon; lay scenes out into manga pages and comic PDFs.
 Everything runs on the user's machine: no cloud, no accounts, no uploads, no
 telemetry — and a CI test keeps that verifiably true.
 
-## Status: Phases 0–3 closed (mapping, posing, video, MCP) — Phase 4 CLOSED: style system + a 6-page wordless manga (P4-8)
+## Status: Phases 0–4 closed (mapping, posing, video, MCP, style/manga) — Phase 5 OPEN: live mode (P5-1 side process shipped)
 
 | | |
 |---|---|
@@ -86,6 +86,16 @@ What exists **right now** (every claim cites a test, gate, or number):
   side-by-side and the parse-back-verified PDF. The real-pixel halves run
   on Blender 5.1 in CI and in the dev box alike (the D-014 bump; the honest
   SKIPPED degradation paths remain in the gate code for older Blenders).
+- **Live mode (Phase 5, P5-1 shipped)** — a realtime-class pose **side
+  process** (`rigpose live`) watches a frames directory and emits one
+  D-009 payload-v2 JSON line per frame; the add-on's own apply path
+  consumes them unchanged ([docs/LIVE.md](docs/LIVE.md) is the design of
+  record). Measured on the dev box (i5 CPU, [docs/BENCHMARKS.md](docs/BENCHMARKS.md)
+  LIVE block): full detect ≈ 550 ms/frame, tracked (detector every 5th)
+  ≈ 88 ms p50, pose-only ≈ 90 ms flat — the detector **cadence** is the
+  realtime lever, so the pinned DWPose models are reused with zero new
+  downloads. The capture-device half is honestly UNTESTED until a camera
+  stream exists (this box's DroidCam node delivered no frames).
 - Content-policy module enforced in the core (SFW default; opt-in 18+ module
   with explicit confirmation; unconditional hard lines).
 

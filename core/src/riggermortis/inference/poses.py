@@ -35,6 +35,11 @@ KNEE_R = 14
 ANKLE_L = 15
 ANKLE_R = 16
 
+#: The 17 COCO body keypoints (indices 0..16) — the live-mode miss floor reads
+#: their mean confidence (core/live.py); face/hand keypoints are noisier and
+#: not load-bearing for the solve.
+BODY_KEYPOINT_COUNT = 17
+
 # -- feet (6) -----------------------------------------------------------------
 BIG_TOE_L = 17
 SMALL_TOE_L = 18
