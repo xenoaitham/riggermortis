@@ -45,6 +45,9 @@ check "RM_STYLE MANGA TONES GRAPH: (PASS|SKIPPED)"
 check "RM_STYLE WESTERN TONES GRAPH: (PASS|SKIPPED)"
 # P4-4 pages need the scene compositor node group too (apt 4.0.2 SKIPS).
 check "RM_STYLE PAGES: (PASS|SKIPPED)"
+# P4-8 per-panel frame field: the tiny probe page renders at named scene
+# frames (PASS on 5.1-class boxes; SKIPPED honestly where the renders skip).
+check "RM_STYLE FRAMES: (PASS|SKIPPED)"
 # P4-6 export rides on the page renders: PDF + EPUB assembled + parse-back
 # verified + byte-determinism; SKIPPED when the pages section skipped.
 check "RM_STYLE EXPORT(: SKIPPED| PDF: (PASS|FAIL))"

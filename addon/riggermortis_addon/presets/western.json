@@ -12,7 +12,7 @@
     "color": "#ffe9c4"
   },
   "lineart": {
-    "radius": 0.0035,
+    "radius": 0.0055,
     "opacity": 1.0,
     "contour": true,
     "crease": true,

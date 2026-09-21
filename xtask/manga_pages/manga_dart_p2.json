@@ -1,0 +1,20 @@
+{
+  "format": 1,
+  "name": "manga_dart_p2",
+  "reading_direction": "rtl",
+  "style": "manga",
+  "page": {
+    "width_px": 1200,
+    "height_px": 1800,
+    "background": "#ffffff",
+    "bleed": 0.0,
+    "border": {"width_px": 6, "color": "#101010"}
+  },
+  "gutter": 0.02,
+  "panels": [
+    {"rect": [0.51, 0.42, 0.49, 0.58], "camera": "rm_cam_p2_med", "frame": 4},
+    {"rect": [0.0, 0.42, 0.49, 0.58], "camera": "rm_cam_p2_close", "frame": 5},
+    {"rect": [0.0, 0.0, 1.0, 0.40], "camera": "rm_cam_p2_chest", "frame": 6}
+  ],
+  "notes": "Paper Dart page 2 (TAKE): the dart comes up in the right hand, held to the face, then to the chest with the head up. Wordless; every pixel GENERATED"
+}

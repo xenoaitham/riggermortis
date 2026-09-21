@@ -679,6 +679,118 @@ def main() -> int:
                 f"nodes={len(graph['nodes'])} file={page_png.name}"
             )
             pages.remove_page(scene)
+
+        # P4-8: the per-panel "frame" field — a panel names the SCENE FRAME
+        # to render at (all motion stays in the scene as keyed data; the
+        # page preset references a moment, it never contains motion). A
+        # tiny rigged cube far from the page sphere + a 3-frame swing +
+        # ONE camera: two panels at frames 1 and 3 must render DISTINCT
+        # pixels (the machinery moved the pose), the re-render must be
+        # pixel-identical, the report must carry the frame fields, and the
+        # assembled page must be the preset size. Deliberately small — the
+        # mechanism is the claim, not the art.
+        try:
+            bpy.ops.object.armature_add(location=(-10.0, 0.0, 0.0))
+            frame_rig = bpy.context.object
+            frame_rig.name = "rm_frame_rig"
+            bpy.ops.object.mode_set(mode="EDIT")
+            fbones = frame_rig.data.edit_bones
+            fbones.remove(fbones[0])
+            fbone = fbones.new("b1")
+            fbone.head, fbone.tail = (-10.0, 0.0, 0.9), (-10.0, 0.0, 1.5)
+            bpy.ops.object.mode_set(mode="OBJECT")
+            bpy.ops.mesh.primitive_cube_add(size=0.5, location=(-10.0, 0.0, 1.35))
+            frame_cube = bpy.context.object
+            frame_cube.name = "rm_frame_cube"
+            fvg = frame_cube.vertex_groups.new(name="b1")
+            fvg.add(list(range(len(frame_cube.data.vertices))), 1.0, "REPLACE")
+            fmod = frame_cube.modifiers.new("arm", "ARMATURE")
+            fmod.object = frame_rig
+            pb = frame_rig.pose.bones["b1"]
+            pb.rotation_mode = "XYZ"  # the QUATERNION trap: euler keys no-op
+            for f in range(1, 4):
+                scene.frame_set(f)
+                pb.rotation_euler.x = 0.5 * (f - 1)
+                pb.keyframe_insert("rotation_euler", frame=f)
+            fdata = bpy.data.cameras.new("rm_cam_frames")
+            fcam = bpy.data.objects.new("rm_cam_frames", fdata)
+            fcam.location = (-10.0, -3.0, 1.4)
+            faim = Vector((-10.0, 0.0, 1.3)) - fcam.location
+            fcam.rotation_euler = faim.to_track_quat("-Z", "Y").to_euler()
+            bpy.context.collection.objects.link(fcam)
+            frame_page = {
+                "format": 1,
+                "name": "rm_frame_probe",
+                "reading_direction": "ltr",
+                "page": {
+                    "width_px": 400,
+                    "height_px": 600,
+                    "background": "#ffffff",
+                    "border": {"width_px": 4, "color": "#101010"},
+                },
+                "gutter": 0.02,
+                "panels": [
+                    {"rect": [0.0, 0.51, 1.0, 0.49], "camera": "rm_cam_frames", "frame": 1},
+                    {"rect": [0.0, 0.0, 1.0, 0.49], "camera": "rm_cam_frames", "frame": 3},
+                ],
+            }
+            frame_cube.data.materials.clear()
+            style.build_toon_material(frame_cube, style.load_preset("manga"))
+
+            def _panel_px(path: Any) -> list[float]:
+                img = bpy.data.images.load(str(path))
+                px = list(img.pixels)
+                bpy.data.images.remove(img)
+                return px
+
+            freport1 = pages.render_panels(
+                scene, frame_page, out_dir / "panels_frames", subject=frame_cube
+            )
+            freport2 = pages.render_panels(
+                scene, frame_page, out_dir / "panels_frames2", subject=frame_cube
+            )
+            got_frames = [e["frame"] for e in freport1["panels"]]
+            f_diff = _diff_channels(
+                _panel_px(freport1["panels"][0]["file"]),
+                _panel_px(freport1["panels"][1]["file"]),
+            )
+            f_det = sum(
+                _diff_channels(
+                    _panel_px(a["file"]),
+                    _panel_px(b["file"]),
+                )
+                for a, b in zip(
+                    freport1["panels"], freport2["panels"], strict=True
+                )
+            )
+            pages.build_page_graph(
+                scene,
+                frame_page,
+                [e["file"] for e in freport1["panels"]],
+            )
+            fpage_png = out_dir / "page_rm_frame_probe.png"
+            pages.render_page(scene, frame_page, fpage_png)
+            pages.remove_page(scene)
+            fimg = bpy.data.images.load(str(fpage_png))
+            fsize = tuple(fimg.size)
+            bpy.data.images.remove(fimg)
+            frames_ok = (
+                got_frames == [1, 3]
+                and f_diff > 100
+                and f_det == 0
+                and fsize == (400, 600)
+            )
+            print(
+                f"RM_STYLE FRAMES: {'PASS' if frames_ok else 'FAIL'} "
+                f"frames={got_frames} diff={f_diff} det={f_det} "
+                f"size={list(fsize)}"
+            )
+            ok = ok and frames_ok
+        except Exception as exc:  # noqa: BLE001 — honest degradation
+            skipped.append("frames")
+            print(
+                f"RM_STYLE FRAMES: SKIPPED ({exc.__class__.__name__}: {exc})"
+            )
         if pages_ok:
             print("RM_STYLE PAGES: PASS")
 

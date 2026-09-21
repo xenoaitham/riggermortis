@@ -165,10 +165,18 @@ def _validate_page(page: dict[str, Any], source: str) -> None:
     for index, panel in enumerate(panels):
         if not isinstance(panel, dict):
             raise ValueError(f"{source}: panel {index} must be an object")
-        panel_unknown = set(panel) - {"rect", "camera", "style", "bubbles"}
+        panel_unknown = set(panel) - {"rect", "camera", "style", "bubbles", "frame"}
         if panel_unknown:
             raise ValueError(
                 f"{source}: unknown panel {index} fields: {sorted(panel_unknown)}"
+            )
+        frame = panel.get("frame")
+        if frame is not None and (
+            not isinstance(frame, int) or isinstance(frame, bool) or frame < 0
+        ):
+            raise ValueError(
+                f"{source}: panel {index}.frame must be a non-negative int "
+                f"(the scene frame to render this panel at; got {frame!r})"
             )
         rect = panel.get("rect")
         if (
@@ -357,10 +365,18 @@ def render_panels(
     its own render; the last styled look persists afterward). The report
     is in reading order regardless. Missing camera / unknown style /
     styled panel without a ``subject`` = actionable errors. Render staging
-    (camera/resolution/percentage/filepath) is restored; the view
-    transform is deliberately NOT staged: panel pixels carry whatever the
-    scene's transform does (the style look), while the page assembly's
-    byte-identity contract is independent of it (module docstring).
+    (camera/resolution/percentage/filepath + the scene frame) is restored;
+    the view transform is deliberately NOT staged: panel pixels carry
+    whatever the scene's transform does (the style look), while the page
+    assembly's byte-identity contract is independent of it (module
+    docstring).
+
+    P4-8: a panel may carry ``frame`` (non-negative int) — the scene frame
+    that panel renders at (``frame_set`` before its render). All motion
+    data stays in the SCENE (keyed actions built by the caller); the page
+    preset references a moment, it never contains motion. Panels without
+    ``frame`` render at the scene frame as found — frame-less pages
+    behave exactly as before this field existed.
     """
     import bpy
 
@@ -377,6 +393,7 @@ def render_panels(
         render.resolution_y,
         render.resolution_percentage,
         render.filepath,
+        scene.frame_current,
     )
     try:
         entries: dict[int, dict[str, Any]] = {}
@@ -413,6 +430,8 @@ def render_panels(
                     style.remove_screentones(scene)
             x, y, w, h = panel_px(page, index)
             path = out / PANEL_FILE_TEMPLATE.format(index)
+            if panel.get("frame") is not None:
+                scene.frame_set(int(panel["frame"]))
             scene.camera = cam
             render.resolution_x, render.resolution_y = w, h
             render.resolution_percentage = 100
@@ -425,6 +444,7 @@ def render_panels(
                 "width_px": w,
                 "height_px": h,
                 "style": style_name,
+                "frame": panel.get("frame"),
             }
     finally:
         (
@@ -433,6 +453,7 @@ def render_panels(
             render.resolution_y,
             render.resolution_percentage,
             render.filepath,
+            scene.frame_current,
         ) = staged
     return {
         "panels": [entries[i] for i in sorted(entries)],

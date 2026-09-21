@@ -12,7 +12,7 @@ manga, or cartoon; lay scenes out into manga pages and comic PDFs.
 Everything runs on the user's machine: no cloud, no accounts, no uploads, no
 telemetry — and a CI test keeps that verifiably true.
 
-## Status: Phases 0–3 closed (mapping, posing, video, MCP) — Phase 4 style system through P4-7 shipped
+## Status: Phases 0–3 closed (mapping, posing, video, MCP) — Phase 4 CLOSED: style system + a 6-page wordless manga (P4-8)
 
 | | |
 |---|---|
@@ -69,7 +69,7 @@ What exists **right now** (every claim cites a test, gate, or number):
   127.0.0.1-only local sockets: `inspect_scene`, `apply_pose`, `bake_action`,
   `render_turntable` and `apply_style` execute inside the artist's Blender
   and return structured results (the six-action gate: `make session-verify`).
-- **Style system + manga maker (Phase 4 through P4-7)** — toon material
+- **Style system + manga maker (Phase 4 through P4-8, CLOSED)** — toon material
   presets (anime/manga/western), GPv3 line art, screentone compositor
   graphs, and multi-camera panel page layouts — all as DATA files with
   deterministic builders, animated stability verified over a 360° orbit
@@ -79,9 +79,13 @@ What exists **right now** (every claim cites a test, gate, or number):
   stdlib, parse-back-verified), and animatic mode renders timed panel
   sequences from canonical pose actions (deterministic per-frame PNGs;
   the movie is shell-glued ffmpeg — labeled a TIMED ROUGH, never a final
-  render). The real-pixel halves run on Blender 5.1 in CI and in the dev
-  box alike (the D-014 bump; the honest SKIPPED degradation paths remain
-  in the gate code for older Blenders).
+  render). The close-out is **[docs/manga/](docs/manga/)**: "Paper Dart", a
+  6-page WORDLESS manga rendered by `bash xtask/manga_build.sh` (per-panel
+  scene `frame` references over a certified bake; zero lettering — one
+  deliberately empty bubble) plus the same scene in all three styles
+  side-by-side and the parse-back-verified PDF. The real-pixel halves run
+  on Blender 5.1 in CI and in the dev box alike (the D-014 bump; the honest
+  SKIPPED degradation paths remain in the gate code for older Blenders).
 - Content-policy module enforced in the core (SFW default; opt-in 18+ module
   with explicit confirmation; unconditional hard lines).
 

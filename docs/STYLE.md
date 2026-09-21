@@ -73,6 +73,12 @@ western 0.0035 medium, anime 0.004 thin-but-legible): at that framing a
 silhouette contour centers on the edge, so its outer half falls over the
 dark background and the legible weight comes from the inner half — expect
 to re-tune on real character framing in P4-8 (data edit, no code change).
+**RE-TUNED S16 as promised**: the P4-8 character renders read the shipped
+values thin at ~2–4 m, so the per-style radii moved to **manga 0.008,
+anime 0.006, western 0.0055** — chosen BY EYE on real character framing
+(visual-check loop over the manga pages), never tuned against a gate
+number (the ink checks are `> 0` thresholds; the measured darkened counts
+moved with the radii as expected and all gates re-PASSed).
 
 ### Builder contract — `addon/style.py::build_lineart(source_obj, preset)`
 
@@ -679,5 +685,214 @@ re-learned):
   (static cameras are the P4-4 data rule); bubbles do not ride animatic
   frames (they are PAGE data — a bubble overlay is future scope,
   recorded, not faked).
+
+## P4-8 — the 6-page manga + 3-style hero (design 2026-09-21 S16; Phase-4 close-out)
+
+Every ingredient above is verified and shipped; this section is the
+DESIGN of the Phase-4 gate deliverable, written before any build (the
+house order). The deliverable: **"Paper Dart"** — a 6-page WORDLESS
+manga in ``docs/manga/`` (readable + charming, the phase gate), plus a
+**hero page: the same scene/framing in all three styles side-by-side**,
+plus the assembled manga PDF (``rigpose export-pdf``, parse-back
+verified). Every asset is GENERATED and labeled so; no bubbles carry
+text (wordless), no hand-drawn/hand-lettered claims anywhere.
+
+### Story and board (wordless, one character + one prop)
+
+Cast: the **Mannequin** (the scene's character, below) and a **paper
+dart** (a grey folded-paper prism — solid mid-grey so it reads on the
+light sky WITHOUT its own line art; the single LineArt build belongs to
+the protagonist). Beating heart: find → take → throw → crash → repair
+→ soar. 20 story beats; each beat is ONE pose + ONE dart position + a
+bound camera, and beats map 1:1 to panels:
+
+| page | beats | panels (RTL layouts, 1200×1800) | beat |
+|---|---|---|---|
+| 1 FIND | b1–b3 | wide / medium-right / close-reach | notices the dart lying ahead; looks down; crouch + reach |
+| 2 TAKE | b4–b6 | right tall / left tall / bottom wide | dart in hand; holds it up to the face; head up, dart to chest |
+| 3 THROW | b7–b9 | right / left / bottom WIDE | wind-up; release (dart just past the fingertips); dart high in the sky, mannequin pointing |
+| 4 CRASH | b10–b13 | wide dive / rush / close CRASH / slump | dart nose-dives; run; frozen stare at the crashed dart; slumped shoulders |
+| 5 REPAIR | b14–b16 | close / low close / medium | both hands at the dart; dart lifted overhead; second wind-up |
+| 6 SOAR | b17–b20 | wide / SKY panel / medium jump / final wide | release again; dart climbs steeply (mostly sky in frame); jump of joy; waving after the dart |
+
+The b12 crash close-up carries ``style: anime`` (one deliberate beat
+panel — the mixed-style machinery IN the story, and fewer dots reads
+as a tone shift) and ONE **empty bubble** (``"text": ""`` — wordless
+speechlessness, the classic beat; the fallback if empty-text rendering
+verifies badly is dropping the bubble, noted honestly, never faked).
+The hero beat is **b19 (the jump)**.
+
+### The character + scene (deterministic, asset-free, CI-safe)
+
+The story must render anywhere the gates do — no local rigs, no
+downloads, every builder deterministic:
+
+- **Rig**: a code-built humanoid armature whose bones carry the
+  canonical lexicon names (``hips spine chest neck head shoulder.L/R
+  upper_arm.L/R forearm.L/R hand.L/R upper_leg.L/R lower_leg.L/R
+  foot.L/R``) so the live ``map_rig`` path maps 1:1 and the CERTIFIED
+  ``bake_action`` transport works unchanged (the animatic-gate rig
+  pattern, scaled up).
+- **Body**: rigid primitive parts (head sphere + eye dots, torso boxes,
+  limb capsules, foot boxes) JOINED into ONE mesh with per-bone vertex
+  groups + an armature modifier — one ``subject`` object for the style
+  builders (one material set, one LineArt source, artist-mannequin
+  charm). Eyes are part of the mesh (wordless expression = pose +
+  gaze).
+- **Props**: the dart (its own mesh + its own object-level keyframes at
+  the beat frames — carried beats key it to the hand's world position,
+  flight beats key it along its arc) and a ground plane (flat light
+  unlit) under a flat light sky (world color; final values tuned in
+  the visual loop).
+- **Poses**: hand-authored ``CanonicalPose`` positions built by small
+  deterministic transforms of ``core.rest_skeleton()`` (bend angles,
+  leans) — never raw magic dicts; hips anchor like every canonical
+  pose. The 20 beats bake through ``bake_action`` (Blender frame =
+  beat index + 1, ``bake_action``'s documented offset); the dart's
+  object action is keyed by the DRIVER at the same frames, so one
+  ``frame_set(n)`` moves the whole scene deterministically.
+- **Cameras**: one static camera per panel framing (the P4-4 data
+  rule), built from a beat table; page presets bind them by name.
+
+### The one engine extension: per-panel ``frame`` (additive, schema format 1)
+
+A story page needs per-panel MOMENTS — poses are per-panel scene state,
+and the page schema had none (a page rendered whatever the scene held).
+The animatic already proved the honest mechanism (``frame_set`` over
+the certified bake); pages gain the same lever as DATA:
+
+```json
+{"rect": [...], "camera": "rm_cam_p3_c", "frame": 9}
+```
+
+- Optional non-negative int per panel; absent = the scene frame as
+  found (back-compat: frame-less pages behave and render byte-identically).
+- ``render_panels`` stages ``scene.frame_current`` alongside
+  camera/resolution/filepath, does ``frame_set(frame)`` before that
+  panel's render, and restores in the ``finally`` — the exact staging
+  discipline of every render entry point here. The report entries gain
+  ``"frame"`` (value or null), the same always-present pattern as
+  ``"style"``.
+- ALL motion data (armature bake, dart keyframes, anything else keyed)
+  stays in the SCENE, built deterministically by the driver — the page
+  preset references a moment, it never contains motion. This is the
+  line that keeps pages pure layout data.
+- The animatic's ``rm_page`` refusal is untouched (pages render stills
+  through their own graph stage; an active page graph during
+  ``render_panels`` is pre-existing behavior, unchanged).
+- Validation: loud unknown-field failure stays; ``frame`` must be an
+  int ≥ 0 (bools are not ints, house rule). CI tests extend
+  ``test_style_pages`` (accept, reject non-int/negative, back-compat
+  parse).
+- Gate coverage is DELIBERATELY small: the style probe's PAGES loop
+  gains one tiny frame-carrying page (two panels, same camera, frames
+  1 vs 3 over a keyed swing — distinct pixels asserted, re-render
+  identity asserted). The FULL manga is NOT re-rendered in CI (20+
+  large panels would dominate the llvmpipe gate for zero new mechanism
+  coverage — the animatic half already gates per-frame stills); the
+  manga renders are a LOCAL media pipeline like the walk GIFs
+  (committed + media-guarded + driver-side parse-back).
+
+### The manga pipeline (local media, driver-owned)
+
+``bash xtask/manga_build.sh`` (D-009: the shell glue spawns Blender;
+the ``.py`` is the Blender-side script) — builds the scene, bakes the
+20 beats, renders the 20 story panels + 6 page assemblies + the hero
+page into ``out/manga/``, assembles ``docs/manga/paper_dart.pdf`` via
+``core.pagedoc.write_pdf`` with in-process parse-back (page sizes =
+the presets), and copies the checked pages into ``docs/manga/``.
+Visual checks gate every shipped image (the media rule); the
+media-guard gains the pinned ``docs/manga/`` set in the SAME commit.
+
+The story page presets live at ``xtask/manga_pages/*.json`` (version-
+controlled DATA, loaded by EXPLICIT PATH — ``load_page`` has always
+accepted paths) and deliberately NOT in ``presets/pages/``: the gate's
+PAGES loop renders every SHIPPED page preset, and 7 full-size story
+pages would dominate the llvmpipe gate for zero new mechanism coverage
+(the shipped two stay the layout demos; the frame extension is gated
+by a tiny probe-constructed page, above).
+
+- **Radii re-tune** (the P4-2 note, honored here): the shipped
+  ``lineart.radius`` values were eyeballed on the 4 m sphere framing;
+  the character framing is closer (a ~1.7-unit mannequin at 1.2–4 m).
+  Re-tune is a DATA edit on the three presets' ``lineart`` values,
+  chosen BY EYE on real character renders, recorded here with the
+  final numbers, never tuned to move a gate number (the ink checks are
+  thresholds, not targets).
+- **Hero page**: ``docs/manga/hero_3styles.png`` — a landscape
+  triptych (1800×1200), three equal panels, ONE camera, the b19 jump
+  pose, per-panel styles ``manga`` ``anime`` ``western`` (panel order
+  LTR on the sheet; mixed-style pages are gate-proven, this is the
+  showcase the phase gate names).
+- **Story pages**: ``docs/manga/page_01.png`` … ``page_06.png``;
+  **PDF**: ``docs/manga/paper_dart.pdf`` (write_pdf + parse-back in
+  the driver; byte-determinism already gate-proven in EXPORT).
+- An optional TIMED ROUGH animatic of the board (the P4-7 machinery
+  over the same bake) may be rendered to ``out/`` as an inspection
+  artifact — labeled a rough, never shipped as final media.
+
+### As built (S16) — findings the visual loop earned
+
+- **Panels inherit the SCENE's view transform** (``render_panels``
+  deliberately does not stage it — the page assembly stages its own).
+  The first page render came out with a heavy DARK sky and muted
+  ground: Blender 5.1's default AgX transform crushed the 0.855 world
+  into mid-dark grey. The fix is caller-side and now documented by
+  use: the manga driver stages ``Standard`` + dither 0 in its base
+  look — the SAME contract the page assembly already uses, so panels
+  and page agree. Any future page-scene author must make this choice
+  explicitly.
+- **The empty bubble VERIFIED** (the design's fallback never fired):
+  ``"text": ""`` skips the text object entirely (``has_text = bool
+  (text)``) and renders a clean white body + tail — the wordless
+  "speechless" beat on the crash page reads exactly as intended.
+- **Lineart radii re-tuned on character framing** (the P4-2 note,
+  honored): manga 0.008 / anime 0.006 / western 0.0055 — see the P4-2
+  section for the record.
+- **ops join trap (driver-side, recorded so it is not re-learned)**:
+  each ``primitive_*_add`` makes ITS object the selection; joining
+  parts created in a loop needs EXPLICIT ``select_set(True)`` on every
+  part plus a chosen active — the first eye join silently produced a
+  one-eyed character (visual-check-caught, of course).
+- **A 35 mm lens on every story camera**: the wide manga panels have a
+  narrow vertical field at 50 mm (±13.5°), which cropped heads and
+  pushed ground-level props out of frame at medium distances; the
+  wider lens is the systemic fix (per-camera aim nudges kept losing
+  the dart).
+- Gate coverage shipped as designed: ``RM_STYLE FRAMES: PASS`` (two
+  panels at frames 1 and 3 over a keyed swing — distinct pixels,
+  re-render identity, preset-sized assembly; SKIPPED honestly where
+  renders skip), grep-tested on both line formats before pushing.
+
+### Deliverables (all GENERATED by ``xtask/manga_build.sh``)
+
+``docs/manga/page_01.png`` … ``page_06.png`` (the story, RTL, 1200×1800),
+``docs/manga/hero_3styles.png`` (the triptych, 1800×1200),
+``docs/manga/paper_dart.pdf`` (``write_pdf`` + in-process parse-back:
+6 pages at 1200×1800; the same writer the EXPORT gate proves). The
+media-guard pins exactly these 8 files; the story page presets live at
+``xtask/manga_pages/*.json``. Visual check: the story reads end to end
+(find → take → throw → crash → repair → soar), the styles differ
+plainly on the hero, and no panel claims anything hand-made.
+
+### Honest scope
+
+- The mannequin is rigid-part geometry (no skinning): big bends can
+  gap a joint — the poses are authored within its range, and that is
+  the character's look (an artist's wooden mannequin), not a defect
+  to hide.
+- Wordless means ZERO lettering anywhere (the empty bubble carries no
+  text); sound effects are absent by design.
+- Panel crops show the camera's full frame (P4-4 v1 semantics — no
+  crop-into-frame panels); composition works within that rule.
+- The dart's flight is keyframed by the driver at beat frames (no
+  physics); determinism is the claim, never realism. The dart carries
+  NO line art by design — the single LineArt build belongs to the
+  protagonist, and the dart's grey value carries its silhouette.
+- The full manga is NOT re-rendered in CI (deliberate: 20+ large
+  panels would dominate the llvmpipe gate for zero new mechanism
+  coverage — the frame extension is gated by the tiny probe page, the
+  writer by EXPORT, the per-frame machinery by ANIMATIC); the media is
+  a local pipeline like the walk GIFs, committed and guarded.
 
 

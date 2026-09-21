@@ -9,7 +9,7 @@ test:
 	cd core && $(PY) -m pytest tests
 
 lint:
-	$(PY) -m ruff check core/src core/tests addon/riggermortis_addon mcp/riggermortis_mcp.py mcp/session_bridge.py xtask/export_fixture_rigs.py xtask/build_rigify_rigs.py xtask/import_and_extract.py xtask/render_demos.py xtask/benchmark_poses.py xtask/foot_lock_gate.py xtask/hip_stab_gate.py xtask/walk_media.py xtask/assemble_walk.py xtask/walk_docs.py xtask/session_probe.py xtask/walk_job.py xtask/agent_demo_docs.py xtask/agent_demo_blender.py xtask/style_probe.py xtask/page_probe.py xtask/bubble_probe.py xtask/styled_turntable_probe.py xtask/lineart_probe.py xtask/tone_probe.py xtask/animatic_probe.py
+	$(PY) -m ruff check core/src core/tests addon/riggermortis_addon mcp/riggermortis_mcp.py mcp/session_bridge.py xtask/export_fixture_rigs.py xtask/build_rigify_rigs.py xtask/import_and_extract.py xtask/render_demos.py xtask/benchmark_poses.py xtask/foot_lock_gate.py xtask/hip_stab_gate.py xtask/walk_media.py xtask/assemble_walk.py xtask/walk_docs.py xtask/session_probe.py xtask/walk_job.py xtask/agent_demo_docs.py xtask/agent_demo_blender.py xtask/style_probe.py xtask/page_probe.py xtask/bubble_probe.py xtask/styled_turntable_probe.py xtask/lineart_probe.py xtask/tone_probe.py xtask/animatic_probe.py xtask/manga_build.py
 
 fixtures:
 	$(PY) xtask/export_fixture_rigs.py
@@ -31,9 +31,12 @@ media-guard:
 		echo "media/ contains $$n committed file(s) — demo media is generated headlessly and never hand-committed" >&2; \
 		exit 1; \
 	fi; \
-	for want in docs/media/boom.gif docs/media/ui_screenshot.png $(WALK_GIFS) $(AGENT_GIF); do \
+	for want in docs/media/boom.gif docs/media/ui_screenshot.png $(WALK_GIFS) $(AGENT_GIF) \
+		docs/manga/page_01.png docs/manga/page_02.png docs/manga/page_03.png \
+		docs/manga/page_04.png docs/manga/page_05.png docs/manga/page_06.png \
+		docs/manga/hero_3styles.png docs/manga/paper_dart.pdf; do \
 		if ! git ls-files --error-unmatch "$$want" > /dev/null 2>&1; then \
-			echo "missing $$want — hero media is pinned to pipeline outputs (regen: bash xtask/render_boom.sh / xtask/ui_screenshot.sh / make walk-gifs / make agent-demo)" >&2; \
+			echo "missing $$want — hero media is pinned to pipeline outputs (regen: bash xtask/render_boom.sh / xtask/ui_screenshot.sh / make walk-gifs / make agent-demo / bash xtask/manga_build.sh)" >&2; \
 			exit 1; \
 		fi; \
 	done; \
@@ -42,7 +45,12 @@ media-guard:
 		echo "docs/media/ contains unallowlisted file(s): $$extra — hero media is pinned to the pipeline outputs (extending the allowlist is a deliberate, documented change in the same commit as the media)" >&2; \
 		exit 1; \
 	fi; \
-	echo "media guard clean: media/ empty; docs/media/ = the 7 pinned pipeline outputs"
+	mextra=$$(git ls-files docs/manga/ | grep -Fxv -e docs/manga/page_01.png -e docs/manga/page_02.png -e docs/manga/page_03.png -e docs/manga/page_04.png -e docs/manga/page_05.png -e docs/manga/page_06.png -e docs/manga/hero_3styles.png -e docs/manga/paper_dart.pdf || true); \
+	if [ -n "$$mextra" ]; then \
+		echo "docs/manga/ contains unallowlisted file(s): $$mextra — manga media is pinned to xtask/manga_build.sh outputs (extend the allowlist in the same commit as the media)" >&2; \
+		exit 1; \
+	fi; \
+	echo "media guard clean: media/ empty; docs/media/ = the 7 pinned pipeline outputs; docs/manga/ = the 8 pinned P4-8 outputs"
 
 # Full Phase 0 gate against a real local Blender (needs `make install` first)
 blender-verify:

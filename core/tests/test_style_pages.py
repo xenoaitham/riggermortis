@@ -212,3 +212,54 @@ def test_bubbles_not_a_list_fails(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="panel 1\\.bubbles must be a list"):
         pages.load_page(_mutated(tmp_path, notlist))
+
+
+# -- P4-8: the per-panel "frame" field (scene moment references) -------------
+
+
+def test_frame_field_is_accepted_and_preserved(tmp_path: Path) -> None:
+    def frame(p: dict) -> None:
+        p["panels"][0]["frame"] = 9
+
+    page = pages.load_page(_mutated(tmp_path, frame))
+    assert page["panels"][0]["frame"] == 9
+    assert page["panels"][1].get("frame") is None
+
+
+def test_frame_zero_is_valid(tmp_path: Path) -> None:
+    def zero(p: dict) -> None:
+        p["panels"][2]["frame"] = 0
+
+    page = pages.load_page(_mutated(tmp_path, zero))
+    assert page["panels"][2]["frame"] == 0
+
+
+def test_frame_negative_fails(tmp_path: Path) -> None:
+    def neg(p: dict) -> None:
+        p["panels"][0]["frame"] = -1
+
+    with pytest.raises(ValueError, match="panel 0\\.frame must be a non-negative int"):
+        pages.load_page(_mutated(tmp_path, neg))
+
+
+def test_frame_non_int_fails(tmp_path: Path) -> None:
+    def frac(p: dict) -> None:
+        p["panels"][0]["frame"] = 1.5
+
+    with pytest.raises(ValueError, match="panel 0\\.frame must be a non-negative int"):
+        pages.load_page(_mutated(tmp_path, frac))
+
+
+def test_frame_bool_is_not_an_int(tmp_path: Path) -> None:
+    def flag(p: dict) -> None:
+        p["panels"][0]["frame"] = True
+
+    with pytest.raises(ValueError, match="panel 0\\.frame must be a non-negative int"):
+        pages.load_page(_mutated(tmp_path, flag))
+
+
+def test_shipped_pages_stay_frameless() -> None:
+    """Back-compat: the shipped layout demos carry no frame field."""
+    for name in pages.known_pages():
+        page = pages.load_page(name)
+        assert all(p.get("frame") is None for p in page["panels"])
