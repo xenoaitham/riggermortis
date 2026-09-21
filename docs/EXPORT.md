@@ -79,3 +79,8 @@ inputs, embedded-pixels-equal-source, EPUB zip rules, in-process CLI.
 Honesty: these documents contain GENERATED page renders (and P4-5
 bubbles are generated geometry + typeset text). Nothing hand-lettered,
 nothing hand-drawn, and no doc may claim otherwise.
+
+The real-world use of this writer shipped with P4-8:
+`docs/manga/paper_dart.pdf` is the assembled 6-page wordless manga
+(`bash xtask/manga_build.sh` — the driver runs the same in-process
+parse-back on every build), and the media-guard pins it.
