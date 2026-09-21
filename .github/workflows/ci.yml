@@ -79,7 +79,11 @@ jobs:
           # D-014 work order — Blender 5.1 bundles numpy, so this is
           # harmless belt-and-suspenders, and the glTF exporter gate never
           # degrades to a SKIP over it either way.
-          sudo apt-get install -y python3-numpy libegl1 libgl1 libgl1-mesa-dri
+          # ffmpeg/ffprobe (P4-8, S16): raises the style gate's animatic
+          # assembly half from its designed SKIPPED to PASS on CI — the
+          # same expectation-rise pattern as D-014 (the deterministic
+          # frames still gate without it; this adds the movie parse-back).
+          sudo apt-get install -y python3-numpy libegl1 libgl1 libgl1-mesa-dri ffmpeg
       - name: Install core
         run: make install PY=python
       - name: Blender end-to-end gate (bridge → strict map → add-on registers)
