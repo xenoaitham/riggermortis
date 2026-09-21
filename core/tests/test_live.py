@@ -8,6 +8,7 @@ and finite, never value-equal (docs/LIVE.md determinism statement).
 from __future__ import annotations
 
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -522,6 +523,177 @@ def test_consumer_end_to_end_over_a_producer_shaped_stream(tmp_path: Path) -> No
     assert final.poses_total == 5 and final.misses_total == 1
     assert final.last_seq == 5 and final.corrupt == 0
     assert final.last_seq == live.latest_pose_line(stream)["live"]["seq"]
+
+
+# -- P5-3: stream-side smoothing + the failsafe --------------------------------------
+
+
+def _variance(values: list[float]) -> float:
+    """The P2-2 variance instrument (mean squared deviation from the mean)."""
+    if not values:
+        return 0.0
+    mean = sum(values) / len(values)
+    return sum((v - mean) ** 2 for v in values) / len(values)
+
+
+def _pose(x: float = 0.0, y: float = 0.0, z: float = 1.0):
+    """A small CanonicalPose: hips at the jitter axis, head riding along."""
+    return live.CanonicalPose(
+        positions={"hips": (x, y, z), "head": (x + 0.1, y, z + 0.5)},
+        flips={}, confidence=0.8, reliable=True, scale=100.0, anchor="hips",
+    )
+
+
+def test_smoother_constant_stream_applies_identically() -> None:
+    """docs/LIVE.md P5-3: a constant stream through smoothing ON applies the
+    IDENTICAL pose every line (a convex combiner on constant input)."""
+    smoother = live.LivePoseSmoother()
+    base = _pose()
+    for i in range(6):
+        out = smoother.smooth(base, 100.0 + i * 0.1)
+        assert out.positions == base.positions
+
+
+def test_smoother_cuts_jitter_variance_by_the_p2_2_instrument() -> None:
+    """Two-tone deterministic jitter on one axis at the P2-2 sampling class
+    (30 Hz): the smoothed variance cuts >= 4x (the published P2-2 bar, reused
+    verbatim — no new threshold) and the smoothed mean tracks the raw mean
+    within the jitter amplitude."""
+    amp = 0.01
+    n = 40
+    dt = 1.0 / 30.0
+    raw_x = [
+        amp * math.sin(2.0 * math.pi * 3.0 * i * dt)
+        + amp * 0.5 * math.sin(2.0 * math.pi * 11.0 * i * dt + 1.3)
+        for i in range(n)
+    ]
+    smoother = live.LivePoseSmoother()
+    smoothed_x: list[float] = []
+    for i, x in enumerate(raw_x):
+        out = smoother.smooth(_pose(x=x), t_emit_wall=1000.0 + i * dt)
+        smoothed_x.append(out.positions["hips"][0])
+    tail = slice(8, None)  # skip the filter warmup, like the P2-2 test
+    var_raw = _variance(raw_x[tail])
+    var_smoothed = _variance(smoothed_x[tail])
+    assert var_raw > 0.0
+    assert var_smoothed * 4.0 < var_raw
+    assert abs(sum(smoothed_x[tail]) / len(smoothed_x[tail])
+               - sum(raw_x[tail]) / len(raw_x[tail])) <= amp
+
+
+def test_smoother_preserves_partial_observation_and_metadata() -> None:
+    """A role absent from a pose stays absent; flips/confidence/notes ride."""
+    pose = _pose()
+    pose.positions.pop("head")
+    pose.flips = {"forearm.L": -1}
+    pose.notes = ["test note"]
+    smoother = live.LivePoseSmoother()
+    out = smoother.smooth(pose, 1.0)
+    assert "head" not in out.positions
+    assert "hips" in out.positions
+    assert out.flips == {"forearm.L": -1}
+    assert out.notes == ["test note"]
+    assert out.confidence == pose.confidence and out.scale == pose.scale
+    # the head filter stays idle, not dead: re-observing the role filters
+    # from its first fresh value (pass-through on the first call)
+    out2 = smoother.smooth(_pose(), 1.1)
+    assert out2.positions["head"] == _pose().positions["head"]
+
+
+def test_smoother_gap_snaps_to_the_new_observation() -> None:
+    """A long gap opens the filter (alpha -> 1): the next pose effectively
+    snaps through instead of lagging across the dropout."""
+    smoother = live.LivePoseSmoother()
+    for i in range(10):
+        smoother.smooth(_pose(), t_emit_wall=100.0 + i * 0.1)
+    jumped = smoother.smooth(_pose(x=0.5), t_emit_wall=200.0)  # 100 s gap
+    dx = jumped.positions["hips"][0]
+    assert abs(dx - 0.5) < 0.01 * 0.5  # within 1% of the A->B span of B
+
+
+def test_smoother_mirror_commutation() -> None:
+    """docs/LIVE.md P5-3, the mirror-order proof: the 1-euro filter is
+    odd-symmetric, so smooth(mirror(p)) == mirror(smooth(p)) exactly on a
+    consistently mirrored stream — smooth-first is chosen for the state
+    (a mid-session toggle needs no filter-state surgery)."""
+    stream = [
+        _pose(x=0.05 * math.sin(0.7 * i), z=1.0 + 0.02 * i) for i in range(12)
+    ]
+    smoother = live.LivePoseSmoother()
+    smooth_then_mirror = [smoother.smooth(p, 10.0 + 0.1 * i).mirrored()
+                          for i, p in enumerate(stream)]
+    smoother2 = live.LivePoseSmoother()
+    mirror_then_smooth = [smoother2.smooth(p.mirrored(), 10.0 + 0.1 * i)
+                          for i, p in enumerate(stream)]
+    for a, b in zip(smooth_then_mirror, mirror_then_smooth, strict=True):
+        assert a.positions == b.positions
+
+
+def test_smoother_reset_passes_through() -> None:
+    """reset() drops the filter state: the next pose passes through exactly
+    (the failsafe path relies on this for a clean recovery)."""
+    smoother = live.LivePoseSmoother()
+    for i in range(5):
+        smoother.smooth(_pose(), t_emit_wall=i * 0.1)
+    smoother.reset()
+    out = smoother.smooth(_pose(x=0.4), t_emit_wall=99.0)
+    assert out.positions["hips"][0] == 0.4
+
+
+def test_smoother_validates_args() -> None:
+    with pytest.raises(RiggermortisError) as exc:
+        live.LivePoseSmoother(min_cutoff=0.0)
+    assert "hint" in str(exc.value)
+    with pytest.raises(RiggermortisError) as exc:
+        live.LivePoseSmoother(beta=-1.0)
+    assert "hint" in str(exc.value)
+
+
+def test_consumer_failsafe_fires_once_and_rearms(tmp_path: Path) -> None:
+    """docs/LIVE.md P5-3: STALE first, then the failsafe EDGE (one tick),
+    latched until any new stream event re-arms it and the pose applies."""
+    stream = tmp_path / "live.jsonl"
+    clock = _FakeClock()
+    consumer = live.LiveConsumer(
+        live.LiveTail(stream), stale_after=1.0, failsafe_after=3.0, clock=clock,
+    )
+    early = consumer.poll()
+    assert early.stale is False and early.failsafe is False
+    clock.now += 2.0  # silent past stale_after, short of the failsafe
+    mid = consumer.poll()
+    assert mid.stale is True and mid.failsafe is False
+    clock.now += 1.5  # silence crosses failsafe_after
+    fired = consumer.poll()
+    assert fired.failsafe is True and fired.failsafe_fired is True
+    clock.now += 1.0  # still silent: the latch holds, no second edge
+    held = consumer.poll()
+    assert held.failsafe is False and held.failsafe_fired is True
+    with stream.open("a", encoding="utf-8") as fh:
+        fh.write(_line("pose", 0) + "\n")
+    clock.now += 0.2  # the stream continues: re-arm + apply
+    back = consumer.poll()
+    assert back.apply is not None and back.apply["live"]["seq"] == 0
+    assert back.failsafe is False and back.failsafe_fired is False
+
+
+def test_consumer_failsafe_validates_after_stale(tmp_path: Path) -> None:
+    with pytest.raises(RiggermortisError) as exc:
+        live.LiveConsumer(
+            live.LiveTail(tmp_path / "s.jsonl"),
+            stale_after=2.0, failsafe_after=2.0,
+        )
+    assert "hint" in str(exc.value)
+    with pytest.raises(RiggermortisError):
+        live.LiveConsumer(
+            live.LiveTail(tmp_path / "s.jsonl"),
+            stale_after=2.0, failsafe_after=1.0,
+        )
+
+
+def test_failsafe_default_sits_after_the_stale_default() -> None:
+    """The documented ordering (docs/LIVE.md P5-3), pinned so a default bump
+    cannot silently invert it."""
+    assert live.DEFAULT_FAILSAFE_AFTER > live.DEFAULT_STALE_AFTER
 
 
 # -- CLI (in-process, faked detector via the live-module seam) ---------------------

@@ -6,16 +6,21 @@ a ``bpy.app.timers`` pump and applies the newest applicable pose line
 through the REAL P1-6 apply path (``pose_apply.apply_payload`` — the stream
 line IS payload-v2 shaped, so ``rm_role_*`` mapping and mirror semantics
 are the apply operator's own). Policy (latest-wins, miss-keeps-pose,
-staleness, duplicate replays) lives in ``riggermortis.live.LiveConsumer``
-— pure stdlib, CI-tested with fakes; this module is the thin bpy adapter:
-the ONLY bpy touch is the apply and the status readout, on the main thread.
+staleness, duplicate replays, the P5-3 failsafe) lives in
+``riggermortis.live.LiveConsumer`` — pure stdlib, CI-tested with fakes; the
+P5-3 smoothing (:class:`riggermortis.live.LivePoseSmoother`) filters the
+canonical pose BEFORE the apply, core-side, CI-tested with jitter streams.
+This module is the thin bpy adapter: the ONLY bpy touches are the apply,
+the failsafe clear, and the status readout, on the main thread.
 
 The pump never raises out of the timer (the session.py rule): an apply
 failure lands in the status line, actionable with a hint, and the loop
 continues. Stream settings live on the WindowManager — session-only state,
 never saved into .blend files. The end-to-end budget instrumentation keeps
-per-applied-line ``{age_ms, poll_lag_ms, apply_ms, e2e_ms}`` (REPLAY-measured
-on this box; the live number stays P5-3+ until a camera streams).
+per-applied-line ``{age_ms, poll_lag_ms, apply_ms, e2e_ms}`` plus the
+applied canonical positions (the P5-3 gate's variance instrument) —
+REPLAY-measured on this box; the live number stays unclaimed until a
+camera streams.
 """
 from __future__ import annotations
 
@@ -36,7 +41,8 @@ _STATE: dict[str, Any] = {}
 
 
 class LiveDriver:
-    """Owns the core LiveTail + LiveConsumer and the main-thread apply."""
+    """Owns the core LiveTail + LiveConsumer + LivePoseSmoother and the
+    main-thread apply / failsafe clear."""
 
     def __init__(
         self,
@@ -45,22 +51,33 @@ class LiveDriver:
         *,
         stale_after: float,
         mirror: bool,
+        failsafe_after: float | None = None,
+        smoothing: bool = True,
     ) -> None:
         core = bpy_bridge.import_core()
-        try:
-            live = core.live
-        except AttributeError as exc:  # an older pip-installed core
+        live = getattr(core, "live", None)
+        if live is None or not hasattr(live, "LivePoseSmoother"):
             raise ImportError(
-                "the installed riggermortis core has no live.LiveTail — the "
-                "stream consumer needs the repo's core (hint: install "
-                "core/ into Blender's Python, or add core/src to sys.path)"
-            ) from exc
+                "the installed riggermortis core has no live.LiveTail/ "
+                "LivePoseSmoother — the stream consumer needs the repo's core "
+                "(hint: install core/ into Blender's Python, or add core/src "
+                "to sys.path)"
+            )
         self.core = core
         self.tail = live.LiveTail(stream_path)
-        self.consumer = live.LiveConsumer(self.tail, stale_after=stale_after)
+        self.consumer = live.LiveConsumer(
+            self.tail,
+            stale_after=stale_after,
+            failsafe_after=(
+                live.DEFAULT_FAILSAFE_AFTER if failsafe_after is None
+                else float(failsafe_after)
+            ),
+        )
+        self.smoother = live.LivePoseSmoother()
         self.stream_path = str(stream_path)
         self.armature_name = str(armature_name)
         self.mirror = bool(mirror)
+        self.smoothing_enabled = bool(smoothing)
         self.applied = 0
         self.skipped_total = 0
         self.duplicates_total = 0
@@ -69,17 +86,22 @@ class LiveDriver:
         self.last_conf: float | None = None
         self.last_apply_ms: float | None = None
         self.last_pipeline_ms: float | None = None
+        self.last_age_ms: float | None = None
         self.last_stale = False
         self.last_since_last_s = 0.0
         self.last_worst_deg: float | None = None
+        self.failsafe_active = False
+        self.failsafe_since_s = 0.0
+        self.recoveries = 0
         self.budget: list[dict[str, float]] = []
 
     # -- one main-thread tick -------------------------------------------------
 
     def pump_once(self) -> str:
-        """Poll the stream, apply if the decision says so. Returns a short
-        status word for the panel/gate: "applied"/"held"/"stale"/error text.
-        Never raises."""
+        """Poll the stream, apply if the decision says so, fire the failsafe
+        on its edge. Returns a short status word for the panel/gate:
+        "applied"/"held"/"stale"/"failsafe"/error text. Never raises."""
+        self._sync_from_window()
         try:
             decision = self.consumer.poll()
         except Exception as exc:  # noqa: BLE001 — the pump must keep running
@@ -90,7 +112,11 @@ class LiveDriver:
         self.last_seq = decision.last_seq
         self.last_stale = decision.stale
         self.last_since_last_s = decision.since_last_s
+        if decision.failsafe and not self.failsafe_active:
+            self._failsafe(decision)
         if decision.apply is None:
+            if self.failsafe_active:
+                return "failsafe"
             return "stale" if decision.stale else "held"
         try:
             self._apply(decision.apply)
@@ -98,10 +124,47 @@ class LiveDriver:
             self.last_error = f"apply failed: {exc} (hint: check the rig is mapped)"
             return self.last_error
         self.last_error = ""
+        if self.failsafe_active:  # the stream recovered: a fresh pose applied
+            self.failsafe_active = False
+            self.recoveries += 1
         return "applied"
 
+    def _sync_from_window(self) -> None:
+        """The panel's smoothing toggle is read fresh per tick (docs/LIVE.md
+        P5-3) — the operator's toggle takes effect on the next line. Callers
+        without the add-on property keep the current value (best-effort sync;
+        the never-raise rule applies)."""
+        import contextlib
+
+        import bpy
+
+        with contextlib.suppress(Exception):
+            self.smoothing_enabled = bool(
+                bpy.context.window_manager.rm_live.smoothing
+            )
+
+    def _failsafe(self, decision: Any) -> None:
+        """The P5-3 safe state: sustained stream silence -> clear to rest
+        (docs/LIVE.md). Once per edge; the smoother resets so recovery starts
+        from the stream, not from pre-failsafe history."""
+        import bpy
+
+        self.failsafe_active = True
+        self.failsafe_since_s = float(decision.since_last_s)
+        self.smoother.reset()
+        obj = bpy.data.objects.get(self.armature_name)
+        try:
+            pose_apply.clear_pose(obj)
+        except Exception as exc:  # noqa: BLE001 — actionable, never a traceback
+            self.last_error = (
+                f"failsafe clear failed: {exc} "
+                "(hint: check the rig is still in the scene)"
+            )
+
     def _apply(self, line: dict[str, Any]) -> None:
-        """The REAL P1-6 apply path, instrumented (main thread)."""
+        """The REAL P1-6 apply path, instrumented (main thread). Smoothing
+        OFF is ``apply_payload`` exactly as P5-2 shipped; ON routes the
+        payload's canonical pose through the smoother first (docs/LIVE.md)."""
         import bpy
 
         obj = bpy.data.objects.get(self.armature_name)
@@ -117,11 +180,17 @@ class LiveDriver:
             if isinstance(t_emit, (int, float))
             else 0.0
         )
+        figure = str((line.get("figure") or {}).get("label") or "") or None
         t0 = time.perf_counter()
-        report = pose_apply.apply_payload(
-            obj, line, mirror=self.mirror, core=self.core,
-            figure=str((line.get("figure") or {}).get("label") or "") or None,
-        )
+        if self.smoothing_enabled:
+            report, positions = self._apply_smoothed(obj, line, figure)
+            smoothed = True
+        else:
+            report = pose_apply.apply_payload(
+                obj, line, mirror=self.mirror, core=self.core, figure=figure,
+            )
+            positions = self._payload_positions(line, figure)
+            smoothed = False
         apply_ms = (time.perf_counter() - t0) * 1000.0
 
         self.applied += 1
@@ -129,6 +198,7 @@ class LiveDriver:
         self.last_conf = float(report.get("confidence") or 0.0)
         age_ms = envelope.get("age_ms")
         age_ms = float(age_ms) if isinstance(age_ms, (int, float)) else None
+        self.last_age_ms = age_ms
         # The honest per-line pipeline number is emit -> apply. The envelope's
         # age_ms (capture -> emit) is only capture latency for a real camera;
         # on replayed files it is the file's mtime age — kept informational,
@@ -143,9 +213,49 @@ class LiveDriver:
             "apply_ms": apply_ms,
             "emit_to_apply_ms": pipeline_ms,
             "worst_deg": self.last_worst_deg,
+            "smoothed": 1.0 if smoothed else 0.0,
+            "positions": positions,  # the applied pose — the gate's variance instrument
         }
         self.budget.append(row)
         del self.budget[:-BUDGET_HISTORY]
+
+    def _apply_smoothed(
+        self, obj: Any, line: dict[str, Any], figure: str | None
+    ) -> tuple[dict[str, Any], dict[str, list[float]]]:
+        """The P5-3 smoothed apply (docs/LIVE.md): payload -> canonical pose
+        -> 1€ filter in the STREAM's space -> mirror -> apply_pose_object —
+        the payload path's own core, still the REAL P1-6 apply."""
+        payload_mod = pose_apply.payload_module()
+        pose_dict = payload_mod.pose_for_figure(line, figure)
+        pose = self.core.CanonicalPose.from_dict(pose_dict)
+        envelope = line.get("live") or {}
+        t_emit = envelope.get("t_emit_wall")
+        pose = self.smoother.smooth(
+            pose, float(t_emit) if isinstance(t_emit, (int, float)) else None
+        )
+        if self.mirror:
+            pose = pose.mirrored()
+        report = pose_apply.apply_pose_object(obj, pose, self.core)
+        report["mirrored"] = self.mirror
+        report["figure"] = str(
+            payload_mod.entry_for_label(line, figure).get("label", "?")
+        )
+        positions = _positions_dict(pose)
+        return report, positions
+
+    def _payload_positions(
+        self, line: dict[str, Any], figure: str | None
+    ) -> dict[str, list[float]]:
+        """The unsmoothed path's applied pose (for the budget rows). The
+        payload's own positions, mirrored exactly as ``apply_payload`` does
+        when the scene toggle is on."""
+        payload_mod = pose_apply.payload_module()
+        pose = self.core.CanonicalPose.from_dict(
+            payload_mod.pose_for_figure(line, figure)
+        )
+        if self.mirror:
+            pose = pose.mirrored()
+        return _positions_dict(pose)
 
     # -- readouts ---------------------------------------------------------------
 
@@ -155,6 +265,12 @@ class LiveDriver:
             "stream": self.stream_path,
             "armature": self.armature_name,
             "mirror": self.mirror,
+            "smoothing": self.smoothing_enabled,
+            "min_cutoff": self.smoother.min_cutoff,
+            "beta": self.smoother.beta,
+            "failsafe": self.failsafe_active,
+            "failsafe_since_s": round(self.failsafe_since_s, 1),
+            "recoveries": self.recoveries,
             "applied": self.applied,
             "skipped": self.skipped_total,
             "duplicates": self.duplicates_total,
@@ -164,6 +280,7 @@ class LiveDriver:
             "last_conf": self.last_conf,
             "last_apply_ms": self.last_apply_ms,
             "last_pipeline_ms": self.last_pipeline_ms,
+            "last_age_ms": self.last_age_ms,
             "stale": self.last_stale,
             "since_last_s": round(self.last_since_last_s, 1),
             "corrupt": self.tail.corrupt,
@@ -185,20 +302,41 @@ class LiveDriver:
                 f"STALE — no new line for {snap['since_last_s']:.1f}s "
                 "(keeping the last pose)"
             )
+        if snap["failsafe"]:
+            lines.append(
+                f"FAILSAFE — cleared to rest after {snap['failsafe_since_s']:.1f}s "
+                "of stream silence (a recovered stream re-applies)"
+            )
+        elif snap["recoveries"]:
+            lines.append(f"recovered from failsafe x{snap['recoveries']}")
         if snap["last_seq"] is not None:
             lines.append(f"last seq {snap['last_seq']}")
         if snap["last_conf"] is not None:
             lines.append(f"conf {snap['last_conf']:.2f}")
+        lines.append(
+            f"smoothing {'ON' if snap['smoothing'] else 'OFF'} "
+            f"(min_cutoff {snap['min_cutoff']:.1f} Hz, beta {snap['beta']:.2f})"
+        )
         if snap["last_apply_ms"] is not None:
-            apply_txt = f"apply {snap['last_apply_ms']:.1f} ms"
+            latency = f"latency: apply {snap['last_apply_ms']:.1f} ms"
             if snap["last_pipeline_ms"] is not None:
-                apply_txt += f"  emit->apply {snap['last_pipeline_ms']:.0f} ms"
-            lines.append(apply_txt)
+                latency += f" | emit->apply {snap['last_pipeline_ms']:.0f} ms"
+            if snap["last_age_ms"] is not None:
+                latency += f" | capture age {snap['last_age_ms']:.0f} ms (info)"
+            lines.append(latency)
         if snap["corrupt"]:
             lines.append(f"corrupt lines: {snap['corrupt']}")
         if snap["last_error"]:
             lines.append(snap["last_error"])
         return "\n".join(lines)
+
+
+def _positions_dict(pose: Any) -> dict[str, list[float]]:
+    """Canonical positions of a pose, rounded for the budget rows."""
+    return {
+        str(role): [round(float(p[0]), 6), round(float(p[1]), 6), round(float(p[2]), 6)]
+        for role, p in sorted(pose.positions.items())
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -227,10 +365,18 @@ def _teardown_timer() -> None:
 
 
 def start_live(
-    stream_path: str, armature_name: str, *, stale_after: float, mirror: bool
+    stream_path: str,
+    armature_name: str,
+    *,
+    stale_after: float,
+    mirror: bool,
+    failsafe_after: float | None = None,
+    smoothing: bool = True,
 ) -> str:
     """Start the driver + timer. Returns an error message, or "" on success
-    (the operator's contract)."""
+    (the operator's contract). ``failsafe_after=None`` resolves to the core's
+    documented default (docs/LIVE.md P5-3); ``smoothing`` is the initial
+    value — the panel toggle is re-read every tick."""
     import bpy
 
     if not str(stream_path or "").strip():
@@ -244,6 +390,8 @@ def start_live(
         driver = LiveDriver(
             str(stream_path).strip(), str(armature_name).strip(),
             stale_after=float(stale_after), mirror=bool(mirror),
+            failsafe_after=(None if failsafe_after is None else float(failsafe_after)),
+            smoothing=bool(smoothing),
         )
     except ImportError as exc:
         return str(exc)

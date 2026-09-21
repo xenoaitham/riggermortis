@@ -414,3 +414,23 @@ stalls landing on the producer's detector frames — measured by the gate
 labeled REPLAY (files, not a camera). Full per-line rows, the staleness
 and miss-keeps-pose gate halves, and the honest unclaimed-live-number
 statement: docs/LIVE.md, P5-2 budget section.
+
+### Smoothing sweep + failsafe (P5-3, `make live-verify`) — REPLAY/SYNTHETIC
+
+The conditioning half's numbers, same gate, same run A control (9/9 at
+0.0000 deg, smoothing OFF — the P5-2 path byte-identical). The **smoothing
+sweep** is a SYNTHETIC stream built from run A's first REAL payload line
+with deterministic two-tone jitter (amplitude 0.01 canonical units,
+envelopes at the P2-2 sampling class of 30 Hz): smoothing ON cut the
+applied-curve variance **≈ 8.5x** per jittered axis (bar: the published
+P2-2 >= 4x, reused verbatim), the smoothed mean tracked the raw mean
+within ~9e-4 units (bar: the jitter amplitude), every applied line held
+the 0.5-deg FK bar, and constant channels did not move. The **failsafe**
+run: silence past the configured threshold fires the edge once, the rig
+lands byte-at-rest, the readout says FAILSAFE, a continuation line
+applies automatically and passes the reset smoother through EXACTLY.
+Defaults (min_cutoff 1.0 Hz, beta 0.05, failsafe 10 s) are documented
+order-of-magnitude starting points — **NOT tuned** (D-008); there is
+still no real-motion stream, so these claims stay replay/synthetic-labeled
+and the live <100 ms gate stays unclaimed. Gate lines: `RM_LIVE SMOOTH`,
+`RM_LIVE SMOOTH-SUMMARY`, `RM_LIVE FAILSAFE`, `RM_LIVE FAILSAFE-RECOVERY`.

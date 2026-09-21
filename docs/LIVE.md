@@ -174,7 +174,8 @@ streaming). Consequences, labeled not hidden:
   is for; it is CI-tested with fakes, not yet proven on live pixels.
 - Single figure per frame (largest) — the video pipeline's semantics. No
   cross-figure tracking.
-- No smoothing/latency UI/failsafe — that is P5-3, on top of this contract.
+- Smoothing / the latency readout / the failsafe: P5-3 (section below, on
+  top of this contract).
 - The probe measures detect+solve+FK (the side-process cost). Capture age
   (`age_ms`) is carried per line so P5-2 can measure the end-to-end budget
   without touching this contract.
@@ -246,7 +247,7 @@ decision:
   measurement, NOT tuned to fixtures, D-008; roughly twenty tracked frames'
   worth of silence at the S17 p50). On stale: keep the last pose, report
   staleness honestly in the panel. The failsafe proper (drop to a safe
-  preview pose) is P5-3.
+  preview pose) is P5-3 — designed in the P5-3 section below.
 - The decision returns as a `ConsumerDecision` (the line to apply or None,
   skipped/duplicates/misses counts, total poses seen, stale flag, seconds
   since the last line, last seq, tail corrupt count). The caller does the
@@ -306,6 +307,143 @@ driver, 9 replay frames, i5-10400F CPU-only ONNX):
 stay UNCLAIMED**: /dev/video0 delivered no frames again in S18 (ffmpeg
 timeout re-verified) — the DroidCam phone side still is not streaming
 (NEEDS-HUMAN). Nothing replay gets relabeled live (the D-015 discipline).
+
+## P5-3 — smoothing, the latency readout, the failsafe (design as-built, S19)
+
+The last camera-independent Phase-5 piece: condition the stream between the
+consumer and the apply (1€ smoothing, P2-2's filter, on the canonical pose),
+surface the latency honestly in the panel, and give sustained stream silence
+a defined safe state. Designed here FIRST (the S18 discipline); the engine
+matches this text. Everything below is REPLAY/synthetic-verified — there is
+still no real-motion stream on this box, so smoothing claims stay labeled and
+the defaults stay order-of-magnitude (D-008: measure, publish, never fit).
+
+### The smoothing wire point (core-side, on the canonical pose)
+
+Smoothing lives in CORE (`riggermortis.live.LivePoseSmoother`), CI-tested
+with deterministic jitter streams — the S18 pattern: policy in core, the
+add-on a thin adapter. It filters the CANONICAL POSE, per role per axis,
+partial observation preserved (a role absent from a pose stays absent; the
+P2-2 semantics) — NOT a bone-space hack after apply:
+
+```
+stream line (payload-v2) ──> CanonicalPose.from_dict
+                             ──> LivePoseSmoother.smooth(pose, t_emit_wall)   [core]
+                             ──> mirror (the scene toggle)                    [if on]
+                             ──> pose_apply.apply_pose_object(obj, pose)      [the P1-6 apply core]
+```
+
+The payload path (`pose_apply.apply_payload`) and the smoothed path converge
+in `apply_pose_object` — the same FK pass, bone-space conversion, and report
+shape the P1-6 operator uses. Smoothing OFF is byte-identical to P5-2's
+behavior (the driver calls `apply_payload` exactly as before).
+
+What is filtered: `positions` only — three axes per role. `flips` are
+discrete decisions (the newest observation's flips ride through);
+`confidence`/`scale`/`notes` are solve metadata, not signals (the FK apply is
+direction-based and scale-free). One filter state lives in the DRIVER and
+persists across applied lines; the producer's cadence gaps therefore simply
+mean no update.
+
+### Mirror ordering (decided from the math, then implemented once)
+
+Smooth FIRST, in the stream's own character space; mirror AFTER. The 1€
+filter is odd-symmetric — negating every x of a stream negates every internal
+derivative estimate, leaves `|dx_hat|` and therefore every alpha unchanged,
+so `smooth(mirror(p)) == mirror(smooth(p))` exactly for a consistently
+mirrored stream (CI-tested). Given that commutation, smooth-first is chosen
+for the state: the mirror toggle is a scene display decision, and with the
+filter state in stream space an operator toggling mirror mid-session needs no
+filter-state surgery (no side swap, no reset). Mirror-then-smooth would own
+that problem for no benefit.
+
+### Time base and gaps
+
+The 1€ timestamps are the envelope's `t_emit_wall` (producer wall-clock
+seconds; the `round(...,3)` grid makes dt quantized to 1 ms — harmless). The
+P2-2 filter derives `freq` from dt and already guards `dt <= 0` (a wall-clock
+step keeps the previous freq). Gaps: a miss line carries no pose, so no
+filter update happens — a LONG gap (stall, detector recovery) opens the
+filter (alpha → 1 as dt grows), and the next pose effectively snaps through;
+that is the wanted behavior after any dropout. A failsafe fire (below) resets
+the smoother, so the first post-failsafe pose passes through unfiltered and
+recovery starts from the stream, not from pre-failsafe history.
+
+### Defaults (order-of-magnitude, declared before any measurement)
+
+`min_cutoff = 1.0` Hz, `beta = 0.05`, `d_cutoff = 1.0` — the P2-2 filter's
+class of starting points, chosen from the 1€ paper's shape (a cutoff around
+the stream's useful rate, a small speed coefficient) and NOT tuned against
+any fixture: there is still no real-motion stream to tune against. Smoothing
+claims stay REPLAY/synthetic-labeled until one exists.
+
+### The latency/smoothing UI (readouts, not instruments)
+
+The Live panel's existing apply / emit→apply readout is promoted into a small
+**latency** block: apply cost, emit→apply, and the line's capture age marked
+informational (on replayed files `age_ms` is the frame file's mtime age — the
+S18 finding — so it is never summed into anything). Smoothing: an ON/OFF
+toggle (read fresh per pump tick — the operator's toggle takes effect on the
+next line) plus the two constants shown read-only. No graphs, no free numeric
+tuning, no false precision.
+
+### The failsafe policy (decided before implementation)
+
+P5-2's stub keeps the last pose through `stale_after` (default 2.0 s) and
+reports STALE — brief dropouts are normal at detector cadence. SUSTAINED
+silence is different: the producer is gone, and an indefinitely frozen
+mid-gesture pose is the stale-puppet trap.
+
+- **Safe state: rest.** Past `failsafe_after` (default 10.0 s — ~5× the
+  staleness threshold, an order-of-magnitude choice, NOT tuned; the gate runs
+  configured 1.0/2.0 knobs for speed, defaults untouched), the driver drops
+  the rig to rest via the existing `pose_apply.clear_pose`, and the panel
+  says so: `FAILSAFE — cleared to rest after N s of stream silence`.
+- **Decision in core, action in the adapter.** `LiveConsumer` owns the clock:
+  `failsafe` fires as an EDGE on the decision (one tick) when
+  `since_last_s` crosses `failsafe_after`, and latches (`failsafe_fired`)
+  until any new stream event re-arms it. `failsafe_after > stale_after` is
+  validated (the safe state must not preempt the stale readout). The driver
+  performs the bpy work exactly once per edge and never raises out of the
+  pump.
+- **Recovery.** When the stream continues (a stalled producer resuming with
+  rising seq), the next applicable pose is applied normally, the latch
+  clears, and the panel reports recovered. Because the smoother was reset at
+  the edge, the first recovery pose passes through unfiltered.
+- **Known limit, recorded not hidden**: a producer RESTART reusing a fresh
+  seq space (kill + re-run) is suppressed by the P5-2 duplicate floor — its
+  lines are replayed data by that contract, so the rig stays at rest and the
+  panel shows lines-seen rising while applied stays frozen. The operator
+  remedy is Stop/Start (a fresh consumer). The S18 duplicate contract is not
+  re-litigated silently here; the revisit trigger is recorded in
+  STATE/NEXT.md for the live-demo session.
+
+### Gate: what `make live-verify` now asserts
+
+- **Run A (smoothing OFF)** — unchanged S18 assertions and numbers, kept as
+  the control: 9/9 applied, FK self-check ≤ 0.5° per line, budget rows,
+  staleness readout, forced-miss stream applies nothing.
+- **Jitter sweep** — the gate derives a synthetic stream from run A's first
+  REAL pose line: deterministic per-line white jitter (fixed-seed grid) on
+  selected role axes, amplitude A = 0.01 canonical units, envelopes at 30 Hz
+  emit spacing (the P2-2 instrument's sampling class) with fresh seqs. The
+  driver consumes it twice — smoothing OFF (the raw control curve) and ON.
+  Assertions, all in the P2-2 instrument's terms: applied-curve variance cut
+  ≥ 4× per jittered axis (the published P2-2 bar, reused verbatim — no new
+  threshold), the smoothed curve's mean tracking the raw mean within the
+  jitter amplitude, and every applied line's FK self-check ≤ 0.5° (the bar
+  class). `RM_LIVE SMOOTH-SUMMARY` prints the measured ratios.
+- **Constant-stream property (CI)** — a constant stream through smoothing ON
+  applies the IDENTICAL pose every line (the filter is a convex combiner on
+  constant input; first line passes through). Core-tested, no Blender.
+- **Failsafe run** — a driver on a quiet stream (configured stale 1.0 s /
+  failsafe 2.0 s): STALE first, then the FAILSAFE edge, pose bones byte-equal
+  to their rest capture, the honest panel line; then a continuation line
+  (rising seq, fresh emit time) applies automatically, clears the latch, and
+  its pose passes through the reset smoother EXACTLY (CI mirror of this with
+  the injected clock).
+- New RM_LIVE lines are grep-tested on BOTH the PASS and SKIPPED paths
+  before pushing (the standing gate rule).
 
 
 ## Reproduce

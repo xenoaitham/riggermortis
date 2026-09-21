@@ -1,26 +1,37 @@
 #!/usr/bin/env bash
-# P5-2 live-consumer gate: a REAL `rigpose live` side process + a REAL Blender
-# running the add-on's stream driver (xtask/live_gate.py inside).
+# P5-2/P5-3 live-consumer gate: a REAL `rigpose live` side process + a REAL
+# Blender running the add-on's stream driver (xtask/live_gate.py inside).
 #
 # 1. starts headless Blender with the gate rig registered and the add-on's
-#    live driver ARMED on stream A (run A: poses)
+#    live driver ARMED on stream A (run A: poses, smoothing OFF — the
+#    P5-2 control)
 # 2. waits for the RM_LIVE READY handshake, then spawns the REAL producer —
 #    the production spawn path, from shell glue, never from a .py (D-009)
 # 3. run A asserts: every replay frame applies through the REAL P1-6 path at
 #    the 0.5-deg bar class, zero misses; per-line RM_LIVE BUDGET rows
 #    (age_ms + poll lag + apply cost = the REPLAY end-to-end number)
 # 4. the producer exits after the replay dir is exhausted; the driver must
-#    flip to STALE and say so (RM_LIVE STALE — the honest readout; the
-#    failsafe proper is P5-3)
+#    flip to STALE and say so (RM_LIVE STALE)
 # 5. run B (RM_LIVE READY-B handshake): a forced-all-miss stream
 #    (--conf-floor above any real body conf) must apply NOTHING and leave
 #    the pose bones byte-unchanged (RM_LIVE MISS-KEEP)
+# 6. runs J1/J2 (gate-fed, no producer): the P5-3 smoothing sweep — a
+#    synthetic stream built from run A's first REAL payload line with
+#    deterministic two-tone jitter; OFF is the control curve, ON must cut
+#    the applied-curve variance >= 4x (the P2-2 bar), track the mean within
+#    the amplitude, and hold the 0.5-deg bar per line (RM_LIVE SMOOTH)
+# 7. run F (gate-fed): sustained silence fires the failsafe EDGE, the rig
+#    lands byte-at-REST, the readout says FAILSAFE; a continuation line
+#    applies, clears the latch, and passes the reset smoother exactly
+#    (RM_LIVE FAILSAFE / FAILSAFE-RECOVERY)
 #
-# Honest scope: REPLAY frames, not a camera — /dev/video0 delivered no
-# frames in S18 (DroidCam silent, re-verified); the live capture->apply
-# number and the Phase-5 <100 ms mid-laptop gate stay UNCLAIMED. Missing
-# prereqs (models/frames/rig/CLI) answer `RM_LIVE GATE: SKIPPED (...)` —
-# grep-tested like every gate, never a silent pass.
+# Honest scope: REPLAY frames + a SYNTHETIC jitter fixture, not a camera —
+# /dev/video0 delivered no frames in S17/S18/S19 (DroidCam silent); the live
+# capture->apply number and the Phase-5 <100 ms mid-laptop gate stay
+# UNCLAIMED, and the smoothing defaults are untuned D-008 starting points.
+# Missing prereqs (models/frames/rig/CLI) answer
+# `RM_LIVE GATE: SKIPPED (...)` — grep-tested like every gate, never a
+# silent pass.
 #
 # Run: make live-verify   (or: BLENDER=... PY=... RIGPOSE=... bash xtask/live_verify.sh)
 set -euo pipefail
@@ -113,7 +124,7 @@ echo "== 3/4 spawning the REAL side process (run B: forced all-miss stream)"
   > "$TMP/prod_b.log" 2>&1 &
 PROD_B=$!
 
-echo "== 4/4 collecting the gate verdict"
+echo "== 4/4 collecting the gate verdict (sweep + failsafe runs are gate-fed, inside Blender)"
 BL_RC=0
 wait "$BL_PID" 2> /dev/null || BL_RC=$?
 BL_PID=""
@@ -135,5 +146,13 @@ grep -q "RM_LIVE GATE: PASS" "$TMP/blender.log" || {
   tail -40 "$TMP/blender.log" >&2
   exit 1
 }
+grep -q "RM_LIVE SMOOTH PASS" "$TMP/blender.log" || {
+  echo "error: smoothing sweep did not pass" >&2
+  exit 1
+}
+grep -q "RM_LIVE FAILSAFE-RECOVERY" "$TMP/blender.log" || {
+  echo "error: failsafe/recovery run did not complete" >&2
+  exit 1
+}
 echo ""
-echo "P5-2 LIVE CONSUMER GATE: PASS (replay-labeled; the live number stays unclaimed)"
+echo "P5-3 LIVE CONSUMER GATE: PASS (replay/synthetic-labeled; the live number stays unclaimed)"

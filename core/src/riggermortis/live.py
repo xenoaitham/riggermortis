@@ -27,7 +27,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
 
-from .canonical_pose import observations_from_keypoints, solve_pose
+from .canonical_pose import (
+    CanonicalPose,
+    Vec3,
+    observations_from_keypoints,
+    solve_pose,
+)
 from .errors import RiggermortisError
 from .fk_apply import PoseApplication, apply_canonical_pose
 from .inference.figures import FigureBoard
@@ -35,6 +40,7 @@ from .inference.poses import BODY_KEYPOINT_COUNT, Detection, Figure
 from .io import load_rig
 from .mapper import RigMapping, map_rig
 from .payload import FORMAT as PAYLOAD_FORMAT
+from .smoothing import OneEuroFilter
 from .types import RigData
 
 #: Stream file suffix (one JSON object per line, no trailing comma structure).
@@ -64,6 +70,21 @@ DEFAULT_IDLE_TIMEOUT = 10.0
 #: measurement, NOT fixture-fitted (D-008) — roughly twenty tracked frames'
 #: worth of silence at the S17 p50.
 DEFAULT_STALE_AFTER = 2.0
+
+#: P5-3 smoothing defaults (docs/LIVE.md): order-of-magnitude starting points
+#: declared in the design BEFORE any real-motion measurement — there is still
+#: no real-motion stream on the dev box, so these are never tuned against
+#: fixtures (D-008). ``min_cutoff`` sits around the stream's useful line rate;
+#: ``beta`` is a small speed coefficient in the 1€ paper's shape.
+DEFAULT_SMOOTH_MIN_CUTOFF = 1.0
+DEFAULT_SMOOTH_BETA = 0.05
+DEFAULT_SMOOTH_D_CUTOFF = 1.0
+
+#: Default seconds of SUSTAINED stream silence before the failsafe fires
+#: (P5-3): ~5x the staleness threshold — a seconds-long dropout is normal at
+#: detector cadence, ten seconds means the producer is gone. Order-of-
+#: magnitude, NOT tuned (D-008); must exceed ``stale_after`` (validated).
+DEFAULT_FAILSAFE_AFTER = 10.0
 
 
 # -- frame sources ---------------------------------------------------------------
@@ -710,6 +731,8 @@ class ConsumerDecision:
     since_last_s: float  # seconds since the last new line (or since start)
     last_seq: int | None  # envelope seq of the last event seen (None = none yet)
     corrupt: int  # running corrupt complete lines from the tail
+    failsafe: bool = False  # EDGE this tick: sustained silence crossed failsafe_after
+    failsafe_fired: bool = False  # latched until any new stream event re-arms it
 
 
 class LiveConsumer:
@@ -718,6 +741,12 @@ class LiveConsumer:
     Pure stdlib, no bpy, no I/O beyond the tail's file reads. ``clock`` is
     injectable (monotonic seconds) so CI tests staleness deterministically;
     production uses ``time.monotonic``.
+
+    P5-3 adds the failsafe DECISION (the caller performs the bpy action):
+    sustained silence past ``failsafe_after`` raises an edge-triggered
+    ``ConsumerDecision.failsafe`` (one tick) and latches
+    ``failsafe_fired`` until any new stream event re-arms it. The stale
+    readout itself is unchanged — the failsafe fires strictly after it.
     """
 
     def __init__(
@@ -725,6 +754,7 @@ class LiveConsumer:
         tail: LiveTail,
         *,
         stale_after: float = DEFAULT_STALE_AFTER,
+        failsafe_after: float = DEFAULT_FAILSAFE_AFTER,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         if stale_after <= 0:
@@ -734,13 +764,22 @@ class LiveConsumer:
                      "the default 2.0 is an order-of-magnitude choice (D-008), "
                      "not a tuned threshold",
             )
+        if failsafe_after <= stale_after:
+            raise RiggermortisError(
+                f"failsafe_after must be > stale_after ({stale_after}), got {failsafe_after}",
+                hint="the failsafe (clear to rest, docs/LIVE.md P5-3) fires only "
+                     "after SUSTAINED silence — the STALE readout must have time "
+                     "to surface first",
+            )
         self._tail = tail
         self._stale_after = stale_after
+        self._failsafe_after = failsafe_after
         self._clock = clock
         self._started_at = clock()
         self._last_event_at: float | None = None
         self._last_seq: int | None = None
         self._last_applied_seq: int | None = None
+        self._failsafe_fired = False
         self.poses_total = 0
         self.misses_total = 0
 
@@ -788,6 +827,15 @@ class LiveConsumer:
         since_last = now - (
             self._last_event_at if self._last_event_at is not None else self._started_at
         )
+        # Failsafe (P5-3, docs/LIVE.md): any new event re-arms; the edge fires
+        # only on a silent tick whose silence crossed failsafe_after (events
+        # this tick make since_last ~0, so the two can never fire together).
+        if events:
+            self._failsafe_fired = False
+        failsafe_edge = False
+        if not self._failsafe_fired and since_last > self._failsafe_after:
+            self._failsafe_fired = True
+            failsafe_edge = True
         return ConsumerDecision(
             apply=apply_line,
             skipped=max(0, skipped),
@@ -799,6 +847,8 @@ class LiveConsumer:
             since_last_s=since_last,
             last_seq=last_seq,
             corrupt=self._tail.corrupt,
+            failsafe=failsafe_edge,
+            failsafe_fired=self._failsafe_fired,
         )
 
 
@@ -809,3 +859,100 @@ def _envelope_seq(event: dict[str, object]) -> int | None:
         if isinstance(seq, int) and not isinstance(seq, bool):
             return seq
     return None
+
+
+# -- stream-side smoothing (P5-3) ---------------------------------------------------
+#
+# docs/LIVE.md P5-3 is the design of record: the 1€ filter (P2-2) wired through
+# the consumer contract ON THE CANONICAL POSE — per role, per axis, partial
+# observation preserved — never as a bone-space hack after apply. The Blender
+# driver applies it as: payload -> CanonicalPose.from_dict -> smooth (stream
+# space) -> mirror -> pose_apply.apply_pose_object (the P1-6 apply core), so
+# smoothing OFF stays byte-identical to the P5-2 behavior.
+
+
+class LivePoseSmoother:
+    """1€ smoothing over the live stream's canonical poses (docs/LIVE.md P5-3).
+
+    Only ``positions`` are signals: three axes per role (the P2-2 semantics —
+    a role absent from a pose keeps its filters idle and stays absent).
+    ``flips`` are discrete decisions, ``confidence``/``scale``/``notes`` are
+    solve metadata; the newest observation's values ride through untouched
+    (the FK apply is direction-based and scale-free).
+
+    One instance owns the filter state across applied lines and lives in the
+    STREAM's character space: mirror AFTER smoothing. The filter is
+    odd-symmetric (negating every x negates the derivative estimates, leaves
+    every alpha unchanged), so the orders commute exactly on a consistently
+    mirrored stream — smooth-first is chosen because the mirror toggle is a
+    scene display decision and a mid-session toggle then needs no filter-state
+    surgery.
+
+    Timestamps are the envelope's ``t_emit_wall`` (wall seconds). A gap means
+    no update; a long gap opens the filter (alpha -> 1), so the next pose
+    effectively snaps through — the wanted behavior after any dropout.
+    ``reset()`` starts fresh (the driver calls it on a failsafe fire so
+    recovery begins from the stream, not from pre-failsafe history).
+
+    Defaults are order-of-magnitude starting points declared in the design
+    before any real-motion measurement and never tuned against fixtures
+    (D-008); smoothing claims stay replay/synthetic-labeled.
+    """
+
+    def __init__(
+        self,
+        *,
+        min_cutoff: float = DEFAULT_SMOOTH_MIN_CUTOFF,
+        beta: float = DEFAULT_SMOOTH_BETA,
+        d_cutoff: float = DEFAULT_SMOOTH_D_CUTOFF,
+    ) -> None:
+        if min_cutoff <= 0.0:
+            raise RiggermortisError(
+                f"min_cutoff must be > 0, got {min_cutoff}",
+                hint="Hz — the cutoff for near-stationary signal; 1.0 is the "
+                     "documented order-of-magnitude starting point (D-008)",
+            )
+        if beta < 0.0:
+            raise RiggermortisError(
+                f"beta must be >= 0, got {beta}",
+                hint="the speed coefficient that raises the cutoff for fast "
+                     "motion; 0.05 is the documented starting point (D-008)",
+            )
+        self.min_cutoff = float(min_cutoff)
+        self.beta = float(beta)
+        self.d_cutoff = float(d_cutoff)
+        self._filters: dict[str, tuple[OneEuroFilter, OneEuroFilter, OneEuroFilter]] = {}
+
+    def reset(self) -> None:
+        """Drop all filter state; the next pose passes through unfiltered."""
+        self._filters.clear()
+
+    def smooth(self, pose: CanonicalPose, t_emit_wall: float | None) -> CanonicalPose:
+        """Filter one pose's positions at the emit timestamp; metadata rides.
+
+        ``t_emit_wall=None`` filters at the stored sample rate (a line without
+        an envelope — never produced by ``rigpose live``).
+        """
+        out: dict[str, Vec3] = {}
+        for role in sorted(pose.positions):
+            flt = self._filters.get(role)
+            if flt is None:
+                flt = tuple(
+                    OneEuroFilter(
+                        min_cutoff=self.min_cutoff, beta=self.beta, d_cutoff=self.d_cutoff,
+                    )
+                    for _ in range(3)
+                )
+                self._filters[role] = flt
+            x, y, z = pose.positions[role]
+            out[role] = (flt[0](x, t_emit_wall), flt[1](y, t_emit_wall), flt[2](z, t_emit_wall))
+        return CanonicalPose(
+            positions=out,
+            flips=dict(pose.flips),
+            confidence=pose.confidence,
+            reliable=pose.reliable,
+            scale=pose.scale,
+            anchor=pose.anchor,
+            notes=list(pose.notes),
+            joint_confidence=dict(pose.joint_confidence),
+        )

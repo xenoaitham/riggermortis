@@ -182,8 +182,9 @@ class RM_WM_Session(PropertyGroup):
 
 
 class RM_WM_Live(PropertyGroup):
-    """Live stream consumer settings (P5-2). WindowManager like the session
-    state: session-only, never saved into .blend files."""
+    """Live stream consumer settings (P5-2, extended by P5-3).
+    WindowManager like the session state: session-only, never saved into
+    .blend files."""
 
     stream_path: StringProperty(  # type: ignore[valid-type]
         name="Stream",
@@ -200,6 +201,26 @@ class RM_WM_Live(PropertyGroup):
         default=2.0,
         min=0.1,
         max=30.0,
+    )
+    failsafe_after: FloatProperty(  # type: ignore[valid-type]
+        name="Failsafe after (s)",
+        description="SUSTAINED stream silence before the driver clears the "
+                    "rig to rest (docs/LIVE.md P5-3): a frozen mid-gesture "
+                    "pose is the stale-puppet trap; rest is the safe state. "
+                    "Fires strictly after the STALE readout, never before. "
+                    "Order-of-magnitude default, not tuned.",
+        default=10.0,
+        min=0.5,
+        max=120.0,
+    )
+    smoothing: BoolProperty(  # type: ignore[valid-type]
+        name="Smooth (1€)",
+        description="Filter the stream's canonical poses through the P2-2 "
+                    "one-euro filter before apply (docs/LIVE.md P5-3); read "
+                    "fresh per tick, effective on the next line. Defaults "
+                    "are order-of-magnitude starting points, never tuned "
+                    "(D-008).",
+        default=True,
     )
 
 
@@ -579,7 +600,9 @@ class RM_OT_live_start(Operator):
             wm_live.stream_path,
             obj.name,
             stale_after=wm_live.stale_after,
+            failsafe_after=wm_live.failsafe_after,
             mirror=settings.mirror,
+            smoothing=wm_live.smoothing,
         )
         if error:
             self.report({"ERROR"}, error)
@@ -713,7 +736,10 @@ class RM_PT_main_panel(Panel):
         box.label(text="Live driver (P5-2)", icon="TIME")
         wm_live = context.window_manager.rm_live
         box.prop(wm_live, "stream_path")
-        box.prop(wm_live, "stale_after")
+        row = box.row(align=True)
+        row.prop(wm_live, "stale_after")
+        row.prop(wm_live, "failsafe_after")
+        box.prop(wm_live, "smoothing")
         if live_driver.running():
             box.operator("rm.live_stop", icon="PAUSE")
             driver = live_driver.driver()

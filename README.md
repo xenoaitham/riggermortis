@@ -12,7 +12,7 @@ manga, or cartoon; lay scenes out into manga pages and comic PDFs.
 Everything runs on the user's machine: no cloud, no accounts, no uploads, no
 telemetry — and a CI test keeps that verifiably true.
 
-## Status: Phases 0–4 closed (mapping, posing, video, MCP, style/manga) — Phase 5 OPEN: live mode (P5-1 side process + P5-2 stream consumer shipped)
+## Status: Phases 0–4 closed (mapping, posing, video, MCP, style/manga) — Phase 5 OPEN: live mode (P5-1 side process + P5-2 stream consumer + P5-3 smoothing/failsafe shipped)
 
 | | |
 |---|---|
@@ -100,6 +100,14 @@ What exists **right now** (every claim cites a test, gate, or number):
   replayed stream at ≤0.5° per line with apply cost p95 ≈ 3.8 ms
   (REPLAY-labeled; the live capture→apply number stays unclaimed until a
   camera stream exists — this box's DroidCam node delivered no frames).
+  **P5-3 conditioning** sits between the stream and the apply, core-side:
+  1€ smoothing on the canonical pose (per role, mirror-safe, defaults
+  documented as untuned starting points), a latency readout, and a
+  failsafe — sustained stream silence clears the rig to rest and the
+  panel says so; a recovered stream re-applies. Gate-verified on the same
+  replay gate with a synthetic jitter sweep (variance cut ≈ 8.5x vs the
+  P2-2 ≥4x bar, fidelity held at ≤0.5°) and failsafe/rest/recovery
+  assertions — replay/synthetic-labeled like every live number so far.
 - Content-policy module enforced in the core (SFW default; opt-in 18+ module
   with explicit confirmation; unconditional hard lines).
 
