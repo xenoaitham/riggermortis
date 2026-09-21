@@ -29,13 +29,14 @@ import bpy
 from bpy.props import (
     BoolProperty,
     EnumProperty,
+    FloatProperty,
     IntProperty,
     PointerProperty,
     StringProperty,
 )
 from bpy.types import AddonPreferences, Operator, Panel, PropertyGroup
 
-from . import bpy_bridge, overlay, pose_apply, session, tails
+from . import bpy_bridge, live_driver, overlay, pose_apply, session, tails
 
 POLICY_NOTICE = (
     "Default build is SFW. An opt-in adult module (off by default, requires "
@@ -177,6 +178,28 @@ class RM_WM_Session(PropertyGroup):
                     "(--session-token). Session-only: never saved to disk.",
         subtype="PASSWORD",
         default="",
+    )
+
+
+class RM_WM_Live(PropertyGroup):
+    """Live stream consumer settings (P5-2). WindowManager like the session
+    state: session-only, never saved into .blend files."""
+
+    stream_path: StringProperty(  # type: ignore[valid-type]
+        name="Stream",
+        description="live stream file written by 'rigpose live' (spawn the "
+                    "side process from your shell or xtask/live_capture.sh)",
+        subtype="FILE_PATH",
+        default="",
+    )
+    stale_after: FloatProperty(  # type: ignore[valid-type]
+        name="Stale after (s)",
+        description="Seconds without a new stream line before the panel "
+                    "reports STALE (the last pose is kept). Order-of-magnitude "
+                    "default, not a tuned threshold.",
+        default=2.0,
+        min=0.1,
+        max=30.0,
     )
 
 
@@ -527,6 +550,67 @@ class RM_OT_session_disconnect(Operator):
         return {"FINISHED"}
 
 
+class RM_OT_live_start(Operator):
+    """Start the live stream consumer (P5-2): tail the 'rigpose live'
+    stream file and puppeteer the rig through the real apply path"""
+
+    bl_idname = "rm.live_start"
+    bl_label = "Start Live"
+    bl_options: ClassVar[set[str]] = {"REGISTER"}
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        return not live_driver.running()
+
+    def execute(self, context: bpy.types.Context) -> set[str]:
+        settings = context.scene.rm_settings
+        obj = bpy.data.objects.get(settings.rig_object)
+        if obj is None or obj.type != "ARMATURE":
+            obj = context.active_object
+        if obj is None or obj.type != "ARMATURE":
+            self.report(
+                {"ERROR"},
+                "no rig selected (hint: pick the rig in the panel or set it "
+                "active, then Start Live)",
+            )
+            return {"CANCELLED"}
+        wm_live = context.window_manager.rm_live
+        error = live_driver.start_live(
+            wm_live.stream_path,
+            obj.name,
+            stale_after=wm_live.stale_after,
+            mirror=settings.mirror,
+        )
+        if error:
+            self.report({"ERROR"}, error)
+            return {"CANCELLED"}
+        self.report(
+            {"INFO"},
+            f"live driver running on {obj.name} (hint: spawn the side "
+            "process: rigpose live <frames_dir> <rig.json> --out live.jsonl)",
+        )
+        return {"FINISHED"}
+
+
+class RM_OT_live_stop(Operator):
+    """Stop the live stream consumer (the last applied pose stays)"""
+
+    bl_idname = "rm.live_stop"
+    bl_label = "Stop Live"
+    bl_options: ClassVar[set[str]] = {"REGISTER"}
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        del context
+        return live_driver.running()
+
+    def execute(self, context: bpy.types.Context) -> set[str]:
+        del context
+        live_driver.stop_live()
+        self.report({"INFO"}, "live driver stopped (the last pose stays)")
+        return {"FINISHED"}
+
+
 # ---------------------------------------------------------------------------
 # UI
 # ---------------------------------------------------------------------------
@@ -626,6 +710,23 @@ class RM_PT_main_panel(Panel):
             box.label(text=line)
 
         box = layout.box()
+        box.label(text="Live driver (P5-2)", icon="TIME")
+        wm_live = context.window_manager.rm_live
+        box.prop(wm_live, "stream_path")
+        box.prop(wm_live, "stale_after")
+        if live_driver.running():
+            box.operator("rm.live_stop", icon="PAUSE")
+            driver = live_driver.driver()
+            if driver is not None:
+                for line in driver.ui_status().splitlines():
+                    box.label(text=line)
+        else:
+            box.operator("rm.live_start", icon="PLAY")
+            box.label(text="spawn the side process from a terminal:", icon="INFO")
+            box.label(text="rigpose live <frames_dir> <rig.json> \\", icon="INFO")
+            box.label(text="    --out live.jsonl --detect-every 5", icon="INFO")
+
+        box = layout.box()
         box.label(text="Review overlay", icon="HIDE_OFF")
         box.prop(settings, "image_path")
         box.prop(settings, "overlay_enabled")
@@ -698,6 +799,7 @@ class RM_AddonPreferences(AddonPreferences):
 _CLASSES = (
     RM_SceneSettings,
     RM_WM_Session,
+    RM_WM_Live,
     RM_OT_inspect_and_map,
     RM_OT_show_report,
     RM_OT_apply_pose,
@@ -707,6 +809,8 @@ _CLASSES = (
     RM_OT_clear_pose,
     RM_OT_session_connect,
     RM_OT_session_disconnect,
+    RM_OT_live_start,
+    RM_OT_live_stop,
     RM_PT_main_panel,
     RM_AddonPreferences,
 )
@@ -714,10 +818,12 @@ _CLASSES = (
 
 def register() -> None:
     session.stop_session()  # addon reload: never carry a stale client over
+    live_driver.stop_live()  # ...nor a stale stream pump
     for cls in _CLASSES:
         bpy.utils.register_class(cls)
     bpy.types.Scene.rm_settings = PointerProperty(type=RM_SceneSettings)
     bpy.types.WindowManager.rm_session = PointerProperty(type=RM_WM_Session)
+    bpy.types.WindowManager.rm_live = PointerProperty(type=RM_WM_Live)
     from . import overlay
 
     overlay.register()
@@ -725,9 +831,11 @@ def register() -> None:
 
 def unregister() -> None:
     session.stop_session()  # kills the client thread + pump, if any
+    live_driver.stop_live()  # kills the stream pump, if any
     from . import overlay
 
     overlay.unregister()
+    del bpy.types.WindowManager.rm_live
     del bpy.types.WindowManager.rm_session
     del bpy.types.Scene.rm_settings
     for cls in reversed(_CLASSES):

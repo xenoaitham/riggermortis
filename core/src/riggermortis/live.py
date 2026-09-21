@@ -59,6 +59,12 @@ DEFAULT_CONF_FLOOR = 0.3
 #: Default seconds without a new frame before a directory source stops.
 DEFAULT_IDLE_TIMEOUT = 10.0
 
+#: Default seconds without a NEW stream line before the consumer reports the
+#: stream stale (P5-2). Order-of-magnitude default chosen before any
+#: measurement, NOT fixture-fitted (D-008) — roughly twenty tracked frames'
+#: worth of silence at the S17 p50.
+DEFAULT_STALE_AFTER = 2.0
+
 
 # -- frame sources ---------------------------------------------------------------
 
@@ -609,4 +615,197 @@ def latest_pose_line(path: Path) -> dict[str, object] | None:
     for event in reversed(events):
         if event.get("kind") == "pose":
             return event
+    return None
+
+
+# -- incremental consumer (P5-2) ----------------------------------------------------
+#
+# latest_pose_line re-reads the whole file — O(file) per tick is wrong at
+# 10–30 lines/s × ~20–50 KB lines over a long puppeteering session. The
+# design lives in docs/LIVE.md (P5-2 section); the two classes here are the
+# whole contract: LiveTail owns byte-offset state, LiveConsumer owns the
+# latest-wins / miss-keeps-pose / staleness policy. Both are pure stdlib and
+# CI-tested with faked streams; the Blender add-on is a thin adapter.
+
+
+class LiveTail:
+    """Incremental reader over a live stream file.
+
+    ``poll()`` returns the COMPLETE, well-formed events appended since the
+    last call. A torn final line is never consumed — the offset stays at its
+    start until the writer finishes the line (then it parses exactly once).
+    A producer restart (truncating reopen) is detected two ways: a file
+    smaller than the remembered offset, or — for a regrown file — the byte
+    before the remembered offset not being a newline (a line-oriented stream
+    can only resume at a line boundary). Either resets the tail to the new
+    file's start; replayed lines are the CONSUMER's duplicate problem, not
+    the tail's. A missing file simply polls empty. Corrupt COMPLETE lines
+    increment ``corrupt`` — a torn line can only ever be the final one, so
+    mid-stream corruption is a real problem the caller must surface.
+    """
+
+    def __init__(self, path: Path | str) -> None:
+        self._path = Path(path)
+        self._offset = 0
+        self.corrupt = 0
+
+    @property
+    def path(self) -> Path:
+        return self._path
+
+    def poll(self) -> list[dict[str, object]]:
+        try:
+            size = self._path.stat().st_size
+        except OSError:
+            return []  # producer has not created the stream yet
+        if size < self._offset:
+            self._offset = 0  # truncated/restarted by a new producer run
+        events: list[dict[str, object]] = []
+        with self._path.open("rb") as fh:
+            if self._offset > 0:
+                fh.seek(self._offset - 1)
+                if fh.read(1) != b"\n":
+                    self._offset = 0  # regrown file: no line boundary here
+            fh.seek(self._offset)
+            chunk = fh.read()
+        start = 0
+        while True:
+            nl = chunk.find(b"\n", start)
+            if nl < 0:
+                break  # the trailing partial stays unconsumed (torn-line safe)
+            raw = chunk[start:nl]
+            start = nl + 1
+            self._offset += len(raw) + 1
+            if not raw.strip():
+                continue
+            try:
+                event = json.loads(raw)
+            except json.JSONDecodeError:
+                self.corrupt += 1
+                continue
+            if isinstance(event, dict):
+                events.append(event)
+            else:
+                self.corrupt += 1
+        return events
+
+
+@dataclass(frozen=True)
+class ConsumerDecision:
+    """What one consumer tick decided (the caller performs the apply).
+
+    ``apply`` is the newest applicable pose line (payload-v2 shaped) or None
+    — None means "keep the current pose" (a miss is newest, nothing new
+    arrived, or only duplicate/replayed lines arrived). Counters are honest
+    per-tick deltas plus the running totals the panel shows.
+    """
+
+    apply: dict[str, object] | None
+    skipped: int  # pose lines of this batch superseded or invalidated (not applied)
+    duplicates: int  # replayed lines after a truncation reset (seq not newer)
+    misses: int  # miss lines seen this tick
+    poses_total: int  # running total of pose lines seen
+    misses_total: int  # running total of miss lines seen
+    stale: bool  # no new line for longer than stale_after
+    since_last_s: float  # seconds since the last new line (or since start)
+    last_seq: int | None  # envelope seq of the last event seen (None = none yet)
+    corrupt: int  # running corrupt complete lines from the tail
+
+
+class LiveConsumer:
+    """The P5-2 puppeteer policy over a :class:`LiveTail` (docs/LIVE.md).
+
+    Pure stdlib, no bpy, no I/O beyond the tail's file reads. ``clock`` is
+    injectable (monotonic seconds) so CI tests staleness deterministically;
+    production uses ``time.monotonic``.
+    """
+
+    def __init__(
+        self,
+        tail: LiveTail,
+        *,
+        stale_after: float = DEFAULT_STALE_AFTER,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        if stale_after <= 0:
+            raise RiggermortisError(
+                f"stale_after must be > 0, got {stale_after}",
+                hint="seconds of stream silence before the panel reports STALE; "
+                     "the default 2.0 is an order-of-magnitude choice (D-008), "
+                     "not a tuned threshold",
+            )
+        self._tail = tail
+        self._stale_after = stale_after
+        self._clock = clock
+        self._started_at = clock()
+        self._last_event_at: float | None = None
+        self._last_seq: int | None = None
+        self._last_applied_seq: int | None = None
+        self.poses_total = 0
+        self.misses_total = 0
+
+    def poll(self) -> ConsumerDecision:
+        now = self._clock()
+        events = self._tail.poll()
+        if events:
+            self._last_event_at = now
+
+        poses = [e for e in events if e.get("kind") == "pose"]
+        misses = sum(1 for e in events if e.get("kind") == "miss")
+        self.poses_total += len(poses)
+        self.misses_total += misses
+
+        fresh: dict[str, object] | None = None  # newest non-duplicate pose line
+        last_seq = self._last_seq
+        duplicates = 0
+        for event in events:
+            seq = _envelope_seq(event)
+            if seq is not None:
+                last_seq = seq
+            if event.get("kind") != "pose":
+                continue
+            if (
+                seq is not None
+                and self._last_applied_seq is not None
+                and seq <= self._last_applied_seq
+            ):
+                duplicates += 1  # replayed after a truncation reset — not new data
+                continue
+            fresh = event
+
+        apply_line = fresh
+        if apply_line is not None and events[-1].get("kind") == "miss":
+            apply_line = None  # the stream's NEWEST state is a miss: keep the pose
+        non_dup_poses = len(poses) - duplicates
+        if apply_line is not None:
+            seq = _envelope_seq(apply_line)
+            self._last_applied_seq = seq if seq is not None else self._last_applied_seq
+            skipped = non_dup_poses - 1  # the other pose lines were superseded
+        else:
+            skipped = non_dup_poses  # seen but not applied (miss-newest or dupes)
+
+        self._last_seq = last_seq
+        since_last = now - (
+            self._last_event_at if self._last_event_at is not None else self._started_at
+        )
+        return ConsumerDecision(
+            apply=apply_line,
+            skipped=max(0, skipped),
+            duplicates=duplicates,
+            misses=misses,
+            poses_total=self.poses_total,
+            misses_total=self.misses_total,
+            stale=since_last > self._stale_after,
+            since_last_s=since_last,
+            last_seq=last_seq,
+            corrupt=self._tail.corrupt,
+        )
+
+
+def _envelope_seq(event: dict[str, object]) -> int | None:
+    live = event.get("live")
+    if isinstance(live, dict):
+        seq = live.get("seq")
+        if isinstance(seq, int) and not isinstance(seq, bool):
+            return seq
     return None

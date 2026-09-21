@@ -403,3 +403,14 @@ is normal and visible in the stream envelope (`detect_ms` on seq 0).
 Reproduce: `python3 xtask/live_probe.py` (needs models + the
 benchmark photos; answers RM_LIVE PROBE SKIPPED honestly without).
 <!-- BENCHMARK:LIVE:END -->
+
+### Live consumer, emit -> apply (P5-2, `make live-verify`) — REPLAY
+
+The consumer half's number, distinct from the side-process half above:
+apply fidelity 9/9 lines at 0.0000 deg worst (bar 0.5), Blender-side
+apply cost p95 ≈ 3.8 ms, stream emit -> applied p50 ≈ 157 ms with the
+stalls landing on the producer's detector frames — measured by the gate
+(`xtask/live_verify.sh`: REAL side process + REAL headless Blender) and
+labeled REPLAY (files, not a camera). Full per-line rows, the staleness
+and miss-keeps-pose gate halves, and the honest unclaimed-live-number
+statement: docs/LIVE.md, P5-2 budget section.

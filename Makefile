@@ -9,7 +9,7 @@ test:
 	cd core && $(PY) -m pytest tests
 
 lint:
-	$(PY) -m ruff check core/src core/tests addon/riggermortis_addon mcp/riggermortis_mcp.py mcp/session_bridge.py xtask/export_fixture_rigs.py xtask/build_rigify_rigs.py xtask/import_and_extract.py xtask/render_demos.py xtask/benchmark_poses.py xtask/foot_lock_gate.py xtask/hip_stab_gate.py xtask/walk_media.py xtask/assemble_walk.py xtask/walk_docs.py xtask/session_probe.py xtask/walk_job.py xtask/agent_demo_docs.py xtask/agent_demo_blender.py xtask/style_probe.py xtask/page_probe.py xtask/bubble_probe.py xtask/styled_turntable_probe.py xtask/lineart_probe.py xtask/tone_probe.py xtask/animatic_probe.py xtask/manga_build.py xtask/live_probe.py
+	$(PY) -m ruff check core/src core/tests addon/riggermortis_addon mcp/riggermortis_mcp.py mcp/session_bridge.py xtask/export_fixture_rigs.py xtask/build_rigify_rigs.py xtask/import_and_extract.py xtask/render_demos.py xtask/benchmark_poses.py xtask/foot_lock_gate.py xtask/hip_stab_gate.py xtask/walk_media.py xtask/assemble_walk.py xtask/walk_docs.py xtask/session_probe.py xtask/walk_job.py xtask/agent_demo_docs.py xtask/agent_demo_blender.py xtask/style_probe.py xtask/page_probe.py xtask/bubble_probe.py xtask/styled_turntable_probe.py xtask/lineart_probe.py xtask/tone_probe.py xtask/animatic_probe.py xtask/manga_build.py xtask/live_probe.py xtask/live_gate.py
 
 fixtures:
 	$(PY) xtask/export_fixture_rigs.py
@@ -93,6 +93,14 @@ agent-demo:
 # In CI since S12 on that basis (see style_verify.sh header).
 style-verify:
 	bash xtask/style_verify.sh
+
+# P5-2 live-consumer gate: REAL `rigpose live` side process <-> REAL Blender
+# running the add-on's stream driver (apply fidelity <= 0.5 deg, miss-keeps-
+# pose, staleness readout, per-line REPLAY budget). Needs models + local
+# replay frames (git-ignored) — not a CI target; the deterministic consumer
+# halves are CI-covered by the core fakes (tests/test_live.py).
+live-verify:
+	bash xtask/live_verify.sh
 
 gate: lint test media-guard blender-verify session-verify
 	@echo "PHASE 0 GATE: PASS"

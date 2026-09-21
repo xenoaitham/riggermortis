@@ -1,100 +1,116 @@
 # NEXT SESSION SHOULD …
 
-1. **P5-2's buildable half: the add-on stream consumer (webcam → rig
-   puppeteer, driver side).** P5-1 shipped the side process (docs/LIVE.md
-   is the Phase-5 source of record): `rigpose live` emits one D-009
-   payload-v2 line per frame; measured budget full ≈ 550 ms / tracked-every-5
-   p50 ≈ 88 ms / pose-only ≈ 90 ms flat (BENCHMARK:LIVE block, i5 CPU, honest
-   no-GPU-provider note). S18 builds the CONSUMER: an add-on timer that
-   tails the stream file (`riggermortis.live.latest_pose_line` /
-   read_live_lines — the torn-tail-tolerant reader exists and is
-   CI-tested), applies the latest pose line through the REAL P1-6 apply
-   path, and instruments the end-to-end budget (the stream's `age_ms`
-   carries capture age already). Fully buildable and verifiable against a
-   RECORDED stream (replay a frames dir through `rigpose live`, drive
-   Blender headless, gate on apply fidelity + per-frame budget); the LIVE
-   capture half stays gated on the camera (below). If the stream consumer
-   lands early: P5-3's smoothing/latency UI is the next buildable half;
-   the launch-kit drafts (P7-1/P7-3) are the honest fallback.
+1. **P5-3: smoothing + the latency/failsafe layer — the close-out of
+   Phase 5's buildable surface.** WHY THIS over the launch kit (P7-1/P7-3):
+   P5-2 shipped the consumer contract (S18), and P5-3 is the last piece that
+   is fully buildable and verifiable WITHOUT the camera — every further
+   "live" claim except the real capture→apply number is blocked on the
+   DroidCam phone side (NEEDS-HUMAN, silent in S17 AND S18), while the
+   launch kit's hero numbers get stronger once Phase 5's buildable halves
+   are all in. Scope, in build order:
+   - **1€ smoothing between the stream and the apply** — core
+     `smoothing.py` (`OneEuroFilter`, `smooth_pose_frames`) already exists
+     and is CI-tested; wire it through the P5-2 consumer contract as an
+     optional conditioning step ON THE CANONICAL POSE before apply (per
+     role, partial observation preserved — the P2-2 semantics), NOT as a
+     bone-space hack after apply. Deterministic CI tests with faked jitter
+     streams; the defaults stay order-of-magnitude (D-008 — measure,
+     publish, never fit; there is still no real-motion stream to tune
+     against, so SMOOTHING CLAIMS STAY REPLAY-LABELED).
+   - **Latency/smoothing UI in the Live driver panel**: smoothing
+     on/off + min_cutoff/beta readouts (or preset row), the existing
+     apply/emit→apply readout promoted into a small "latency" block —
+     nothing more; no graph, no false precision.
+   - **The failsafe proper** (the P5-2 stub keeps the last pose + reports
+     STALE): on sustained staleness, drop to a defined safe state —
+     proposal: hold N seconds → clear pose to rest with an honest panel
+     line (the operator path already exists: `pose_apply.clear_pose`).
+     Threshold order-of-magnitude, documented, CI-tested with the faked
+     clock. Decide the exact policy in docs/LIVE.md FIRST (design before
+     engine, the S18 discipline).
+   - Gate: extend `make live-verify` with a smoothing-sweep run (same
+     replay frames, smoothing on/off, assert the applied pose curves are
+     smoother by the P2-2 variance instrument and fidelity stays within
+     the 0.5° bar class) + RM_LIVE lines for both. Grep-test PASS and
+     SKIPPED lines before pushing.
+2. If P5-3 lands early: start the **launch kit** (P7-1 README hero
+   refresh + P7-3 drafts) — by then Phases 0–4 are closed, P5's
+   buildable halves are in, and every launch claim still cites a
+   gate/number/GIF.
 
 Watch out for:
 
-- **P5-1 facts (new, do not reintroduce)**: the detector CADENCE is the
-  realtime lever — input downscale is a dead knob (the ONNX inputs are
-  fixed-size; native vs 640w differed ~2–4%); a `rigpose live` consumer
-  must expect the FIRST line to carry the ~2 s cold session load in
+- **P5-2 facts (new, do not reintroduce)**: the consumer contract is
+  `LiveTail` (offset state, torn-final-line safe, restart-safe: size-shrink
+  OR non-newline byte before the offset) + `LiveConsumer` (latest-wins per
+  poll; a batch ENDING in a miss applies nothing; envelope-seq duplicates
+  after a replay are never re-applied; stale = no new line past
+  `stale_after`, default 2.0 s). The Blender side is a THIN adapter — the
+  ONLY bpy touch is the apply, main-thread; the pump never raises out of
+  the timer (apply failures land in the status line with a hint). The
+  stream line IS payload-v2: it goes through `pose_apply.apply_payload`
+  unmodified, figure label rides through, mirror is the scene toggle.
+- **The replay budget definition**: on replayed files the envelope's
+  `age_ms` is the frame file's MTIME AGE, not capture latency — the
+  published replay end-to-end is EMIT → APPLY (S18 measured: apply p95
+  3.8 ms, p50 157 ms, stalls land on the producer's detector frames, first
+  line in the ~2 s cold window). With a real camera, capture → apply =
+  age_ms + poll lag + apply. Never relabel replay numbers live; the
+  Phase-5 <100 ms mid-laptop gate stays UNCLAIMED until a real stream.
+- **The camera is still the live blocker**: /dev/video0 (DroidCam
+  v4l2loopback) re-verified silent in S18 (ffmpeg timeout, zero packets);
+  `xtask/live_capture.sh` ships with the UNTESTED-no-stream label.
+  NEEDS-HUMAN: start the DroidCam phone-side stream (or plug a real
+  camera), then re-run the capture half and measure the true end-to-end
+  budget. S17 AND S18 shipped everything buildable without it.
+- **P5-1 facts (still load-bearing)**: the detector CADENCE is the
+  realtime lever — input downscale is a dead knob (fixed ONNX input
+  sizes); the FIRST stream line carries the ~2 s cold session load in
   `detect_ms` (warm up or drop it); tracked lines carry figure identity
-  from the last FULL detection (labels ride through — apply by label
-  stays correct); `Figure.score` is 0.0 on tracked figures (it is a
-  DETECTOR score) — judge quality by the body-conf floor (0.3, the
-  17 COCO body kps); misses are NORMAL stream events (kind=miss with a
-  reason — keep the previous pose, never treat as a crash); the stream
-  envelope's timing fields are MEASUREMENTS — never assert values on
-  them in tests (docs/LIVE.md determinism statement).
-- **The camera is still the live-mode blocker**: /dev/video0 exists
-  (DroidCam v4l2loopback) but delivered NO frames (S17 ffmpeg probe,
-  timeout); `xtask/live_capture.sh` ships with the UNTESTED-no-stream
-  label. NEEDS-HUMAN: start the DroidCam phone-side stream (or plug a
-  real camera), then re-run the capture half and measure P5-2's
-  end-to-end budget for real. Until then nothing live gets labeled live
-  (the P2-8/D-015 discipline).
+  from the last FULL detection; `Figure.score` is 0.0 on tracked figures —
+  judge quality by the body-conf floor (0.3); misses are NORMAL stream
+  events (keep the pose, never a crash); envelope timing fields are
+  MEASUREMENTS — never assert their values in tests (pose data IS
+  byte-identical; the envelope is excluded from determinism).
 - **5.1 API facts the probes keep earning (do not reintroduce the old
   ways)**: compositor graph = `scene.compositing_node_group` (node_tree
   GONE); GPv3 strokes = `drawing.add_strokes([n,...])`, closed flag is
-  `cyclic`, the GPv3 FILL is a dead end for data-authored shapes (bubble
-  bodies are the z-layered unlit MESH); GPv3 LineArt only through ops
-  LINEART_OBJECT + renames; created objects captured by DATABLOCK DIFF;
-  EXACTLY ONE Group Output AFTER the interface socket; 5.1 Translate
-  takes SEPARATE X/Y value inputs; the compositor CENTERS sub-buffer
-  images before Translate (`t = desired - (page - img)//2`); page
-  backgrounds are FULL-PAGE solid images; byte-identity = default-sRGB
-  loads + Standard view transform + dither 0.
+  `cyclic`; GPv3 LineArt only through ops LINEART_OBJECT + renames;
+  created objects captured by DATABLOCK DIFF; EXACTLY ONE Group Output
+  AFTER the interface socket; page backgrounds are FULL-PAGE solid images;
+  byte-identity = default-sRGB loads + Standard view transform + dither 0.
 - **PANELS INHERIT THE SCENE VIEW TRANSFORM** (render_panels does not
-  stage it — S16 finding): the default AgX crushes light worlds into
-  dark grey; a page-scene author stages Standard + dither 0 explicitly
-  (the manga driver does; see docs/STYLE.md P4-8 as-built).
-- **S15 animatic facts (still load-bearing)**: the 5.1 VSE MOVIE-APPEND
-  is a recorded DEAD END (racy ~2/3 segfault, config-independent — never
-  render a VSE movie from any .py; a segfault cannot be caught); movie
-  assembly = shell-glue ffmpeg + ffprobe parse-back (D-009). 5.0+ movie
-  output = `render.image_settings.media_type='VIDEO'` (file_format=
-  'FFMPEG' assignment FAILS on 5.x). Pose bones default QUATERNION
-  (euler keys silently no-op); a SPHERE is rotationally symmetric (~no
-  pixel motion); Bright=0.15 changes ZERO channels through a dark scene
-  (use Contrast for compositor A/B checks — the group is ACTIVE in
-  stills AND animation renders). Animatic builder = per-frame STILLS
-  through the caller's certified bake; `rm_page` refusal; re-apply the
-  base look before a re-render (persistent-style semantics).
-- **S16 build facts (new)**: primitive_add selection semantics — a loop
-  of mesh creations then `join()` needs EXPLICIT select_set on every
-  part plus a chosen active (the one-eyed-character catch); canonical
-  T-pose arm pivots sit wide of the torso — narrow the arm chain BEFORE
-  authoring hang poses or the arms float; elbow bends need a
-  pose-relative axis (Rodrigues about forearm×pull), not a world-axis
-  guess; wide panels (≈2:1) need a wide lens (35 mm) or heads/ground
-  props leave the ±13.5° vertical field at 50 mm.
-- **Bisect verdicts need run counts**: S15 burned rounds on single-run
-  "passes" that were statistical escapes. Any crash/flake claim: 3 runs
-  minimum per config before believing a mitigation.
-- **Gate regex vs probe line format**: after ANY probe print change,
-  grep-test BOTH the PASS and SKIPPED lines locally before pushing (the
-  S12/S14/S15 discipline; the FRAMES check joined the grep-tested set).
+  stage it): a page-scene author stages Standard + dither 0 explicitly.
+- **S15 animatic facts (still load-bearing)**: NEVER render a VSE movie
+  from any .py (racy segfault, D-009); movie assembly = shell-glue ffmpeg
+  + ffprobe parse-back. Pose bones default QUATERNION (euler keys no-op);
+  a SPHERE is rotationally symmetric; Bright=0.15 changes ZERO channels
+  (use Contrast for compositor A/B checks). Animatic builder = per-frame
+  STILLS through the caller's certified bake; re-apply the base look
+  before a re-render.
+- **S16 build facts**: primitive_add deselects (explicit select_set on
+  every part + active); canonical T-pose arm pivots sit wide (narrow
+  BEFORE hang poses); elbow bends need a pose-relative Rodrigues axis;
+  wide panels need a 35 mm lens.
+- **Bisect verdicts need run counts**: 3 runs minimum per config before
+  believing a crash/flake mitigation (the S15 burn).
+- **Gate regex vs probe line format**: after ANY gate/probe print change,
+  grep-test BOTH the PASS and SKIPPED lines locally before pushing.
 - **Gates' env trap**: BLENDER=/home/potato/blender-5.1.0-linux-x64/
   blender, RIGPOSE=/home/potato/miniconda3/bin/rigpose, PY=/home/potato/
-  miniconda3/bin/python3 — otherwise they 127.
-- **CI runs 5.1.0 (D-014, green) + ffmpeg since S16's 4138b82**: the
-  style gate's LINEART/TONES/PAGES/FRAMES/EXPORT/ANIMATIC halves must
-  show PASS in CI — SKIPPED there means the bump broke. The assembly
-  half should now PASS on the runner (record the job-time delta vs the
-  measured 34m27s). The SKIPPED degradation paths STAY in the gate code
-  (older-Blender honesty).
-- **Style semantics**: per-panel/per-shot style application is
-  PERSISTENT — pages/animatics render base-look units first; a re-render
-  re-applies the base look first. Don't "simplify" that order.
-- **Pixel-diff baselines must share the pipeline** (compositor-free vs
-  compositor-active AA silhouettes differ).
-- Windowed Blender GL is flaky on this box (~1-in-4): S16's screenshot
-  attempt MISSED (the S5 genuine capture stands, never staged).
+  miniconda3/bin/python3 — otherwise they 127. The live gate also needs
+  the pinned models + out/live_probe/smoke_frames + out/real_rigs/
+  metarig.rig.json (git-ignored; answers RM_LIVE GATE: SKIPPED honestly
+  without — grep-tested both paths).
+- **CI runs 5.1.0 (D-14 bump, green)**: the style gate's LINEART/TONES/
+  PAGES/FRAMES/EXPORT/ANIMATIC halves must show PASS in CI — SKIPPED
+  there means the bump broke. The assembly half PASSES on the runner.
+- **Style semantics**: per-panel/per-shot style application is PERSISTENT
+  — pages/animatics render base-look units first; a re-render re-applies
+  the base look first.
+- **Mimosa**: expect the pagedoc.py `import struct` FP at every commit;
+  disclose and move on. S18's one advisory (shell `$REPO` interpolation in
+  live_verify.sh) was restructured to an env-var pass.
 
 Blocked / deferred (unchanged unless noted):
 - PyPI + Blender Extensions + MCP registry submissions — account-bound
@@ -102,11 +118,10 @@ Blocked / deferred (unchanged unless noted):
 - P1-8a fallback estimator — parked (D-011/D-012).
 - P2-8 real walking clip — NEEDS-HUMAN (out/video_smoke/SOURCES.md); the
   instruments and the agent demo re-run unchanged on a real clip.
-- NEW (S17) — live capture device: /dev/video0 (DroidCam) delivers no
-  frames; phone-side stream needed for P5-2's live + end-to-end
-  measurement halves (see the camera bullet above).
-- Phase 4 — CLOSED (D-017); the manga media regenerates via
+- Live capture device — NEEDS-HUMAN (DroidCam silent in S17 and S18;
+  phone side must stream; P5-2's live + end-to-end measurement halves
+  wait on it — everything buildable shipped without it).
+- Phase 4 — CLOSED (D-017); manga media regenerates via
   `bash xtask/manga_build.sh` (media-guard pins the 8 files).
-- P5-1 — DONE (S17): side process + measured budget + contract tests;
-  the <100 ms Phase-5 gate is deliberately unclaimed until P5-2 measures
-  end-to-end.
+- P5-1, P5-2 — DONE (S17/S18); P5-4 (the 5-minute recorded live demo)
+  needs the camera: it is the last Phase-5 piece after P5-3.

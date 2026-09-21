@@ -306,6 +306,224 @@ def test_read_live_lines_and_latest_pose(tmp_path, rig_json) -> None:
     assert latest["live"]["seq"] == 2  # the LAST pose, not the first
 
 
+# -- P5-2: the incremental tail (faked stream files, no producer needed) ----------
+
+
+def _line(kind: str, seq: int, **extra: object) -> str:
+    line = {
+        "kind": kind,
+        "live": {"seq": seq, "t_emit_wall": 1.0 * seq, "age_ms": None},
+        "frame": seq,
+    }
+    line.update(extra)
+    return json.dumps(line, sort_keys=True)
+
+
+def test_live_tail_returns_only_new_events(tmp_path: Path) -> None:
+    stream = tmp_path / "live.jsonl"
+    stream.write_text(_line("pose", 0) + "\n" + _line("miss", 1) + "\n",
+                      encoding="utf-8")
+    tail = live.LiveTail(stream)
+    first = tail.poll()
+    assert [e["live"]["seq"] for e in first] == [0, 1]
+    assert tail.poll() == []  # nothing new: empty, not a re-read
+    with stream.open("a", encoding="utf-8") as fh:
+        fh.write(_line("pose", 2) + "\n")
+    assert [e["live"]["seq"] for e in tail.poll()] == [2]
+
+
+def test_live_tail_holds_a_torn_final_line_until_complete(tmp_path: Path) -> None:
+    stream = tmp_path / "live.jsonl"
+    full = _line("pose", 0)
+    torn = _line("pose", 1)[:20]  # writer killed mid-write
+    stream.write_text(full + "\n" + torn, encoding="utf-8")
+    tail = live.LiveTail(stream)
+    assert [e["live"]["seq"] for e in tail.poll()] == [0]
+    assert tail.corrupt == 0  # the torn tail is NOT a corrupt line
+    with stream.open("a", encoding="utf-8") as fh:
+        fh.write(_line("pose", 1)[20:] + "\n")  # the writer finishes the line
+    assert [e["live"]["seq"] for e in tail.poll()] == [1]  # exactly once
+    assert tail.corrupt == 0
+
+
+def test_live_tail_resets_when_the_producer_restarts(tmp_path: Path) -> None:
+    stream = tmp_path / "live.jsonl"
+    stream.write_text(_line("pose", 0) + "\n" + _line("pose", 1) + "\n",
+                      encoding="utf-8")
+    tail = live.LiveTail(stream)
+    assert len(tail.poll()) == 2
+    stream.write_text(_line("pose", 0) + "\n", encoding="utf-8")  # truncate
+    events = tail.poll()
+    assert [e["live"]["seq"] for e in events] == [0]  # re-read from the start
+    assert tail.poll() == []
+
+
+def test_live_tail_detects_a_regrown_rewritten_file(tmp_path: Path) -> None:
+    """A truncate+regrow that lands PAST the old offset: the byte before the
+    offset is not a newline (a line-oriented stream can only resume at a
+    line boundary), so the tail resets instead of parsing mid-JSON garbage."""
+    stream = tmp_path / "live.jsonl"
+    stream.write_text(_line("pose", 0) + "\n", encoding="utf-8")
+    tail = live.LiveTail(stream)
+    assert len(tail.poll()) == 1
+    stream.write_text(  # longer first line, then more: regrown past the offset
+        _line("miss", 7, reason="producer restarted mid-session") + "\n"
+        + _line("pose", 0) + "\n" + _line("pose", 1) + "\n",
+        encoding="utf-8",
+    )
+    seqs = [e["live"]["seq"] for e in tail.poll()]
+    assert seqs == [7, 0, 1]  # re-read the REWRITTEN file from its start
+    assert tail.poll() == []
+
+
+def test_live_tail_missing_file_polls_empty_and_counts_corrupt(tmp_path: Path) -> None:
+    tail = live.LiveTail(tmp_path / "not-yet.jsonl")
+    assert tail.poll() == []  # producer has not started
+    stream = tmp_path / "not-yet.jsonl"
+    stream.write_text("not json at all\n" + _line("pose", 0) + "\n",
+                      encoding="utf-8")
+    events = tail.poll()
+    assert [e["live"]["seq"] for e in events] == [0]
+    assert tail.corrupt == 1  # a corrupt COMPLETE line is counted, not swallowed
+
+
+# -- P5-2: the consumer policy -----------------------------------------------------
+
+
+class _FakeClock:
+    """Deterministic monotonic clock for staleness tests."""
+
+    def __init__(self) -> None:
+        self.now = 100.0
+
+    def __call__(self) -> float:
+        return self.now
+
+
+def test_consumer_applies_newest_pose_only(tmp_path: Path) -> None:
+    stream = tmp_path / "live.jsonl"
+    stream.write_text(
+        _line("pose", 0) + "\n" + _line("pose", 1) + "\n" + _line("pose", 2) + "\n",
+        encoding="utf-8",
+    )
+    decision = live.LiveConsumer(live.LiveTail(stream)).poll()
+    assert decision.apply is not None
+    assert decision.apply["live"]["seq"] == 2  # latest wins
+    assert decision.skipped == 2  # the two superseded poses of the batch
+    assert decision.misses == 0 and decision.poses_total == 3
+    assert decision.last_seq == 2 and decision.stale is False
+
+
+def test_consumer_miss_newest_keeps_the_pose(tmp_path: Path) -> None:
+    stream = tmp_path / "live.jsonl"
+    stream.write_text(
+        _line("pose", 0) + "\n" + _line("pose", 1) + "\n" + _line("miss", 2) + "\n",
+        encoding="utf-8",
+    )
+    decision = live.LiveConsumer(live.LiveTail(stream)).poll()
+    assert decision.apply is None  # the stream's newest state is a miss
+    assert decision.skipped == 2  # neither pose was applied this tick
+    assert decision.misses == 1 and decision.misses_total == 1
+    # ...and the next pose applies normally again
+    with stream.open("a", encoding="utf-8") as fh:
+        fh.write(_line("pose", 3) + "\n")
+    decision = live.LiveConsumer(live.LiveTail(stream)).poll()
+    assert decision.apply is not None and decision.apply["live"]["seq"] == 3
+
+
+def test_consumer_batches_arriving_between_polls(tmp_path: Path) -> None:
+    stream = tmp_path / "live.jsonl"
+    consumer = live.LiveConsumer(live.LiveTail(stream))
+    d0 = consumer.poll()
+    assert d0.apply is None and d0.stale is False  # fresh consumer, empty stream
+    with stream.open("a", encoding="utf-8") as fh:
+        fh.write(_line("pose", 0) + "\n")
+    d1 = consumer.poll()
+    assert d1.apply is not None and d1.apply["live"]["seq"] == 0
+    with stream.open("a", encoding="utf-8") as fh:
+        fh.write(_line("miss", 1) + "\n" + _line("pose", 2) + "\n")
+    d2 = consumer.poll()
+    assert d2.apply is not None and d2.apply["live"]["seq"] == 2  # miss rode through
+    assert d2.misses == 1 and d2.poses_total == 2 and d2.last_seq == 2
+
+
+def test_consumer_staleness_uses_the_injected_clock(tmp_path: Path) -> None:
+    stream = tmp_path / "live.jsonl"
+    clock = _FakeClock()
+    consumer = live.LiveConsumer(live.LiveTail(stream), stale_after=2.0, clock=clock)
+    early = consumer.poll()
+    assert early.stale is False  # 0.0 s since start
+    clock.now += 2.5
+    assert consumer.poll().stale is True  # silent since start -> stale
+    with stream.open("a", encoding="utf-8") as fh:
+        fh.write(_line("pose", 0) + "\n")
+    clock.now += 1.0
+    fresh = consumer.poll()
+    assert fresh.stale is False and fresh.since_last_s == 0.0  # line seen this tick
+    clock.now += 2.1
+    stale = consumer.poll()
+    assert stale.stale is True and stale.apply is None  # keep the pose, say so
+    assert stale.since_last_s > 2.0
+
+
+def test_consumer_replayed_lines_after_reset_are_duplicates(tmp_path: Path) -> None:
+    stream = tmp_path / "live.jsonl"
+    stream.write_text(_line("pose", 0) + "\n" + _line("pose", 1) + "\n",
+                      encoding="utf-8")
+    consumer = live.LiveConsumer(live.LiveTail(stream))
+    first = consumer.poll()
+    assert first.apply is not None and first.apply["live"]["seq"] == 1
+    stream.write_text(_line("pose", 0) + "\n")  # restart: shorter file replays
+    second = consumer.poll()
+    assert second.duplicates == 1  # seq <= last applied: replayed, not new data
+    assert second.apply is None  # nothing fresh to apply — keep the pose
+    with stream.open("a", encoding="utf-8") as fh:
+        fh.write(_line("pose", 2) + "\n")
+    third = consumer.poll()
+    assert third.apply is not None and third.apply["live"]["seq"] == 2
+
+
+def test_consumer_validates_stale_after(tmp_path: Path) -> None:
+    with pytest.raises(RiggermortisError) as exc:
+        live.LiveConsumer(live.LiveTail(tmp_path / "s.jsonl"), stale_after=0.0)
+    assert "hint" in str(exc.value)
+
+
+def test_consumer_end_to_end_over_a_producer_shaped_stream(tmp_path: Path) -> None:
+    """The full faked-stream loop: lines appear incrementally exactly like
+    ``rigpose live`` writes them (flush per line), torn line included."""
+    stream = tmp_path / "live.jsonl"
+    clock = _FakeClock()
+    consumer = live.LiveConsumer(live.LiveTail(stream), stale_after=1.0, clock=clock)
+    applied: list[int] = []
+
+    def tick(lines: list[str]) -> None:
+        with stream.open("a", encoding="utf-8") as fh:
+            for text in lines:
+                fh.write(text + "\n")
+                fh.flush()  # the producer's flush-per-line contract
+        decision = consumer.poll()
+        if decision.apply is not None:
+            applied.append(decision.apply["live"]["seq"])
+
+    tick([_line("pose", 0)])
+    tick([_line("pose", 1), _line("pose", 2)])  # batch -> latest wins
+    tick([_line("miss", 3)])  # person lost: keep pose 2
+    tick([_line("pose", 4)])
+    with stream.open("a", encoding="utf-8") as fh:
+        fh.write(_line("pose", 5)[:15])  # torn: killed writer
+    tick([])  # the partial is held, nothing applies
+    with stream.open("a", encoding="utf-8") as fh:
+        fh.write(_line("pose", 5)[15:] + "\n")  # the writer finishes the line
+    tick([])  # ...and the completed line applies exactly once
+    assert applied == [0, 2, 4, 5]
+    final = consumer.poll()
+    assert final.apply is None  # drained
+    assert final.poses_total == 5 and final.misses_total == 1
+    assert final.last_seq == 5 and final.corrupt == 0
+    assert final.last_seq == live.latest_pose_line(stream)["live"]["seq"]
+
+
 # -- CLI (in-process, faked detector via the live-module seam) ---------------------
 
 

@@ -1,8 +1,9 @@
 # Live mode (Phase 5) — design as-built
 
-P5-1's source of record, same discipline as STYLE.md/EXPORT.md: what shipped,
-what it measures, what stays open. Written after the probe (S17) and kept in
-sync with reality — the STYLE.md rule applies here too.
+The Phase-5 source of record (P5-1 side process + P5-2 stream consumer),
+same discipline as STYLE.md/EXPORT.md: what shipped, what it measures, what
+stays open. Written after the probe (S17) and kept in sync with reality —
+the STYLE.md rule applies here too.
 
 ## What P5-1 is
 
@@ -178,6 +179,135 @@ streaming). Consequences, labeled not hidden:
   (`age_ms`) is carried per line so P5-2 can measure the end-to-end budget
   without touching this contract.
 
+## P5-2 — the stream consumer (design as-built, S18)
+
+The consumer half of live mode: a Blender add-on driver that tails the
+`rigpose live` stream file and puppeteers a rig through the REAL P1-6 apply
+path. No new pipeline, no sockets (D-003/D-009): the producer writes a file,
+the consumer reads it. Designed here FIRST; the engine matches this text.
+
+### Topology
+
+```
+shell/agent --spawn--> rigpose live (side process) --> stream.jsonl
+                                                          ^ poll (~10 Hz)
+Blender --bpy.app.timers--> rm live driver --> pose_apply.apply_payload
+                                 |
+                                 +-- core.live.LiveTail + LiveConsumer
+                                     (pure stdlib, CI-tested with fakes)
+```
+
+- The producer is unchanged (P5-1). The spawn stays OUTSIDE Python (D-009):
+  the user's shell or `xtask/live_capture.sh`.
+- The Blender side never blocks and never spawns a thread: the timer
+  callback polls the stream file (microseconds-class reads), applies at most
+  one pose, and updates panel state. The apply is the only bpy touch, and it
+  MUST be main-thread anyway (the session.py precedent).
+
+### The incremental tail (`core.live.LiveTail`)
+
+`latest_pose_line` re-reads the whole file — O(file) per tick is wrong at
+10–30 lines/s × ~20–50 KB lines over a long session. `LiveTail` keeps
+byte-offset state:
+
+- `poll()` reads from the last committed offset to EOF, splits on newlines,
+  and parses COMPLETE lines only. A torn final line (writer killed
+  mid-write) is never consumed — the offset stays at its start and the line
+  parses once it completes on a later poll.
+- Producer restart (the writer reopens with `open("w")`, truncating): a file
+  smaller than the remembered offset resets the tail to 0; a file that
+  regrew PAST the old offset is caught by a one-byte boundary check — a
+  line-oriented stream can only resume at a newline, so a non-newline byte
+  before the offset means the file was rewritten (reset; replayed lines
+  become the CONSUMER's duplicates, never re-applied).
+- Missing file: `poll()` returns `[]` (the producer has not started yet).
+- Corrupt COMPLETE lines are counted on `tail.corrupt`, never swallowed
+  (a torn tail can only ever be the final line; mid-stream corruption is a
+  real problem the panel surfaces).
+
+### The consumer policy (`core.live.LiveConsumer`)
+
+A pure decision engine over a `LiveTail` — injected clock for
+deterministic CI tests; the Blender side is a thin adapter that performs the
+decision:
+
+- **Latest-wins**: among the new lines of one poll, at most ONE pose is
+  applied — the newest `kind=pose` line. Superseded pose lines of the same
+  batch count as `skipped` (applying three stale poses back-to-back at 3×
+  cost serves nothing in puppeteering).
+- **A miss keeps the pose**: if the stream's newest event is a `kind=miss`,
+  nothing is applied — the previous pose stays (the stream contract; a miss
+  is a NORMAL event, never a crash). Misses are counted and surfaced.
+- **Replayed lines after a truncation reset are duplicates**, not new pose
+  data: a pose line whose envelope `seq` is not newer than the last applied
+  one is counted (`duplicates`) and never applied.
+- **Staleness**: `stale` flips when `now - t_last_new_line > stale_after`
+  (default 2.0 s — an order-of-magnitude default chosen before any
+  measurement, NOT tuned to fixtures, D-008; roughly twenty tracked frames'
+  worth of silence at the S17 p50). On stale: keep the last pose, report
+  staleness honestly in the panel. The failsafe proper (drop to a safe
+  preview pose) is P5-3.
+- The decision returns as a `ConsumerDecision` (the line to apply or None,
+  skipped/duplicates/misses counts, total poses seen, stale flag, seconds
+  since the last line, last seq, tail corrupt count). The caller does the
+  bpy work.
+
+### The Blender driver (addon/riggermortis_addon/live_driver.py)
+
+- Start/Stop operators + a `bpy.app.timers` pump at 0.1 s (order-of-
+  magnitude default, documented; the apply is what costs and the gate
+  measures it). Stream path + `stale_after` live on the WindowManager —
+  session-only state, like the session bridge's port/token.
+- Apply = `pose_apply.apply_payload(obj, line, mirror=…)`: the REAL P1-6
+  path — `rm_role_*` mapping (fallback live `map_rig`), mirror semantics
+  untouched, structured report back. The stream line IS payload-v2 shaped
+  (D-009); it is passed as-is. The armature is resolved from the panel's
+  rig selection (or the active object) at Start.
+- The pump never raises out of the timer: apply failures land in the status
+  line, actionable with a hint, and the loop continues — the same
+  never-crash-the-pump rule as session.py.
+- Panel: a "Live driver (P5-2)" section — stream path, stale_after,
+  Start/Stop, and the honest readout: state (live/stale/idle), lines seen
+  (poses/misses), applied/skipped/duplicates, last seq, seconds since the
+  last line, last apply cost and the last line's end-to-end age. The
+  driver's own budget instrumentation measures apply cost per applied line
+  and keeps the envelope's `age_ms` + poll lag so the end-to-end replay
+  number is per-line measurable. No smoothing/latency UI — P5-3.
+
+### The budget (REPLAY, this box — labeled; the live number stays unclaimed)
+
+The S18 gate instrumented the driver per applied line: the apply cost
+(measured around the P1-6 apply), the poll lag (emit → consumer tick), and
+the envelope's `age_ms`. **The published replay end-to-end number is
+emit → apply** — the first gate run caught that `age_ms` on replayed files
+is the frame file's mtime AGE (an hour here), not capture latency; it is
+printed per line for provenance and never summed in. With a real camera
+(age_ms real), capture → apply = age_ms + poll lag + apply.
+
+Measured by `make live-verify` (REAL `rigpose live` subprocess at
+`--detect-every 3`, REAL headless Blender 5.1 driving the add-on's own
+driver, 9 replay frames, i5-10400F CPU-only ONNX):
+
+- apply fidelity: **9/9 lines applied, worst FK self-check 0.0000 deg**
+  (bar 0.5) — the payload-v2 stream line through the unmodified P1-6 path;
+- apply cost: **p95 ≈ 3.8 ms** (p50 ≈ 1.8 ms) — Blender-side posing is
+  noise next to the producer;
+- emit → apply: **p50 ≈ 157 ms**; the stalls (0.6–0.9 s) land exactly on
+  the producer's DETECTOR frames, and the first line's ≈ 2.1 s sits in the
+  cold-session window — consumer tick latency degrades under concurrent
+  detector load on this CPU (measured as-is, not tuned; D-008). The
+  lever stays the detector cadence (P5-1's finding);
+- staleness: with the producer gone, the driver flips STALE at the
+  configured threshold and keeps the last pose;
+- misses: a forced all-miss stream (`--conf-floor 0.95`) yields 9 miss
+  lines, **0 applies, pose bones byte-unchanged**, 0 corrupt.
+
+**The LIVE capture → apply number and the Phase-5 <100 ms mid-laptop gate
+stay UNCLAIMED**: /dev/video0 delivered no frames again in S18 (ffmpeg
+timeout re-verified) — the DroidCam phone side still is not streaming
+(NEEDS-HUMAN). Nothing replay gets relabeled live (the D-015 discipline).
+
+
 ## Reproduce
 
 ```bash
@@ -192,4 +322,7 @@ rigpose live out/live_probe/frames out/real_rigs/metarig.rig.json \
 
 # capture-device glue (UNTESTED on this box — no stream; see above)
 bash xtask/live_capture.sh out/live_probe/frames 15
+
+# the P5-2 consumer gate (needs models + replay frames + real rigs, local)
+make live-verify
 ```
