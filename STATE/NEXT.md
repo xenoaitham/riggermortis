@@ -7,47 +7,58 @@
    - **Frames land** → flip to **P5-4** (the recorded live demo + the TRUE
      capture→apply measurement; claim or retire the <100 ms mid-laptop gate
      honestly). The failsafe/duplicate-floor revisit trigger in LIVE.md
-     becomes live-relevant. The launch copy's live halves
+     becomes live-relevant (a D-018-class amendment, deliberately — the
+     number is reserved for exactly that). The launch copy's live halves
      (README live bullet, docs/LAUNCH.md, docs/TUTORIALS.md VTuber track)
      then get their first REAL number — update all of them in the same
      session, they are written to make that swap easy.
-   - **Silent again (6th session)** → **Phase-6 openers: P6-4 + P6-5, the
-     18+ enforcement pair.** WHY over P6-3 (benchmark packaging): the
-     enforcement pair is camera-independent, self-contained, and closes the
-     policy story the launch copy now leans on — "opt-in module off by
-     default, proven via tests in both frontends" is currently only half
-     true (SFW default + refusal plumbing are tested; the MODULE and its
-     fresh-install/refusal-path enforcement tests are unwritten). P6-3
-     collides with licensing/redistribution decisions only LO can make
-     (the benchmark images are git-ignored Apache-2.0 locals; a PUBLIC
-     suite is a policy call first, a packaging job second). P7-4/P7-5
-     publishing stays account-bound (LO). Phase 7 remaining after S20:
-     P7-4 (Blender Extensions listing), P7-5 (PyPI), P7-6 (the 60s cut +
-     CI media-regen gate — the script in docs/LAUNCH.md is its shot list).
+   - **Silent again (8th session)** → **P6-1 opener: secondary motion
+     (spring chains), design-first** — write the design page BEFORE code
+     (the LIVE.md/STYLE.md pattern: mechanism, data model, where it hooks
+     into the certified composition, what is honestly out of scope), probe
+     the Blender-side unknowns, then build core-side. P6-3 packaging stays
+     blocked until LO answers the licensing questions below (a POLICY call
+     only LO can make — the question list IS the S21 scope probe; do not
+     package). P6-6 (style-LoRA trainer docs) is a small honest-docs task
+     if a lighter session is needed.
 
-2. **Then read, in order**: STATE/TASKS.md, STATE/PROGRESS.md (S20 entries),
-   STATE/DECISIONS.md, STATE/CONVENTIONS.md, STATE/SESSIONS.md,
-   docs/LIVE.md, docs/BENCHMARKS.md, docs/POLICY.md. Register as
-   **Session 21**, claim tasks with [S21], PROGRESS stamps via `date -u`
-   ONLY (S20 caught itself writing placeholder minutes and replaced them
-   with read values before commit — do not write a clock value you did not
-   read).
+2. **Then read, in order**: STATE/TASKS.md, STATE/PROGRESS.md (S21 entries),
+   STATE/DECISIONS.md (D-019 is new; D-018 stays RESERVED for the live
+   duplicate-contract amendment), STATE/CONVENTIONS.md, STATE/SESSIONS.md,
+   docs/LIVE.md, docs/BENCHMARKS.md, docs/POLICY.md (now carries the
+   as-built § Enforcement). Register as **Session 22**, claim tasks with
+   [S22], PROGRESS stamps via `date -u` ONLY.
 
 3. **Baseline**: `cd core && /home/potato/miniconda3/bin/python3 -m pytest
-   tests` (349 expected) + `make lint PY=/home/potato/miniconda3/bin/python3`,
-   and verify the latest main CI run green (`gh run list --branch main`).
-   Verify STEP 0 includes `gh run view` on the latest run if it is red:
-   download the log, root-cause, fix the real substance FIRST.
+   tests` (**358 expected** — S21 added 9) + `make lint
+   PY=/home/potato/miniconda3/bin/python3`, and verify the latest main CI
+   run green (`gh run list --branch main`). If red: download the log,
+   root-cause, fix the real substance FIRST.
 
 Watch out for:
 
-- **S20 launch-surface facts (new)**: docs/LAUNCH.md and docs/TUTORIALS.md
-  are claim-bearing surfaces now — when a number changes, grep BOTH plus
-  the README (three places carry the live numbers: README live bullet,
-  LAUNCH.md drafts, TUTORIALS VTuber track). The 60s script in LAUNCH.md
-  is P7-6's shot list — keep it cut-only-from-existing-footage. TUTORIALS
-  commands were verified against cli.py + the registered add-on operators;
-  re-verify if the CLI or panel changes.
+- **S21 policy facts (new)**: the add-on policy binding
+  (`addon/riggermortis_addon/policy.py`) is bpy-free AT IMPORT by design —
+  the core tests mount the package with a `__path__` shim
+  (`conftest.addon_policy_module`) WITHOUT executing the bpy-importing
+  `__init__`; keep new add-on modules bpy-free at import if they are to be
+  unit-tested the same way. The enable path is the two Blender preference
+  toggles ONLY, routed through `enable_adult_module(confirm=True)` /
+  `disable_adult_module()`; the MCP server has NO enable tool (D-019,
+  test-pinned — do not add one without a new deliberate decision).
+  `bpy.context.preferences.addons.new()` takes NO arguments on 5.1; the
+  real user path is `addon_utils.enable(...)` (what blender_verify 5/5
+  exercises). Refusal codes are verbatim in the add-on report line
+  (`refused [<code>] …`); `policy.py`-named modules exist in BOTH core and
+  addon — imports are package-qualified, never bare.
+- **S20 launch-surface facts (standing)**: docs/LAUNCH.md and
+  docs/TUTORIALS.md are claim-bearing surfaces — when a number changes,
+  grep BOTH plus the README (three places carry the live numbers). The 60s
+  script in LAUNCH.md is P7-6's shot list — cut-only-from-existing-footage.
+  TUTORIALS commands were verified against cli.py + the registered add-on
+  operators; re-verify if the CLI or panel changes (S21 ADDED an operator +
+  panel section — `rm.policy_check` / "Content policy" — none of the
+  tutorial command sequences touch it, but keep the rule in mind).
 - **P5-3 facts (do not reintroduce)**: smoothing is CORE-side
   (`live.LivePoseSmoother`) on the CANONICAL POSE per role per axis — the
   driver path is payload → `CanonicalPose.from_dict` → filter (STREAM
@@ -77,11 +88,11 @@ Watch out for:
   default 2.0 s). Blender side is a THIN adapter; the pump never raises.
 - **The replay budget definition**: published replay end-to-end is
   EMIT → APPLY — apply p95 ≈ 2.7–3.8 ms, emit→apply p50 ≈ 124–157 ms
-  across gate runs (S18/S19; jitter normal — stalls land on the producer's
-  DETECTOR frames, first line in the ~2 s cold window, never tuned away).
-  On replayed files `age_ms` is the frame file's MTIME AGE — printed,
-  never summed in. The <100 ms mid-laptop gate stays UNCLAIMED until a
-  real stream; never relabel replay numbers live.
+  across gate runs (S18/S19/S21; jitter normal — stalls land on the
+  producer's DETECTOR frames, first line in the ~2 s cold window, never
+  tuned away). On replayed files `age_ms` is the frame file's MTIME AGE —
+  printed, never summed in. The <100 ms mid-laptop gate stays UNCLAIMED
+  until a real stream; never relabel replay numbers live.
 - **P5-1 facts (load-bearing)**: the detector CADENCE is the realtime
   lever — input downscale is a dead knob; the FIRST stream line carries
   the ~2 s cold load; `Figure.score` is 0.0 on tracked figures; the
@@ -109,31 +120,69 @@ Watch out for:
   needs out/live_probe/smoke_frames + out/real_rigs/metarig.rig.json
   (git-ignored) or it answers `RM_LIVE GATE: SKIPPED (...)` honestly,
   exit 0. The style gate on 5.1 must show LINEART/TONES/PAGES/FRAMES/
-  ANIMATIC/EXPORT PASS in CI (SKIPPED there = the bump broke).
+  ANIMATIC/EXPORT PASS in CI (SKIPPED there = the bump broke). The
+  blender gate now has a 5/5 policy section (RM_POLICY lines) — grep-test
+  those if you touch the policy flow.
 - **Media rules**: existing launch media (boom.gif, walk GIFs,
   agent_turntable.gif, ui_screenshot.png, manga set) are
   pipeline-generated — reference, never hand-edit; ANY new media ships
   with the allowlist extension in the SAME commit + a visual check. The
   WALKRIGS block is generator-owned (xtask/walk_docs.py + out/p28
-  manifests): S20 corrected its stale D-015 text via the GENERATOR, then
-  regenerated (rows byte-identical) — keep that discipline.
+  manifests): edit the GENERATOR, then regenerate — never hand-edit.
 - **Mimosa**: intercepts bash writes of ANY source-looking file — use
   Write/Edit; expect the pagedoc.py `import struct` FP at every commit;
-  S20 caught one compound-command FP (backup+diff pipeline misread as a
-  source write) — restructure the command and move on.
+  S20/S21 caught heredoc/append FPs when the TEXT merely NAMES source
+  files (PROGRESS/BENCHMARKS appends) — restructure as an Edit-tool
+  append and move on.
 - **STATE timestamps are REAL**: `date -u` before every PROGRESS append.
+
+## P6-3 scope probe — the licensing/redistribution questions ONLY LO can answer
+
+(S21's sanctioned work-order-C output: questions, NOT packaging. Until
+these have answers, P6-3 stays blocked and the benchmark images stay
+git-ignored locals with provenance in out/benchmark/SOURCES.md.)
+
+1. **Suite license**: the repo is MIT (code). Images are NOT code — pick
+   the suite's media license (CC0 / CC-BY / CC-BY-SA?) and confirm it is
+   compatible with every sourced item's terms.
+2. **The Apache-2.0 ControlNet screenshot crops** (anime_4/anime_6):
+   redistributing screenshots of a third-party web UI is a different
+   question from the license on the underlying repo — is LO comfortable
+   shipping them publicly, or do those two slots get replaced?
+3. **CC BY-SA items** (the Commons illustration): attribution +
+   share-alike-on-derivatives — are benchmark crops "derivatives" LO wants
+   under share-alike, and is per-image attribution in a shipped SOURCES
+   file the format he wants?
+4. **Identifiable people**: confirm no photo-set image shows an
+   identifiable real person (else model-release territory — the policy
+   page's real-person line applies to inputs too, not just outputs).
+5. **Distribution mechanics**: in-repo `docs/`-tracked, a separate release
+   artifact, or an external dataset host? (In-repo grows the clone and
+   touches the media-guard allowlist; a release artifact keeps the repo
+   light but splits the CI story.)
+6. **Does the PUBLIC suite become the canonical gate fixture** (CI runs
+   detection on 20 images per push — cost + determinism implications), or
+   do published numbers stay tied to the git-ignored local sets with the
+   public suite as a re-runnable extra?
+7. **If the P2-8 real walking clip ever lands** (NEEDS-HUMAN): does it
+   join the public suite under the same bar?
 
 Blocked / deferred (unchanged unless noted):
 
-- Live capture device — NEEDS-HUMAN (DroidCam silent in S17–S20; the phone
+- Live capture device — NEEDS-HUMAN (DroidCam silent in S17–S21; the phone
   side must stream; P5-4 and the live capture→apply measurement wait on
   it — everything buildable shipped without it).
 - PyPI + Blender Extensions + MCP registry submissions — account-bound
   (LO); docs/PUBLISHING.md runbooks.
+- P6-3 public benchmark suite — NEEDS-HUMAN (NEW: LO's answers to the
+  question list above are the gate; packaging waits).
 - P1-8a fallback estimator — parked (D-011/D-012).
 - P2-8 real walking clip — NEEDS-HUMAN (out/video_smoke/SOURCES.md).
 - Phase 4 — CLOSED (D-017); manga media regenerates via
   `bash xtask/manga_build.sh` (media-guard pins the 8 files).
 - P5-1..P5-3 DONE (S17/S18/S19); P5-4 (recorded demo) needs the camera.
+- Phase 6 after S21: P6-4/P6-5 DONE; P6-1 (secondary motion) and P6-2
+  (motion-library retarget) are the remaining engine rocks; P6-6 (style-
+  LoRA trainer docs) is the small honest-docs item.
 - Phase 7 after S20: P7-1/P7-2/P7-3 DONE; P7-4/P7-5 account-bound; P7-6
   waits on a recorded-cut session (shot list exists in docs/LAUNCH.md).

@@ -386,6 +386,30 @@ def test_policy_status_lists_the_public_refusal_codes() -> None:
     ]
 
 
+# -- P6-5: the MCP frontend has NO enable path ----------------------------------
+
+def test_mcp_fresh_install_default_off_and_no_enable_tool() -> None:
+    """The agent-facing surface can never turn the 18+ module on: every
+    engine the server builds is a fresh default (SFW) one, the tool table
+    carries no enable/confirmation tool, and repeated calls cannot drift
+    the server into an enabled state. The ONLY enable path is the human's
+    Blender preferences flow (docs/POLICY.md; the add-on policy binding)."""
+    for _ in range(2):  # twice: no state may accumulate between calls
+        status = _rpc("tools/call", params={"name": "policy_status", "arguments": {}})
+        value = status["result"]["content"][0]["json"]
+        assert value["adult_module_enabled"] is False
+        assert value["defaults"] == {"adult_module_enabled": False}
+    tools = _rpc("tools/list")["result"]["tools"]
+    names = [t["name"] for t in tools]
+    assert not any("enable" in name or "adult" in name or "confirm" in name
+                   for name in names), names
+    # ...and the gated subject still refuses after all that, code verbatim
+    value, meta = _policy_check("fictional_adult")
+    assert meta["isError"] is True
+    assert value["error"]["code"] == core.ADULT_MODULE_DISABLED
+    assert value["error"]["retryable"] is True
+
+
 def test_unknown_method_and_notifications() -> None:
     response = _rpc("no/such/method")
     assert response["error"]["code"] == -32601

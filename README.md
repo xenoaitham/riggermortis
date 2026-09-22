@@ -130,7 +130,8 @@ What exists **right now** (every claim cites a test, gate, or number):
   (the D-014 bump; the honest SKIPPED degradation paths remain in the gate
   code for older Blenders).
 - Content-policy module enforced in the core (SFW default; opt-in 18+ module
-  with explicit confirmation; unconditional hard lines).
+  with explicit confirmation; unconditional hard lines) — default-OFF and the
+  refusal paths are test-pinned in BOTH frontends (add-on + MCP).
 
 ## Quickstart
 
@@ -188,8 +189,13 @@ The default build is SFW. An opt-in 18+ module — off by default, enabled only
 with explicit confirmation in preferences — permits adult content of fictional
 adult characters, processed and rendered entirely locally. Hard lines are
 enforced in the engine core and never toggle: no sexual content involving
-minors, no explicit content of real identifiable people, nothing illegal. Full
-text: [docs/POLICY.md](docs/POLICY.md).
+minors, no explicit content of real identifiable people, nothing illegal.
+The enable path exists ONLY in the Blender add-on preferences (two toggles);
+the MCP server carries no enable tool, so agents cannot turn the module on
+anywhere. Default-OFF, the two-toggle enable, and the verbatim refusal codes
+are test-pinned in both frontends (core tests + the Blender gate's
+`RM_POLICY` lines + MCP golden tests). Full text:
+[docs/POLICY.md](docs/POLICY.md).
 
 ## Honest limitations (current)
 

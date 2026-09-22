@@ -34,11 +34,37 @@ capability; it does not change the lines below.
 ## Where the lines live in code
 
 - `riggermortis/policy.py` — `PolicyEngine`, `Refusal`, stable refusal codes.
-- Refusal codes are part of the public API: the add-on reports them verbatim,
-  the MCP server returns them as structured tool errors, and tests pin them.
+- Refusal codes are part of the public API: the add-on reports them verbatim
+  (`refused [<code>] …`), the MCP server returns them as structured tool
+  errors, and tests pin them.
 - `PolicyEngine` cannot be constructed with the adult module enabled; the only
   path is `enable_adult_module(confirm=True)` on a default instance, which is
   exactly what the add-on preferences flow does.
+- The add-on binding (`addon/riggermortis_addon/policy.py`) owns the add-on's
+  single engine, always built through the default (SFW) path. The two
+  preference toggles ("Enable 18+ module" + "I understand the policy") are
+  the only user-facing control; syncing derives the engine state through the
+  documented calls only, and enabling requires BOTH toggles.
+- The MCP server has **no enable path**: it builds a fresh default engine per
+  call and its tool table carries no enable/confirmation tool. Agents cannot
+  turn the module on anywhere — only the human, locally, in Blender
+  preferences.
+
+## Enforcement (P6-4/P6-5, test-pinned in both frontends)
+
+- Core: default-SFW status, the construction guard, strict `confirm is True`
+  semantics, and every refusal's code/retryability (core test suite).
+- Add-on: the bpy-free binding is unit-tested headlessly (fresh-install OFF,
+  both-toggles rule, verbatim codes in the report line); the REAL preferences
+  flow — real `AddonPreferences` defaults, real toggle writes, the addon
+  enabled the way the user's checkbox does — runs in the Blender gate
+  (`xtask/blender_verify.sh`, `RM_POLICY` lines, grep-tested).
+- MCP: `policy_status` answers OFF on a fresh server, no tool enables the
+  module, repeated calls never drift the server enabled, and the gated
+  subject refuses with the exact code (golden-schema-pinned tests).
+- The network-audit test extends the zero-outbound sweep over the binding
+  (both toggle states, a full check sweep) — the module adds no default-use
+  network surface.
 
 ## Network promise
 

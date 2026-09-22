@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import pytest  # noqa: E402
 
+from conftest import addon_policy_module  # noqa: E402
 from riggermortis.cli import EXIT_OK, main  # noqa: E402
 from riggermortis.mapper import map_rig  # noqa: E402
 from riggermortis.policy import PolicyEngine  # noqa: E402
@@ -77,6 +78,23 @@ def test_default_use_path_makes_no_connections(socket_audit, tmp_path):
         assert reapplied.core_missing() == mapping.core_missing(), name
 
     assert PolicyEngine().status()["adult_module_enabled"] is False
+
+    # P6-5: the add-on policy binding is part of the default-use surface —
+    # the fresh-install sync, both toggle states, and a full check sweep
+    # must open zero sockets too (the module is bpy-free at import).
+    addon_policy = addon_policy_module()
+    addon_policy._reset_engine()
+    try:
+        assert addon_policy.sync(False, False) is False
+        assert addon_policy.sync(True, True) is True
+        assert addon_policy.check("fictional_adult") is None
+        addon_policy.sync(False, False)
+        for subject in ("minor", "real_person", "fictional_adult", "other", "???"):
+            refusal = addon_policy.check(subject)
+            if refusal is not None:  # "other" is allowed under any state
+                addon_policy.format_refusal(refusal)
+    finally:
+        addon_policy._reset_engine()
 
     rig_path = tmp_path / "cli_rig.json"
     rigs["rigify"].to_json(rig_path)

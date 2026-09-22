@@ -431,6 +431,37 @@ What stays OPEN (recorded future scope, never silently dropped):
   characters are the untested-but-designed path (the style builders are
   mesh-agnostic).
 
+## D-019 The 18+ enable path is the add-on preferences ONLY; the MCP server can never enable (2026-09-22, S21)
+
+Closing P6-4 forced one architectural stance the policy page implied but
+nothing had pinned:
+
+- **The Blender add-on preferences are the ONLY enable path.** The two
+  toggles ("Enable 18+ module" + "I understand the policy") sync the
+  add-on's single core `PolicyEngine` through the documented calls only
+  (`enable_adult_module(confirm=True)` / `disable_adult_module()`); the
+  binding (`addon/riggermortis_addon/policy.py`) is bpy-free at import so
+  the flow is unit-testable headlessly, and the REAL flow (the checkbox,
+  real `AddonPreferences` defaults) is gated in `xtask/blender_verify.sh`
+  (`RM_POLICY` lines). NOTE: `bpy.context.preferences.addons.new()` takes
+  NO arguments on Blender 5.1 — the addon_utils.enable route is the real
+  user path and what the gate exercises.
+- **The MCP server builds a fresh default (SFW) engine per call and its
+  tool table carries NO enable/confirmation tool — test-pinned.** An
+  agent therefore cannot turn the module on anywhere; the MCP refusal for
+  `fictional_adult` stays `adult_module_disabled` (retryable = the human
+  can enable it, in Blender, locally). If a future content-carrying tool
+  needs the add-on's engine state, that is a NEW deliberate decision —
+  not silent pass-through over the session bridge.
+- **D-018 stays RESERVED** for the S18 duplicate-contract amendment (the
+  LIVE.md producer-restart revisit trigger); this entry deliberately
+  skips the number to keep that reservation intact.
+- Scope honesty: the engine poses rigs — no content-carrying tool exists
+  yet, so the add-on's enforcement surface is the policy check operator
+  (`rm.policy_check`, panel "Content policy" section) + the preferences
+  flow. The refusal shape every future content tool must return is
+  already pinned (P3-3 `Refusal.to_dict()` mirroring).
+
 ## NEEDS-HUMAN queue (updated 2026-09-16 S8)
 
 - RETIRED — anime sourcing: set complete at 10/10 (SOURCES.md; Commons CC BY-SA crop provenance).

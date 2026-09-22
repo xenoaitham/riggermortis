@@ -36,7 +36,7 @@ from bpy.props import (
 )
 from bpy.types import AddonPreferences, Operator, Panel, PropertyGroup
 
-from . import bpy_bridge, live_driver, overlay, pose_apply, session, tails
+from . import bpy_bridge, live_driver, overlay, policy, pose_apply, session, tails
 
 POLICY_NOTICE = (
     "Default build is SFW. An opt-in adult module (off by default, requires "
@@ -157,6 +157,20 @@ class RM_SceneSettings(PropertyGroup):
         description="Flip keys toggled in review this session (comma-separated). "
                     "Session state: the payload file itself stays untouched.",
         default="",
+    )
+    policy_subject: EnumProperty(  # type: ignore[valid-type]
+        name="Subject",
+        description="Content subject the policy check evaluates (docs/POLICY.md)",
+        items=(
+            ("minor", "minor", "Sexual content involving minors — always refused, "
+             "never toggleable"),
+            ("real_person", "real person", "Explicit content of real, identifiable "
+             "people — always refused, never toggleable"),
+            ("fictional_adult", "fictional adult", "Explicit content of fictional "
+             "adult characters — permitted only with the 18+ module enabled"),
+            ("other", "other", "Anything else — allowed"),
+        ),
+        default="other",
     )
 
 
@@ -291,6 +305,38 @@ class RM_OT_show_report(Operator):
     def execute(self, context: bpy.types.Context) -> set[str]:
         self.report({"INFO"}, context.scene.rm_settings.last_report)
         return {"FINISHED"}
+
+
+class RM_OT_policy_check(Operator):
+    """Evaluate a content subject against the core policy (docs/POLICY.md)"""
+
+    bl_idname = "rm.policy_check"
+    bl_label = "Check Policy"
+    bl_options: ClassVar[set[str]] = {"REGISTER"}
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        del context  # the policy answers with or without a rig on stage
+        return True
+
+    def execute(self, context: bpy.types.Context) -> set[str]:
+        settings = context.scene.rm_settings
+        subject = settings.policy_subject
+        try:
+            policy.sync_from_preferences()  # engine state follows the toggles
+            refusal = policy.check(subject)
+        except ImportError as exc:
+            self.report({"ERROR"}, str(exc))
+            return {"CANCELLED"}
+        if refusal is None:
+            settings.last_report = (
+                f"policy: {subject!r} allowed under the current module state"
+            )
+            self.report({"INFO"}, settings.last_report)
+            return {"FINISHED"}
+        settings.last_report = policy.format_refusal(refusal)
+        self.report({"ERROR"}, settings.last_report)
+        return {"CANCELLED"}
 
 
 def _load_payload(path: str) -> dict:
@@ -761,6 +807,20 @@ class RM_PT_main_panel(Panel):
             box.label(text=f"manual flips: {settings.manual_flips}", icon="FLIP")
             box.operator("rm.flip_reset", icon="LOOP_BACK")
 
+        box = layout.box()
+        box.label(text="Content policy", icon="LOCKVIEW_OFF")
+        try:
+            # draw-time sync: the idempotent prefs->engine derivation, so the
+            # readout always matches what a check would do (never stored state)
+            policy.sync_from_preferences()
+            for line in policy.status_lines()[:4]:
+                box.label(text=line[:80])
+        except ImportError:
+            box.label(text="core not installed — policy engine unavailable", icon="ERROR")
+        row = box.row(align=True)
+        row.prop(settings, "policy_subject")
+        row.operator("rm.policy_check", text="Check", icon="SHADERFX")
+
         payload_obj = _payload_summary(settings.payload_path)
         if payload_obj is not None:
             try:
@@ -828,6 +888,7 @@ _CLASSES = (
     RM_WM_Live,
     RM_OT_inspect_and_map,
     RM_OT_show_report,
+    RM_OT_policy_check,
     RM_OT_apply_pose,
     RM_OT_flip_toggle,
     RM_OT_pick_joint,
@@ -850,6 +911,12 @@ def register() -> None:
     bpy.types.Scene.rm_settings = PointerProperty(type=RM_SceneSettings)
     bpy.types.WindowManager.rm_session = PointerProperty(type=RM_WM_Session)
     bpy.types.WindowManager.rm_live = PointerProperty(type=RM_WM_Live)
+    try:
+        # engine state follows the persisted two-toggle prefs on load; a
+        # missing core install surfaces later, via the operator's report
+        policy.sync_from_preferences()
+    except ImportError:
+        pass
     from . import overlay
 
     overlay.register()

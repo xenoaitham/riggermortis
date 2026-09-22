@@ -440,3 +440,38 @@ order-of-magnitude starting points — **NOT tuned** (D-008); there is
 still no real-motion stream, so these claims stay replay/synthetic-labeled
 and the live <100 ms gate stays unclaimed. Gate lines: `RM_LIVE SMOOTH`,
 `RM_LIVE SMOOTH-SUMMARY`, `RM_LIVE FAILSAFE`, `RM_LIVE FAILSAFE-RECOVERY`.
+
+### 18+ module enforcement (P6-4/P6-5, session 21) — test/gate-pinned
+
+Not a timing benchmark — the Phase-6 gate is PROOF, and this block cites
+where each half lives:
+
+- **Fresh-install default OFF, both frontends.** Core: `PolicyEngine()`
+  status OFF, construction with the module enabled raises (core tests).
+  Add-on: the bpy-free binding syncs OFF from fresh defaults, and a REAL
+  Blender enables the add-on the way the user's checkbox does
+  (`addon_utils.enable`) — real `AddonPreferences` defaults (False/False),
+  engine OFF, `fictional_adult` refused retryably. MCP: `policy_status`
+  answers OFF on a fresh server, twice, with no drift.
+- **The enable needs BOTH toggles** ("Enable 18+ module" + "I understand
+  the policy"): one-toggle syncs stay OFF in unit tests AND in the real
+  Blender flow; both toggles go through the documented
+  `enable_adult_module(confirm=True)` — the constructor shortcut is
+  forbidden by the core itself. Toggling back off re-closes the gate.
+- **Hard lines hold while enabled**: `minor` and `real_person` refuse with
+  `minor_content_prohibited` / `real_person_explicit_prohibited`, NOT
+  retryable, codes verbatim in the add-on report line (`refused [<code>] …`).
+- **No agent-facing enable path**: the MCP tool table carries no
+  enable/adult/confirm tool (golden-schema-pinned) — only the human's
+  Blender preferences can enable the module.
+- **Zero outbound preserved**: the network-audit sweep now covers the
+  binding (both toggle states, full check sweep) — no socket events.
+
+Where: 9 new core tests (`test_policy_enforcement.py` + the MCP
+no-enable-path test; 358 total), the Blender gate step 5/5
+(`xtask/blender_verify.sh`; lines `RM_POLICY ENABLE-ADDON / FRESH-OFF /
+ONE-TOGGLE-STILL-OFF / ENABLE-BOTH-TOGGLES / HARD-LINES-HOLD /
+DISABLE-REOFF`, grep-tested, `PHASE 0 BLENDER GATE: PASS` on 5.1.0), and
+`docs/POLICY.md` § Enforcement. Local battery at close: lint clean,
+358 passed, media-guard clean, blender/export/session/pose/style/live
+gates PASS.
