@@ -6,13 +6,15 @@ A local, free, rig-agnostic posing & animation engine with two frontends: a
 **Blender add-on** for artists and an **MCP server** so coding agents can drive
 Blender directly. Drop in an already-rigged model and a reference image — the
 pose is applied. Drop in a video — the character is animated, retargeted,
-foot-slide-cleaned. Photos and anime/manga art both work. Render as anime,
-manga, or cartoon; lay scenes out into manga pages and comic PDFs.
+foot-slide-cleaned. Point it at a live pose stream and the rig puppeteers in
+real time, with smoothing, a latency readout, and a failsafe. Photos and
+anime/manga art both work. Render as anime, manga, or cartoon; lay scenes out
+into manga pages and comic PDFs.
 
 Everything runs on the user's machine: no cloud, no accounts, no uploads, no
 telemetry — and a CI test keeps that verifiably true.
 
-## Status: Phases 0–4 closed (mapping, posing, video, MCP, style/manga) — Phase 5 OPEN: live mode (P5-1 side process + P5-2 stream consumer + P5-3 smoothing/failsafe shipped)
+## Status: Phases 0–4 closed (mapping, posing, video, MCP, style/manga) · Phase 5 live mode: P5-1 + P5-2 + P5-3 shipped, gate-verified on replayed streams — the recorded live demo (P5-4) waits on a real camera
 
 | | |
 |---|---|
@@ -24,17 +26,19 @@ the add-on's apply path, regenerated headlessly by
 verify to ≤0.5° per bone before shooting). Right: the Phase-2 close — one
 labeled SYNTHETIC walk retargeted to three real rigs (Rigify | Seed-san VRM |
 Mixamo) through the documented cleanup pipeline, feet IK-locked during their
-plants; regenerated headlessly by `make walk-gifs`. Per-rig numbers and the
-honest synthetic-vs-real-clip status live in
-[docs/BENCHMARKS.md](docs/BENCHMARKS.md) — regenerate them yourself instead
-of trusting us.
+plants (lock ratios 21.7×/12.0×/21.1× per rig); regenerated headlessly by
+`make walk-gifs`. Per-rig numbers and the honest synthetic-vs-real-clip
+status live in [docs/BENCHMARKS.md](docs/BENCHMARKS.md) — regenerate them
+yourself instead of trusting us.
 
 What exists **right now** (every claim cites a test, gate, or number):
 
 - **Rig-agnostic mapping** — Rigify / Mixamo / VRM / opaque custom rigs:
   name heuristics + geometry fallback, per-role confidence, ambiguity flags.
   Real-rig gate: metarig, 706-bone generated Rigify, Seed-san VRM, and a real
-  Mixamo export all map with **0 manual corrections** (`xtask/blender_verify.sh`).
+  Mixamo export all map with **0 manual corrections**
+  ([docs/BENCHMARKS.md](docs/BENCHMARKS.md), Phase-0 real-rig gate;
+  `xtask/blender_verify.sh`).
 - **One-image posing** — DWPose detection → 2.5D canonical solve → FK apply
   on any mapped rig, applied in-process by the add-on at **≤0.5° per bone**
   (worst measured: 0.026°, `make pose-verify`), with a viewport review
@@ -49,17 +53,43 @@ What exists **right now** (every claim cites a test, gate, or number):
   onto any mapped rig (2-frame bake verified on a real rig at 0.024°/frame)
   → foot contact detection with hysteresis → IK foot lock (the labeled
   synthetic walk, retargeted to **three real rigs** through the add-on's real
-  bake: ankle drift within a plant drops **21×/12×/21×** on Rigify / VRM /
-  Mixamo rigs; walk-in-place by design — no fabricated root motion) →
+  bake: ankle drift within a plant drops **21.7×/12.0×/21.1×** on Rigify /
+  VRM / Mixamo rigs; walk-in-place by design — no fabricated root motion) →
   motion denoise: hip stabilization + 1€ jitter pass (stabilization alone
   halves the breathing-induced stance slide on the synthetic gate) →
   **FBX/glTF export with a verified round-trip** (skeleton, animation, and
-  pose fidelity re-measured after re-import at ≤2° — measured ~0.02°,
-  `make export-verify`; VRMA has no builtin exporter and is honestly scoped
-  in [docs/EXPORT.md](docs/EXPORT.md)). Honest limits: the GIFs below are the
-  LABELED SYNTHETIC walk (generator cited; a licensing-clean real clip is
-  still NEEDS-HUMAN), and the "dance + fight clips" gate is recorded
-  NOT-met-with-real-clips in [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
+  pose fidelity re-measured after re-import at ≤2° — measured worst 0.0164°
+  glTF / 0.0140° FBX, `make export-verify`; VRMA has no builtin exporter and
+  is honestly scoped in [docs/EXPORT.md](docs/EXPORT.md)). Honest limits: the
+  GIFs above are the LABELED SYNTHETIC walk (generator cited; a
+  licensing-clean real clip is still NEEDS-HUMAN), and the "dance + fight
+  clips" gate is recorded NOT-met-with-real-clips in
+  [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
+- **Live mode (Phase 5, P5-1 + P5-2 + P5-3 shipped — replay-verified)** — a
+  realtime-class pose **side process** (`rigpose live`) watches a frames
+  directory and emits one D-009 payload-v2 JSON line per frame;
+  the add-on's own apply path consumes them unchanged
+  ([docs/LIVE.md](docs/LIVE.md) is the design of record). Measured side
+  process (STATIC REPLAY, i5 CPU, [docs/BENCHMARKS.md](docs/BENCHMARKS.md)
+  LIVE block): full detect ≈ 550 ms/frame, tracked (detector every 5th)
+  ≈ 88 ms p50, pose-only ≈ 90 ms flat — the detector **cadence** is the
+  realtime lever, so the pinned DWPose models are reused with zero new
+  downloads. The **P5-2 add-on consumer** tails that stream (incremental
+  offset tail, latest-wins, miss-keeps-pose, honest staleness readout) and
+  puppeteers the rig through the same apply path — gate-verified on a
+  replayed stream at 9/9 lines ≤0.5° with apply cost p95 ≈ 2.7–3.8 ms and
+  emit→apply p50 ≈ 124–157 ms across gate runs. **P5-3 conditioning** sits
+  between the stream and the apply, core-side: 1€ smoothing on the canonical
+  pose (per role; the mirror toggle provably commutes with it; defaults are
+  documented untuned starting points), a latency readout, and a failsafe —
+  sustained stream silence clears the rig to rest and the panel says so; a
+  recovered stream re-applies, passing through the reset filter exactly.
+  Gate-verified on the same replay gate with a synthetic jitter sweep
+  (variance cut ≈ 8.5× vs the ≥4× bar, fidelity held at ≤0.5°) and
+  failsafe/rest/recovery assertions. **Every live number is labeled: measured
+  on replayed frames; the real-camera capture→apply number is pending** — the
+  Phase-5 <100 ms mid-laptop gate stays unclaimed until a real stream exists
+  (this box's capture node delivers no frames; see limitations).
 - **MCP server** — stdio JSON-RPC 2.0 with declared tool schemas and
   **progress streaming** (`notifications/progress` with
   phase/0..1/message per `mcp/DESIGN.md`); `inspect_rig`, `policy_status`,
@@ -69,10 +99,19 @@ What exists **right now** (every claim cites a test, gate, or number):
   127.0.0.1-only local sockets: `inspect_scene`, `apply_pose`, `bake_action`,
   `render_turntable` and `apply_style` execute inside the artist's Blender
   and return structured results (the six-action gate: `make session-verify`).
-- **Style system + manga maker (Phase 4 through P4-8, CLOSED)** — toon material
-  presets (anime/manga/western), GPv3 line art, screentone compositor
-  graphs, and multi-camera panel page layouts — all as DATA files with
-  deterministic builders, animated stability verified over a 360° orbit
+  Proof over promises — the scripted **agent demo** drove a real headless
+  Blender end-to-end (inspect → pose from a photo → animate → bake →
+  turntable) through that exact path:
+
+  ![Scripted agent drives a real Blender: inspect, pose, animate, bake, turntable](docs/media/agent_turntable.gif)
+
+  Transcript + collected results: [docs/AGENT_DEMO.md](docs/AGENT_DEMO.md)
+  (SYNTHETIC motion + scripted-agent honesty stated up front). Connect your
+  own agent in five minutes: [mcp/README.md](mcp/README.md).
+- **Style system + manga maker (Phase 4, CLOSED)** — toon material presets
+  (anime/manga/western), GPv3 line art, screentone compositor graphs, and
+  multi-camera panel page layouts — all as DATA files with deterministic
+  builders, animated stability verified over a 360° orbit
   (`make style-verify`). Speech bubbles are per-panel page data (generated
   geometry + typeset text — never "hand-lettered"), pages export to
   deterministic PDF/EPUB (`rigpose export-pdf` / `export-epub`, pure
@@ -83,65 +122,61 @@ What exists **right now** (every claim cites a test, gate, or number):
   6-page WORDLESS manga rendered by `bash xtask/manga_build.sh` (per-panel
   scene `frame` references over a certified bake; zero lettering — one
   deliberately empty bubble) plus the same scene in all three styles
-  side-by-side and the parse-back-verified PDF. The real-pixel halves run
-  on Blender 5.1 in CI and in the dev box alike (the D-014 bump; the honest
-  SKIPPED degradation paths remain in the gate code for older Blenders).
-- **Live mode (Phase 5, P5-1 + P5-2 shipped)** — a realtime-class pose **side
-  process** (`rigpose live`) watches a frames directory and emits one
-  D-009 payload-v2 JSON line per frame; the add-on's own apply path
-  consumes them unchanged ([docs/LIVE.md](docs/LIVE.md) is the design of
-  record). Measured on the dev box (i5 CPU, [docs/BENCHMARKS.md](docs/BENCHMARKS.md)
-  LIVE block): full detect ≈ 550 ms/frame, tracked (detector every 5th)
-  ≈ 88 ms p50, pose-only ≈ 90 ms flat — the detector **cadence** is the
-  realtime lever, so the pinned DWPose models are reused with zero new
-  downloads. The **P5-2 add-on consumer** tails that stream (incremental
-  offset tail, latest-wins, miss-keeps-pose, honest staleness readout) and
-  puppeteers the rig through the same apply path — gate-verified on a
-  replayed stream at ≤0.5° per line with apply cost p95 ≈ 3.8 ms
-  (REPLAY-labeled; the live capture→apply number stays unclaimed until a
-  camera stream exists — this box's DroidCam node delivered no frames).
-  **P5-3 conditioning** sits between the stream and the apply, core-side:
-  1€ smoothing on the canonical pose (per role, mirror-safe, defaults
-  documented as untuned starting points), a latency readout, and a
-  failsafe — sustained stream silence clears the rig to rest and the
-  panel says so; a recovered stream re-applies. Gate-verified on the same
-  replay gate with a synthetic jitter sweep (variance cut ≈ 8.5x vs the
-  P2-2 ≥4x bar, fidelity held at ≤0.5°) and failsafe/rest/recovery
-  assertions — replay/synthetic-labeled like every live number so far.
+  side-by-side and the parse-back-verified PDF:
+
+  ![One beat, three styles: manga | anime | western](docs/manga/hero_3styles.png)
+
+  The real-pixel halves run on Blender 5.1 in CI and in the dev box alike
+  (the D-014 bump; the honest SKIPPED degradation paths remain in the gate
+  code for older Blenders).
 - Content-policy module enforced in the core (SFW default; opt-in 18+ module
   with explicit confirmation; unconditional hard lines).
 
 ## Quickstart
 
-```bash
-pip install -e "core[dev]"
-python xtask/export_fixture_rigs.py           # writes 5 example rigs
-rigpose map out/fixture_rigs/mixamo.rig.json  # role mapping with confidences
-rigpose policy status                          # SFW by default, documented
-```
-
-Image → pose (downloads two pinned ONNX models on the explicit `download`
-command — the only network action the tool ever takes):
+Pose an image on a rig you already have — the CLI path:
 
 ```bash
-rigpose models download all
+pip install -e "core[inference]"      # engine + the ONNX runtime extra
+rigpose models download all           # two pinned models — the ONLY network action the tool ever takes
 rigpose pose photo.jpg my_rig.rig.json --out payload.json
-# then in Blender: the add-on's Apply Pose reads that payload in-process
 ```
 
-With a local Blender install:
+…then in Blender: install the add-on (Blender 4.2+: Get Extensions →
+Install from Disk on a zip of the `riggermortis_addon/` folder — the
+manifest targets 4.2+ and a classic `bl_info` keeps the same folder
+loadable on 4.0.x; every gate in this repo exercises the add-on headlessly
+on Blender 5.1), hit **Inspect & Map** on your armature, then **Apply
+Pose** with the payload. The viewport overlay shows confidence bands and
+one-click flip fixes.
+
+The rig JSON for your own `.blend` (uses your local Blender headlessly; the
+core library itself spawns nothing):
 
 ```bash
-bash xtask/blender_verify.sh   # end-to-end: .blend → bridge → mapping → add-on registers
-make pose-verify               # payload apply + review overlay + action bake on real rigs (needs models)
+bash xtask/extract_blend.sh my_character.blend my_rig.rig.json
+rigpose map my_rig.rig.json --strict    # role mapping with confidences
+rigpose policy status                   # SFW by default, documented
 ```
+
+With a local Blender install you can run the gates that produce every number
+on this page:
+
+```bash
+make pose-verify                # payload apply + review overlay + action bake on real rigs (needs models)
+make gate                       # lint + tests + media-guard + blender/session gates
+```
+
+Driving it from an agent instead: [mcp/README.md](mcp/README.md) is the
+five-minute connect (stdio config for Claude Desktop / Cursor, session
+bridge for a live Blender).
 
 ## Architecture
 
 | Piece | Package | Role |
 |---|---|---|
 | `core/` | `riggermortis-core` | Pure-Python engine: canonical skeleton, bone-role mapping, pose solve, FK retarget, actions, contacts, cleanup, policy. No Blender dependency, no network. |
-| `addon/` | Blender add-on | Artist UI (N-panel), viewport review, payload apply/bake. Thin — calls core. |
+| `addon/` | Blender add-on | Artist UI (N-panel), viewport review, payload apply/bake, live driver. Thin — calls core. |
 | `mcp/` | `riggermortis-mcp` | Agent tools over stdio/local socket. Thin — calls core. Structured policy refusals. |
 | `xtask/` | — | Demo scene scripting, headless media rendering, benchmarks, CI glue. |
 | `docs/` | — | Tutorials, benchmarks, policy, launch kit. |
@@ -163,7 +198,9 @@ text: [docs/POLICY.md](docs/POLICY.md).
   and hands held behind the back are known single-view ambiguities (documented
   solve limitations, not bugs).
 - Anime/line-art detection is the weakest link: 3/10 of the anime benchmark
-  images get no detection at all (DWPose trains on photoreal data). A fallback
+  images get no detection at all (median anime confidence 0.50 vs photo 0.66;
+  DWPose trains on photoreal data, and the gap is not line-art-only — a
+  soft-shaded hand-drawn illustration also goes undetected). A fallback
   estimator is planned (P1-8a) — not implemented yet.
 - The video pipeline bakes rotations, not root motion: the single-view solve
   is hip-anchored per frame, so fabricating world translation would be fake
@@ -175,9 +212,23 @@ text: [docs/POLICY.md](docs/POLICY.md).
   (`out/video_smoke/SOURCES.md`), so the Phase-2 real-clip gate is recorded
   NOT-met-with-real-clips — the GIFs demonstrate retarget + lock, not
   real-clip quality.
-- glTF-imported rigs (VRM/Mixamo) can carry synthesized bone tails that
-  disagree with the skeleton — the walk pipeline repairs them when detected;
-  add-on import normalization is a planned follow-up (D-015).
+- **Live mode is replay-proven, not camera-proven.** Every live number on
+  this page is measured on replayed frames or synthetic streams; the
+  real-camera capture→apply number, the recorded 5-minute demo (P5-4), and
+  the <100 ms mid-laptop gate all wait on a working capture device (this
+  dev box's DroidCam node has delivered zero frames across five sessions —
+  NEEDS-HUMAN). Live smoothing claims carry the same label: verified on
+  synthetic jitter, never tuned against real motion.
+- Windowed-GL rendering on the dev box is flaky (~1-in-4 completed runs) —
+  the UI screenshot is a genuine capture, but automated re-capture is
+  best-effort. The review overlay itself is verified headlessly at the
+  data/registration level; offscreen GPU draws are honestly SKIPPED in
+  background Blender rather than faked.
+- glTF-imported rigs (VRM/Mixamo) can carry synthesized bone tails ~100× the
+  true joint spacing, which breaks Blender's evaluated placement. The add-on
+  repairs them conditionally (absurd-ratio rule, D-016) on Inspect & Map and
+  on agent-driven applies — always with the count reported; sane rigs are
+  untouched.
 - Mapping assumes a humanoid-ish skeleton with roughly human proportions;
   quadrupeds are detected and flagged, not solved.
 - `.blend` reading shells out to the user's own Blender via an edge script —

@@ -297,7 +297,9 @@ driver, 9 replay frames, i5-10400F CPU-only ONNX):
   the producer's DETECTOR frames, and the first line's ≈ 2.1 s sits in the
   cold-session window — consumer tick latency degrades under concurrent
   detector load on this CPU (measured as-is, not tuned; D-008). The
-  lever stays the detector cadence (P5-1's finding);
+  lever stays the detector cadence (P5-1's finding). The S19 gate re-run
+  of this same instrument read apply p95 ≈ 2.7 ms / emit → apply
+  p50 ≈ 124 ms — run-to-run jitter is normal and is never tuned away;
 - staleness: with the producer gone, the driver flips STALE at the
   configured threshold and keeps the last pose;
 - misses: a forced all-miss stream (`--conf-floor 0.95`) yields 9 miss

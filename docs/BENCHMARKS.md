@@ -341,8 +341,10 @@ joint spacing, which broke Blender's evaluated placement (children
 ladder away from parents), the lock's 2-bone solve lengths (bake now
 uses head-to-head rest distances), and the proxy visualizer. The
 media pipeline repairs tails WHEN they disagree with the skeleton
-(deterministic; Blender-native rigs are bit-for-bit untouched) and
-add-on import normalization is a recorded follow-up (D-015).
+(deterministic; Blender-native rigs are bit-for-bit untouched);
+the ADD-ON runs the same conditional repair on Inspect & Map and
+agent applies — the D-016 absurd-ratio rule, count always
+reported, sane rigs untouched.
 
 Per-rig bake numbers (WORLD units, so rigs of different scales compare). Drift = max ankle world drift WITHIN one contact interval (a walk replants each foot per cycle — the lock pins the plant, not the stride), the RM_FOOT_LOCK measurement. The publish gate is the PUBLISHED P2-5 >=5x slide criterion (FOOTLOCK block, D-013) — scale-free, so it compares across rigs; the 0.010 m metarig-probe bar is shown for scale context only. FK worst is on the UNLOCKED application, bar 0.5 deg.
 
@@ -411,9 +413,13 @@ apply fidelity 9/9 lines at 0.0000 deg worst (bar 0.5), Blender-side
 apply cost p95 ≈ 3.8 ms, stream emit -> applied p50 ≈ 157 ms with the
 stalls landing on the producer's detector frames — measured by the gate
 (`xtask/live_verify.sh`: REAL side process + REAL headless Blender) and
-labeled REPLAY (files, not a camera). Full per-line rows, the staleness
-and miss-keeps-pose gate halves, and the honest unclaimed-live-number
-statement: docs/LIVE.md, P5-2 budget section.
+labeled REPLAY (files, not a camera). The S19 gate re-run of the same
+instrument read apply p95 ≈ 2.7 ms / emit -> apply p50 ≈ 124 ms — same
+gate, same configuration; run-to-run jitter is normal (stalls land on
+the producer's DETECTOR frames, the first line sits in the ~2 s cold
+window) and is never tuned away (D-008). Full per-line rows, the
+staleness and miss-keeps-pose gate halves, and the honest
+unclaimed-live-number statement: docs/LIVE.md, P5-2 budget section.
 
 ### Smoothing sweep + failsafe (P5-3, `make live-verify`) — REPLAY/SYNTHETIC
 
