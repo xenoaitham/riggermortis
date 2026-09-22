@@ -475,3 +475,53 @@ DISABLE-REOFF`, grep-tested, `PHASE 0 BLENDER GATE: PASS` on 5.1.0), and
 `docs/POLICY.md` § Enforcement. Local battery at close: lint clean,
 358 passed, media-guard clean, blender/export/session/pose/style/live
 gates PASS.
+
+### Secondary motion (P6-1, session 22) — test/gate-pinned
+
+Spring-chain follow-through over canonical roles (design of record:
+`docs/SECONDARY_MOTION.md`). Direction-only v1: each link is a damped
+angular spring pulled toward a rest direction authored in its parent frame;
+constants (3.0 Hz / ζ 0.5 / 240 Hz integration target) are order-of-magnitude
+defaults declared UNTUNED per D-008 — every assertion below is behavior or
+composition, never a trajectory value.
+
+- **Spec validation (CI, `test_secondary.py`)**: unknown fields, unknown /
+  parentless anchor roles, links and freq/ζ bands, zero-length rest
+  directions — all refuse with actionable hints; `to_dict`/`from_dict`
+  round-trips exact; the shipped DATA file
+  (`presets/secondary/demo_tail.json`) validates through the same
+  `ChainSpec.from_dict`.
+- **Determinism (CI)**: two simulations of the same action are exactly
+  equal, tracks keyed in sorted-name order, fixed 8 substeps/frame at
+  30 fps; the input action is never mutated.
+- **Translation inertness (CI, pinned contract)**: a pure translation of
+  the pose moves the chain ZERO — direction-only v1 feels anchor rotation,
+  not translation (walk-in-place is rotation-dominant; positional state is
+  the declared upgrade).
+- **Follow + settle (CI + probe)**: a 30° head step makes the chain lag
+  visibly (probe: max deviation 24.84° during response, bar ≥5°) and the
+  untuned damping settles it to rest within a 1 s hold (probe residual
+  0.00°, CI bar ≤2°).
+- **Blender composition (probe, `xtask/secondary_probe.py`, 5.1.0
+  headless)**: the pose-basis relation `pb = C @ rest @ basis` proven by a
+  non-commuting test (rest@basis delta 0.000000 vs basis@rest 1.000000);
+  keyed chain directions reproduce the simulated track at 0.0000° (bar
+  0.05°) through a POSED parent chain, survive a 30°-rotated armature
+  object at 0.0000°, and re-evaluate byte-identically from the fcurves.
+- **Real-bake integration (gate, `make pose-verify` → `RM_SECONDARY`
+  lines)**: `demo_tail.json` + the SYNTHETIC walk fixture
+  (`xtask/walk_job.py`, labeled synthetic) through `core.simulate_secondary`
+  and `bake_action(secondary=…)`: chain deviation 1.81° on the walk's hip
+  motion (≥0.5° respond rail; determ=True), 4 appendage bones / 280 chain
+  keys / 1120 FK keys over 70 frames, chain directions re-evaluate at
+  0.0000° (bar 0.05°), and FK role world directions are UNCHANGED with vs
+  without the binding at 0.00000° (bar 0.001°) — the certified composition
+  (stabilize → smooth → reduce → detect → lock) is untouched; secondary
+  rides strictly after it and keys appendage bones only.
+
+No timing claims: the simulation is per-frame pure math on the frames the
+bake already walks (no process, no socket, no I/O — D-003/D-009 untouched).
+Reproduce: probe
+`blender -b --python xtask/secondary_probe.py`; gate
+`BLENDER=… RIGPOSE=… PY=… make pose-verify`; unit contract
+`pytest core/tests/test_secondary.py`.

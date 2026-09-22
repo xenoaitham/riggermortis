@@ -14,7 +14,7 @@ into manga pages and comic PDFs.
 Everything runs on the user's machine: no cloud, no accounts, no uploads, no
 telemetry — and a CI test keeps that verifiably true.
 
-## Status: Phases 0–4 closed (mapping, posing, video, MCP, style/manga) · Phase 5 live mode: P5-1 + P5-2 + P5-3 shipped, gate-verified on replayed streams — the recorded live demo (P5-4) waits on a real camera
+## Status: Phases 0–4 closed (mapping, posing, video, MCP, style/manga) · Phase 5 live mode: P5-1 + P5-2 + P5-3 shipped, gate-verified on replayed streams — the recorded live demo (P5-4) waits on a real camera · Phase 6 opened: the 18+ enforcement pair (P6-4 + P6-5) shipped — module default-OFF, two-toggle enable, test-pinned in both frontends · secondary motion (P6-1) shipped — spring-chain follow-through on appendage bones, riding after the certified composition (docs/SECONDARY_MOTION.md)
 
 | | |
 |---|---|

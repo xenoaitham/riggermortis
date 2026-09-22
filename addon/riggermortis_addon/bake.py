@@ -63,6 +63,7 @@ def bake_action(
     name: str = "rm_bake",
     frame_offset: int = 1,
     contacts: Any = None,  # riggermortis ContactReport (P2-5 foot lock)
+    secondary: Any = None,  # list of (SecondaryTrack, [bone names]) (P6-1)
 ) -> dict[str, Any]:
     """Bake ``frames`` (ActionFrame list) onto ``obj`` as a new keyframed action.
 
@@ -71,6 +72,15 @@ def bake_action(
     at the source video's frame rate for true timing. ``contacts`` (optional
     ContactReport) pins each planted foot's world pose across its contact
     intervals — see the module docstring.
+
+    ``secondary`` (optional, P6-1): list of ``(track, bone_names)`` pairs
+    where each ``track`` is a ``core.secondary.SecondaryTrack`` (spring-chain
+    simulation output, docs/SECONDARY_MOTION.md) and ``bone_names`` lists the
+    rig's appendage bones implementing the chain, parent-first, with
+    ``bones[0]`` parented under the anchor role's mapped bone. These keys are
+    written AFTER the FK roles of the same frame — the certified composition
+    is untouched; appendage bones only. Frames absent from a track keep the
+    previous chain key (constant interpolation, like FK).
     """
     if obj.type != "ARMATURE":
         raise ValueError(f"{obj.name!r} is not an armature")
@@ -97,6 +107,66 @@ def bake_action(
     from mathutils import Matrix, Vector
 
     _Y = Vector((0.0, 1.0, 0.0))
+
+    # P6-1: validate the secondary bindings up front (loud, actionable).
+    # Chain bones are appendage bones ONLY — double-keying a role bone would
+    # let the chain overwrite the certified FK keys.
+    sec_bindings: list[tuple[str, dict[int, Any], list[str]]] = []
+    sec_report: dict[str, dict[str, int]] = {}
+    if secondary is not None:
+        mapped_bones = {a.bone for a in mapping.assignments.values()}
+        for track, bones in secondary:
+            bones = list(bones)
+            if not track.directions:
+                raise ValueError(
+                    f"secondary chain {track.name!r}: the track has no "
+                    "frames (hint: the simulation never started — check the "
+                    "action's anchor role coverage)"
+                )
+            if len(bones) != len(track.directions[0]):
+                raise ValueError(
+                    f"secondary chain {track.name!r}: {len(bones)} bone(s) "
+                    f"for {len(track.directions[0])} link(s) (hint: the "
+                    "binding must list exactly one bone per chain link)"
+                )
+            missing = [b for b in bones if b not in obj.pose.bones]
+            if missing:
+                raise ValueError(
+                    f"secondary chain {track.name!r}: bones not on this "
+                    f"armature: {', '.join(missing)}"
+                )
+            overlap = sorted(set(bones) & mapped_bones)
+            if overlap:
+                raise ValueError(
+                    f"secondary chain {track.name!r}: bones are role-mapped "
+                    f"(FK owns them): {', '.join(overlap)} (hint: chains key "
+                    "appendage bones only, never canonical roles)"
+                )
+            anchor_assignment = mapping.assignments.get(track.anchor_role)
+            if anchor_assignment is None:
+                raise ValueError(
+                    f"secondary chain {track.name!r}: anchor role "
+                    f"{track.anchor_role!r} is not mapped on this rig"
+                )
+            first = obj.pose.bones[bones[0]]
+            if first.parent is None or first.parent.name != anchor_assignment.bone:
+                raise ValueError(
+                    f"secondary chain {track.name!r}: bone {bones[0]!r} must "
+                    f"be parented under {anchor_assignment.bone!r} (the "
+                    f"{track.anchor_role} anchor) — the composition walks the "
+                    "rig's own hierarchy"
+                )
+            for i, b in enumerate(bones[1:], start=1):
+                pb = obj.pose.bones[b]
+                if pb.parent is None or pb.parent.name != bones[i - 1]:
+                    raise ValueError(
+                        f"secondary chain {track.name!r}: bone {b!r} must be "
+                        f"parented to {bones[i - 1]!r} (bindings are "
+                        "parent-first along the chain)"
+                    )
+            by_frame = dict(zip(track.frames, track.directions, strict=True))
+            sec_bindings.append((track.name, by_frame, bones))
+            sec_report[track.name] = {"bones": len(bones), "keys": 0}
 
     # P2-5: source frame -> locked (foot role, interval index) list. BOTH
     # feet on double-support frames — a single (foot, idx) per frame would
@@ -317,6 +387,23 @@ def bake_action(
             keys += 1
             world_t[pb.name] = final_world
 
+        # P6-1: secondary chains ride AFTER the FK roles of the same frame —
+        # the certified composition is untouched; appendage bones only.
+        for chain_name, by_frame, bones in sec_bindings:
+            dirs = by_frame.get(af.frame)
+            if dirs is None:
+                continue  # chain not started at this frame: keep prior key
+            for i, bone_name in enumerate(bones):
+                pb = obj.pose.bones[bone_name]
+                target = Vector(dirs[i])
+                if target.length < 1e-9:
+                    continue
+                w = _aligned_world(pb, _head(pb), target)
+                _key(pb, _to_basis(pb, w).to_3x3(), frame_no)
+                keys += 1
+                sec_report[chain_name]["keys"] += 1
+                world_t[bone_name] = w
+
         if pinned_any:
             locked_frames += 1
         baked.append(frame_no)
@@ -337,6 +424,12 @@ def bake_action(
             notes.append(
                 "contacts lock: no baked frame fell inside a contact interval"
             )
+    if sec_bindings:
+        notes.append(
+            "secondary motion: spring-chain tracks keyed onto appendage "
+            "bones after the FK roles (docs/SECONDARY_MOTION.md; constants "
+            "order-of-magnitude, declared untuned per D-008)"
+        )
 
     return {
         "action": action.name,
@@ -349,5 +442,6 @@ def bake_action(
         "worst_deg": worst_rad * _RAD_TO_DEG,
         "skipped": sorted(skipped),
         "mapping_source": mapping_source,
+        "secondary": {k: dict(v) for k, v in sorted(sec_report.items())},
         "notes": notes,
     }

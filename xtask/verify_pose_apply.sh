@@ -412,6 +412,158 @@ def run_foot_lock():
 
 ok &= run_foot_lock()
 
+# -- P6-1: secondary motion — spring chains through the REAL bake --------------
+def run_secondary():
+    """demo_tail.json (DATA, validated by core.ChainSpec) simulated over the
+    SYNTHETIC walk fixture job (xtask/walk_job.py — labeled synthetic) via
+    core.simulate_secondary, keyed through bake_action's secondary binding
+    onto 4 appendage bones added under the mapped hips bone. Bars: chain
+    directions re-evaluate <= 0.05 deg vs the simulated track, FK role world
+    directions are unchanged with vs without the binding (<= 0.001 deg — the
+    certified composition is untouched), the chain visibly responds to the
+    walk's hip motion (max deviation from its instantaneous rest target
+    >= 0.5 deg; the walk is a subtle synthetic — the step-response behavior
+    bar lives in the probe, 24.84 deg measured), and the
+    simulation is deterministic (two runs identical)."""
+    try:
+        from pathlib import Path
+
+        import riggermortis_addon.bake as bake
+
+        sys.path.insert(0, os.environ["RM_XTASK"])
+        import walk_job  # noqa: E402
+
+        job_dir = Path(os.environ["RM_WALK_JOB"])
+        walk_job.build_walk_job(job_dir)
+        action = core.load_action(job_dir)
+        spec = core.ChainSpec.from_dict(
+            json.loads(Path(os.environ["RM_TAIL_SPEC"]).read_text(encoding="utf-8"))
+        )
+        tracks_a, rep = core.simulate_secondary(action, [spec], fps=30.0)
+        tracks_b, _rep2 = core.simulate_secondary(action, [spec], fps=30.0)
+        determ = tracks_a == tracks_b
+        max_dev = rep.max_dev_deg["tail"]
+        sim_ok = determ and max_dev >= 0.5
+        print(
+            f"RM_SECONDARY SIM: {'PASS' if sim_ok else 'FAIL'} "
+            f"chains={len(rep.chains)} frames={rep.frames} "
+            f"substeps={rep.substeps_per_frame} max_dev={max_dev:.2f}deg "
+            f"determ={determ}"
+        )
+
+        bpy.ops.wm.open_mainfile(filepath=os.environ["RM_METARIG_BLEND"])
+        obj = first_armature()
+        mapping = pose_apply.mapping_from_props(obj, core) or core.map_rig(
+            core.RigData.from_dict(bpy_bridge.rig_data_from_armature(obj))
+        )
+        anchor_bone = mapping.assignments["hips"].bone
+
+        bpy.context.view_layer.objects.active = obj
+        obj.select_set(True)
+        bpy.ops.object.mode_set(mode="EDIT")
+        arm = obj.data
+        head = tuple(arm.edit_bones[anchor_bone].tail)
+        chain_bones = []
+        for i in range(4):
+            e = arm.edit_bones.new(f"rm_tail{i + 1}")
+            e.head = head
+            e.tail = (head[0], head[1], head[2] - 0.12)
+            if i == 0:
+                e.parent = arm.edit_bones[anchor_bone]
+            else:
+                e.parent = arm.edit_bones[chain_bones[i - 1]]
+            e.use_connect = False
+            chain_bones.append(e.name)
+            head = e.tail
+        bpy.ops.object.mode_set(mode="OBJECT")
+
+        track = tracks_a["tail"]
+
+        def read_dirs(bones):
+            bpy.context.view_layer.update()
+            out = {}
+            for b in bones:
+                pb = obj.pose.bones.get(b)
+                if pb is not None:
+                    out[b] = pb.matrix.to_3x3() @ Vector((0.0, 1.0, 0.0))
+            return out
+
+        n = len(action.frames)
+        samples = sorted(
+            {action.frames[0].frame + 1, action.frames[n // 2].frame + 1,
+             action.frames[-1].frame + 1}
+        )
+        role_bones = [a.bone for a in mapping.assignments.values()]
+
+        def clean(act_name):
+            obj.animation_data_clear()
+            act = bpy.data.actions.get(act_name)
+            if act is not None:
+                bpy.data.actions.remove(act)
+
+        rep_ctl = bake.bake_action(obj, action.frames, core, name="rm_sec_control")
+        control = {}
+        for f in samples:
+            bpy.context.scene.frame_set(f)
+            control[f] = read_dirs(role_bones)
+        clean(rep_ctl["action"])
+
+        rep_sec = bake.bake_action(
+            obj,
+            action.frames,
+            core,
+            name="rm_sec_full",
+            secondary=[(track, chain_bones)],
+        )
+        sec = rep_sec.get("secondary", {}).get("tail", {})
+        bake_ok = (
+            sec.get("bones") == 4
+            and sec.get("keys") == 4 * n
+            and len(rep_sec["baked_frames"]) == n
+        )
+        print(
+            f"RM_SECONDARY BAKE: {'PASS' if bake_ok else 'FAIL'} "
+            f"bones={sec.get('bones')} chain_keys={sec.get('keys')} "
+            f"frames={len(rep_sec['baked_frames'])} fk_keys={rep_sec['keys'] - sec.get('keys', 0)}"
+        )
+
+        worst_chain = 0.0
+        worst_fk = 0.0
+        for f in samples:
+            bpy.context.scene.frame_set(f)
+            now_chain = read_dirs(chain_bones)
+            now_roles = read_dirs(role_bones)
+            for i, b in enumerate(chain_bones):
+                src = f - 1
+                k = track.frames.index(src)
+                target = Vector(track.directions[k][i])
+                got = now_chain.get(b)
+                if got is not None:
+                    worst_chain = max(worst_chain, math.degrees(got.angle(target)))
+            for role_bone, v0 in control[f].items():
+                got = now_roles.get(role_bone)
+                if got is not None:
+                    worst_fk = max(worst_fk, math.degrees(got.angle(v0)))
+
+        reeval_ok = worst_chain <= 0.05
+        fkinv_ok = worst_fk <= 0.001
+        print(
+            f"RM_SECONDARY REEVAL: {'PASS' if reeval_ok else 'FAIL'} "
+            f"worst={worst_chain:.4f}deg bar<=0.05deg"
+        )
+        print(
+            f"RM_SECONDARY FKINV: {'PASS' if fkinv_ok else 'FAIL'} "
+            f"worst={worst_fk:.5f}deg bar<=0.001deg (certified composition untouched)"
+        )
+        clean(rep_sec["action"])
+        return sim_ok and bake_ok and reeval_ok and fkinv_ok
+    except Exception as exc:  # noqa: BLE001
+        print(f"RM_SECONDARY: FAIL ({exc.__class__.__name__}: {exc})")
+        return False
+
+
+ok &= run_secondary()
+
 # -- P2-8a: glTF tail normalization — garbage tails ladder posed children -----
 def run_xbot_tails():
     """On Xbot.glb (D-015: glTF-synthesized tails ~100x garbage) applying the
@@ -498,6 +650,9 @@ RM_METARIG_BLEND="$METARIG_BLEND" \
 RM_SEEDSAN_VRM="$SEEDSAN_VRM" \
 RM_XBOT_GLB="$XBOT_GLB" \
 RM_PAYLOADS="$PAYLOADS" \
+RM_XTASK="$REPO/xtask" \
+RM_WALK_JOB="$TMP/walk_job" \
+RM_TAIL_SPEC="$REPO/addon/riggermortis_addon/presets/secondary/demo_tail.json" \
   "$BLENDER" -b --python "$TMP/probe.py" 2>&1 | tee "$TMP/probe.log"
 
 grep -q "RM_POSE_APPLY METARIG: PASS" "$TMP/probe.log"
@@ -513,6 +668,10 @@ grep -q "RM_BAKE BAKE: PASS" "$TMP/probe.log"
 grep -q "RM_BAKE EVAL: PASS" "$TMP/probe.log"
 grep -q "RM_FOOT_LOCK BEFORE: " "$TMP/probe.log"
 grep -q "RM_FOOT_LOCK LOCK: PASS" "$TMP/probe.log"
+grep -q "RM_SECONDARY SIM: PASS" "$TMP/probe.log"
+grep -q "RM_SECONDARY BAKE: PASS" "$TMP/probe.log"
+grep -q "RM_SECONDARY REEVAL: PASS" "$TMP/probe.log"
+grep -q "RM_SECONDARY FKINV: PASS" "$TMP/probe.log"
 grep -q "RM_TAILS XBOT: PASS" "$TMP/probe.log"
 grep -q "RM_TAILS METARIG_NOOP: PASS" "$TMP/probe.log"
 grep -q "RM_OVERLAY HANDLER: PASS" "$TMP/probe.log"

@@ -12,28 +12,29 @@
      (README live bullet, docs/LAUNCH.md, docs/TUTORIALS.md VTuber track)
      then get their first REAL number — update all of them in the same
      session, they are written to make that swap easy.
-   - **Silent again (8th session)** → **P6-1 opener: secondary motion
-     (spring chains), design-first** — write the design page BEFORE code
-     (the LIVE.md/STYLE.md pattern: mechanism, data model, where it hooks
-     into the certified composition, what is honestly out of scope), probe
-     the Blender-side unknowns, then build core-side. P6-3 packaging stays
+   - **Silent again (9th session)** → **P6-6 opener: style-LoRA trainer
+     docs** (honest GPU cost numbers, never a dependency of anything, NO
+     training in CI, sober POLICY.md voice — docs-only, nothing in the repo
+     trains anything), then the **P6-2 opener (motion-library retarget:
+     Mixamo/BVH/FBX → any mapped rig)** with the S22 pattern: DESIGN page
+     first, probe the import paths headlessly, honest scope note on what
+     lands in-repo vs stays a documented recipe. P6-3 packaging stays
      blocked until LO answers the licensing questions below (a POLICY call
-     only LO can make — the question list IS the S21 scope probe; do not
-     package). P6-6 (style-LoRA trainer docs) is a small honest-docs task
-     if a lighter session is needed.
+     only LO can make — do not package).
 
-2. **Then read, in order**: STATE/TASKS.md, STATE/PROGRESS.md (S21 entries),
-   STATE/DECISIONS.md (D-019 is new; D-018 stays RESERVED for the live
-   duplicate-contract amendment), STATE/CONVENTIONS.md, STATE/SESSIONS.md,
-   docs/LIVE.md, docs/BENCHMARKS.md, docs/POLICY.md (now carries the
-   as-built § Enforcement). Register as **Session 22**, claim tasks with
-   [S22], PROGRESS stamps via `date -u` ONLY.
+2. **Then read, in order**: STATE/TASKS.md, STATE/PROGRESS.md (S22
+   entries), STATE/DECISIONS.md (D-019 executed; D-018 stays RESERVED for
+   the live duplicate-contract amendment), STATE/CONVENTIONS.md,
+   STATE/SESSIONS.md, docs/LIVE.md, docs/BENCHMARKS.md, docs/POLICY.md,
+   docs/SECONDARY_MOTION.md (NEW — P6-1's design of record). Register as
+   **Session 23**, claim tasks with [S23], PROGRESS stamps via `date -u`
+   ONLY.
 
 3. **Baseline**: `cd core && /home/potato/miniconda3/bin/python3 -m pytest
-   tests` (**358 expected** — S21 added 9) + `make lint
+   tests` (**379 expected** — S22 added 21) + `make lint
    PY=/home/potato/miniconda3/bin/python3`, and verify the latest main CI
-   run green (`gh run list --branch main`). If red: download the log,
-   root-cause, fix the real substance FIRST.
+   run green (`gh run list --branch main`; S22's push is the newest run).
+   If red: download the log, root-cause, fix the real substance FIRST.
 
 Watch out for:
 

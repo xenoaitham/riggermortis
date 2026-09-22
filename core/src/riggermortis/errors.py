@@ -38,6 +38,10 @@ class PolicyError(RiggermortisError):
     """A content-policy configuration attempt was invalid."""
 
 
+class SecondaryError(RiggermortisError):
+    """A secondary-motion chain spec or simulation input is invalid."""
+
+
 class BridgeError(RiggermortisError):
     """The Blender headless bridge failed (missing binary, bad script output)."""
 

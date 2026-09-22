@@ -82,6 +82,13 @@ from .review import (
     review_items,
     skeleton_segments,
 )
+from .secondary import (
+    ChainSpec,
+    SecondaryError,
+    SecondaryReport,
+    SecondaryTrack,
+    simulate_secondary,
+)
 from .types import BoneData, RigData
 
 __version__ = "0.0.1"
@@ -104,6 +111,11 @@ __all__ = [
     "RigData",
     "RigMapping",
     "RoleAssignment",
+    "SecondaryError",
+    "SecondaryReport",
+    "SecondaryTrack",
+    "ChainSpec",
+    "simulate_secondary",
     "SlideReport",
     "DEFAULT_CONF_FLOOR",
     "DEFAULT_DETECT_EVERY",

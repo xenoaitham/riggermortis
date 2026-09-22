@@ -1,0 +1,9 @@
+{
+  "format": 1,
+  "name": "tail",
+  "anchor_role": "hips",
+  "links": 4,
+  "rest_direction": [0.0, -0.35, -1.0],
+  "freq_hz": 3.0,
+  "damping_ratio": 0.5
+}
