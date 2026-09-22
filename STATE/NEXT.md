@@ -6,142 +6,114 @@
 
    - **Frames land** → flip to **P5-4** (the recorded live demo + the TRUE
      capture→apply measurement; claim or retire the <100 ms mid-laptop gate
-     honestly). The failsafe/duplicate-floor revisit trigger in LIVE.md
-     becomes live-relevant (a D-018-class amendment, deliberately — the
-     number is reserved for exactly that). The launch copy's live halves
-     (README live bullet, docs/LAUNCH.md, docs/TUTORIALS.md VTuber track)
-     then get their first REAL number — update all of them in the same
-     session, they are written to make that swap easy.
-   - **Silent again (9th session)** → **P6-6 opener: style-LoRA trainer
-     docs** (honest GPU cost numbers, never a dependency of anything, NO
-     training in CI, sober POLICY.md voice — docs-only, nothing in the repo
-     trains anything), then the **P6-2 opener (motion-library retarget:
-     Mixamo/BVH/FBX → any mapped rig)** with the S22 pattern: DESIGN page
-     first, probe the import paths headlessly, honest scope note on what
-     lands in-repo vs stays a documented recipe. P6-3 packaging stays
-     blocked until LO answers the licensing questions below (a POLICY call
-     only LO can make — do not package).
+     honestly; update the three live-number surfaces in the same session;
+     the D-018 failsafe/duplicate-floor revisit trigger becomes live-relevant).
+   - **Silent again (11th session)** → **finish P6-2** (the work S23 set up):
+     the Blender-side bridge sampler, the fixtures, and the RM_MOTION gate
+     section. Details in the work order below. P6-3 packaging stays blocked
+     until LO answers the licensing questions (a POLICY call only LO makes).
 
-2. **Then read, in order**: STATE/TASKS.md, STATE/PROGRESS.md (S22
-   entries), STATE/DECISIONS.md (D-019 executed; D-018 stays RESERVED for
-   the live duplicate-contract amendment), STATE/CONVENTIONS.md,
-   STATE/SESSIONS.md, docs/LIVE.md, docs/BENCHMARKS.md, docs/POLICY.md,
-   docs/SECONDARY_MOTION.md (NEW — P6-1's design of record). Register as
-   **Session 23**, claim tasks with [S23], PROGRESS stamps via `date -u`
-   ONLY.
+2. **Then read, in order**: STATE/TASKS.md (the P6-2 PARTIAL entry carries
+   the full S23 state), STATE/PROGRESS.md (S23 entries), STATE/DECISIONS.md
+   (D-019 executed; D-018 stays RESERVED), STATE/CONVENTIONS.md,
+   STATE/SESSIONS.md, docs/MOTION_LIBRARY.md (P6-2's design of record —
+   the as-built probe section IS the S24 recipe), docs/SECONDARY_MOTION.md,
+   docs/LIVE.md, docs/BENCHMARKS.md, docs/POLICY.md, docs/STYLE_LORA.md
+   (NEW — P6-6, docs-only). Register as **Session 24**, claim tasks with
+   [S24], PROGRESS stamps via `date -u` ONLY (S23 had to correct one
+   in-line estimated stamp — read the clock before every append).
 
 3. **Baseline**: `cd core && /home/potato/miniconda3/bin/python3 -m pytest
-   tests` (**379 expected** — S22 added 21) + `make lint
+   tests` (**406 expected** — S23 added 27) + `make lint
    PY=/home/potato/miniconda3/bin/python3`, and verify the latest main CI
-   run green (`gh run list --branch main`; S22's push is the newest run).
+   run green (`gh run list --branch main`; S23's push is the newest run).
    If red: download the log, root-cause, fix the real substance FIRST.
+
+## P6-2 completion (S24's rock, unless the camera flips the fork)
+
+What exists after S23 (all probe-proven, see docs/MOTION_LIBRARY.md
+§ Probe answers): the core converter (`motion.py`: clip JSON →
+`CanonicalAction`), 27 CI tests, and the probe `xtask/motion_probe.py`
+whose code IS the recipe. What S24 builds:
+
+1. **The bridge sampler** (shell glue per D-009 — spawn never lives in a
+   .py): import a clip file with the BUILTIN importers (the probe's
+   `import_path`: BVH needs `axis_forward='Y', axis_up='Z'` — MEASURED),
+   map the source skeleton via the existing mapper/`import_and_extract.py`
+   machinery, then per frame: `frame_set` → `view_layer.update()` → sample
+   mapped-role `pb.matrix.to_translation()` heads → write the format-1 clip
+   JSON (`fps`, `scale_ref` = the source REST torso span, role-keyed
+   positions in source meters). Extend `import_and_extract.py` or add
+   `xtask/sample_clip.py` — your call, follow the existing script shapes.
+2. **Fixture generation** (CI-safe, zero downloads): headless export of
+   synthetic BVH/FBX clips (the probe's `build_humanoid` + `key_step_action`
+   + the exporters; BVH export has NO axis params — files are Blender-world
+   already). Commit nothing binary; generate at gate time into out/.
+3. **The RM_MOTION gate section** (in `verify_pose_apply.sh`, grep-tested
+   BOTH the PASS and SKIPPED lines like every RM_ section): fixture →
+   import → sample → `action_from_clip` → certified composition →
+   `bake_action` on the metarig → re-eval from fcurves vs the source clip
+   (the 0.5° FK-family bar) + foot_slide before/after on a deliberately
+   sliding walk (the lock's ≥5x family). Sections must print exactly their
+   own shape — S22's rule: no combined PASS line unless that IS the shape.
+4. **The REAL-Motion row**: the local `out/real_rigs/Xbot.glb` carries
+   SEVEN real Mixamo clips (walk/run/idle/agree/headShake/sad_pose/
+   sneak_pose — 670 fcurves each, probe-measured). Gate on `walk`:
+   import → sample → convert → lock → report the slide numbers in
+   docs/BENCHMARKS.md (new MOTION block, test/gate-cited). SKIPPED
+   honestly when the glb is absent (CI has no models/assets).
+
+Then: TASKS tick with the full done entry, BENCHMARKS block, README status
+line gains the P6-2 clause (no live-number surfaces touched), SESSIONS row,
+SESSION25_PROMPT.md.
 
 Watch out for:
 
-- **S21 policy facts (new)**: the add-on policy binding
-  (`addon/riggermortis_addon/policy.py`) is bpy-free AT IMPORT by design —
-  the core tests mount the package with a `__path__` shim
-  (`conftest.addon_policy_module`) WITHOUT executing the bpy-importing
-  `__init__`; keep new add-on modules bpy-free at import if they are to be
-  unit-tested the same way. The enable path is the two Blender preference
-  toggles ONLY, routed through `enable_adult_module(confirm=True)` /
-  `disable_adult_module()`; the MCP server has NO enable tool (D-019,
-  test-pinned — do not add one without a new deliberate decision).
-  `bpy.context.preferences.addons.new()` takes NO arguments on 5.1; the
-  real user path is `addon_utils.enable(...)` (what blender_verify 5/5
-  exercises). Refusal codes are verbatim in the add-on report line
-  (`refused [<code>] …`); `policy.py`-named modules exist in BOTH core and
-  addon — imports are package-qualified, never bare.
-- **S20 launch-surface facts (standing)**: docs/LAUNCH.md and
-  docs/TUTORIALS.md are claim-bearing surfaces — when a number changes,
-  grep BOTH plus the README (three places carry the live numbers). The 60s
-  script in LAUNCH.md is P7-6's shot list — cut-only-from-existing-footage.
-  TUTORIALS commands were verified against cli.py + the registered add-on
-  operators; re-verify if the CLI or panel changes (S21 ADDED an operator +
-  panel section — `rm.policy_check` / "Content policy" — none of the
-  tutorial command sequences touch it, but keep the rule in mind).
-- **P5-3 facts (do not reintroduce)**: smoothing is CORE-side
-  (`live.LivePoseSmoother`) on the CANONICAL POSE per role per axis — the
-  driver path is payload → `CanonicalPose.from_dict` → filter (STREAM
-  space) → mirror → `pose_apply.apply_pose_object`; smoothing OFF is
-  `pose_apply.apply_payload` byte-identical P5-2. Mirror order is PROVEN
-  (odd-symmetric filter commutes; smooth-first for state stability).
-  Timestamps are the envelope's `t_emit_wall`; gaps mean no update, long
-  gaps open the filter. Defaults min_cutoff 1.0 Hz / beta 0.05 are
-  DECLARED untuned (D-008) — never tune them against the gate fixture.
-- **P5-3 failsafe contract**: stale_after keeps the last pose; SUSTAINED
-  silence past failsafe_after (default 10 s, > stale_after validated)
-  fires a ONE-TICK edge in `LiveConsumer` (re-armed by any new event) →
-  driver clears to REST via `pose_apply.clear_pose`, resets the smoother
-  (first recovery pose passes through EXACTLY), panel says FAILSAFE.
-  Known limit (documented LIVE.md): producer RESTART with fresh seq space
-  is suppressed by the P5-2 duplicate floor — remedy Stop/Start. Revisit
-  only via a deliberate D-018-class amendment, never silently.
-- **The gate's sweep instrument**: run A is the UNsmoothed control;
-  J1/J2 gate-fed from run A's first REAL payload line; the variance bar is
-  the P2-2 ≥4x instrument REUSED verbatim; constant-channel stillness is
-  an epsilon (1e-20) assertion, NOT ==0.0. After ANY gate print change,
-  grep-test BOTH the PASS and SKIPPED lines before pushing.
-- **P5-2 facts (load-bearing)**: `LiveTail` (offset tail, torn-line safe,
-  restart-safe via size-shrink AND newline-boundary) + `LiveConsumer`
-  (latest-wins; batch ENDING in a miss applies nothing; envelope-seq
-  duplicates never re-applied; stale = no new line past stale_after,
-  default 2.0 s). Blender side is a THIN adapter; the pump never raises.
-- **The replay budget definition**: published replay end-to-end is
-  EMIT → APPLY — apply p95 ≈ 2.7–3.8 ms, emit→apply p50 ≈ 124–157 ms
-  across gate runs (S18/S19/S21; jitter normal — stalls land on the
-  producer's DETECTOR frames, first line in the ~2 s cold window, never
-  tuned away). On replayed files `age_ms` is the frame file's MTIME AGE —
-  printed, never summed in. The <100 ms mid-laptop gate stays UNCLAIMED
-  until a real stream; never relabel replay numbers live.
-- **P5-1 facts (load-bearing)**: the detector CADENCE is the realtime
-  lever — input downscale is a dead knob; the FIRST stream line carries
-  the ~2 s cold load; `Figure.score` is 0.0 on tracked figures; the
-  quality signal is mean body confidence (17 COCO kps, floor 0.3);
-  kind=miss lines are NORMAL; envelope timing fields are MEASUREMENTS —
-  never assert their values in tests.
-- **5.1 API facts the probes keep earning**: compositor graph =
-  `scene.compositing_node_group`; GPv3 strokes = `drawing.add_strokes`,
-  closed = `cyclic`; LineArt only via ops LINEART_OBJECT + renames;
-  created objects captured by DATABLOCK DIFF; EXACTLY ONE Group Output
-  AFTER the interface socket; page backgrounds are FULL-PAGE solid images;
-  byte-identity = default-sRGB loads + Standard view transform + dither 0.
-- **PANELS INHERIT THE SCENE VIEW TRANSFORM**: stage Standard + dither 0
-  explicitly in any page-scene.
-- **Never render a VSE movie from any .py** (racy segfault, D-009); movie
-  assembly is shell-glue ffmpeg + ffprobe parse-back. Primitive_add
-  deselects (explicit select_set); T-pose arm pivots sit wide (narrow
-  BEFORE hang poses); elbow bends need a pose-relative Rodrigues axis;
-  wide panels need a 35 mm lens; pose bones default QUATERNION; a SPHERE
-  is rotationally symmetric; Bright=0.15 changes ZERO channels (use
-  Contrast). Bisect verdicts need run counts (3 runs minimum per config).
+- **S23 probe facts (do not re-learn them the hard way)**: posed head =
+  `pb.matrix.to_translation()` (pb.matrix @ head_local double-applies
+  rest); positions are the ONLY convention-free metric (BVH re-rolls and
+  reverses bone AXES while positions stay right); sample positions BEFORE
+  any rotation-mode change (forcing QUATERNION orphans euler fcurves —
+  the motion silently freezes); retarget FK-applies onto the TARGET's own
+  topology, never re-applies rotations onto the imported rig; a
+  mode-forced re-import evaluates STATIC (all frames one pose).
+- **BVH axis flags are a measured contract**: exporter has NO axis params
+  (files are Blender-world); importer defaults land a 90° rotation,
+  `-Y` lands a VERTICAL MIRROR, `Y`/`Z` is exact. Pin them in the sampler.
+- **S22 secondary facts (standing)**: pb = C @ rest @ basis is PROVEN;
+  chains key strictly AFTER FK roles; D-008 constants stay untuned; the
+  direction-only translation-inert contract is pinned.
+- **S21 policy facts (standing)**: add-on modules bpy-free AT IMPORT if
+  unit-tested via the conftest shim; no MCP enable tool (D-019).
+- **Claim-bearing surfaces**: when a number changes, grep README +
+  docs/LAUNCH.md + docs/TUTORIALS.md together. S23 changed NO live
+  numbers (the README status line gained clauses only) — verify the same
+  holds for whatever S24 lands, and put any new motion numbers ONLY in
+  docs/BENCHMARKS.md + docs/MOTION_LIBRARY.md.
+- **ui_screenshot.sh is FIXED (S23)**: it now resolves $BLENDER → the
+  5.1.0 install → PATH (it spent S16..S22 launching the BROKEN apt 4.0.2
+  — LO caught it), and `timeout --kill-after=10` prevents a hung GL
+  teardown from stalling the attempt loop. The windowed miss persists
+  (miss #10 was ON 5.1) — attempts stay best-effort, never staged.
+- **STATE timestamps are REAL**: `date -u` before every PROGRESS append.
 - **Gates' env trap**: BLENDER=/home/potato/blender-5.1.0-linux-x64/
   blender, RIGPOSE=/home/potato/miniconda3/bin/rigpose,
-  PY=/home/potato/miniconda3/bin/python3 — else they 127. The live gate
-  needs out/live_probe/smoke_frames + out/real_rigs/metarig.rig.json
-  (git-ignored) or it answers `RM_LIVE GATE: SKIPPED (...)` honestly,
-  exit 0. The style gate on 5.1 must show LINEART/TONES/PAGES/FRAMES/
-  ANIMATIC/EXPORT PASS in CI (SKIPPED there = the bump broke). The
-  blender gate now has a 5/5 policy section (RM_POLICY lines) — grep-test
-  those if you touch the policy flow.
-- **Media rules**: existing launch media (boom.gif, walk GIFs,
-  agent_turntable.gif, ui_screenshot.png, manga set) are
-  pipeline-generated — reference, never hand-edit; ANY new media ships
-  with the allowlist extension in the SAME commit + a visual check. The
-  WALKRIGS block is generator-owned (xtask/walk_docs.py + out/p28
-  manifests): edit the GENERATOR, then regenerate — never hand-edit.
+  PY=/home/potato/miniconda3/bin/python3 — else they 127 (or worse, grab
+  the broken 4.0.2).
+- **Media rules**: any new media ships with the allowlist extension in the
+  SAME commit + a visual check. The WALKRIGS block is generator-owned.
 - **Mimosa**: intercepts bash writes of ANY source-looking file — use
   Write/Edit; expect the pagedoc.py `import struct` FP at every commit;
-  S20/S21 caught heredoc/append FPs when the TEXT merely NAMES source
-  files (PROGRESS/BENCHMARKS appends) — restructure as an Edit-tool
-  append and move on.
-- **STATE timestamps are REAL**: `date -u` before every PROGRESS append.
+  heredoc/append FPs when text names source files — Edit tool + `-F`
+  commit-message files.
+- **P5-2/P5-3 facts (load-bearing)**: LiveTail/LiveConsumer semantics,
+  smoothing core-side on the canonical pose, mirror order PROVEN,
+  defaults D-008-untuned, failsafe one-tick edge, replay never relabeled
+  live, <100 ms gate UNCLAIMED until a real stream.
 
 ## P6-3 scope probe — the licensing/redistribution questions ONLY LO can answer
 
-(S21's sanctioned work-order-C output: questions, NOT packaging. Until
-these have answers, P6-3 stays blocked and the benchmark images stay
-git-ignored locals with provenance in out/benchmark/SOURCES.md.)
+(unchanged from S21/S22; packaging waits)
 
 1. **Suite license**: the repo is MIT (code). Images are NOT code — pick
    the suite's media license (CC0 / CC-BY / CC-BY-SA?) and confirm it is
@@ -170,20 +142,20 @@ git-ignored locals with provenance in out/benchmark/SOURCES.md.)
 
 Blocked / deferred (unchanged unless noted):
 
-- Live capture device — NEEDS-HUMAN (DroidCam silent in S17–S21; the phone
-  side must stream; P5-4 and the live capture→apply measurement wait on
-  it — everything buildable shipped without it).
+- Live capture device — NEEDS-HUMAN (DroidCam silent in S17–S23; the
+  phone side must stream; P5-4 and the live capture→apply measurement wait
+  on it — everything buildable shipped without it).
 - PyPI + Blender Extensions + MCP registry submissions — account-bound
   (LO); docs/PUBLISHING.md runbooks.
-- P6-3 public benchmark suite — NEEDS-HUMAN (NEW: LO's answers to the
-  question list above are the gate; packaging waits).
+- P6-3 public benchmark suite — NEEDS-HUMAN (LO's answers gate packaging).
 - P1-8a fallback estimator — parked (D-011/D-012).
 - P2-8 real walking clip — NEEDS-HUMAN (out/video_smoke/SOURCES.md).
+  NOTE: the Xbot.glb `walk` clip (S23 finding) may satisfy much of what
+  P2-8 wanted from a real clip — LO's call whether that reopens it.
 - Phase 4 — CLOSED (D-017); manga media regenerates via
   `bash xtask/manga_build.sh` (media-guard pins the 8 files).
-- P5-1..P5-3 DONE (S17/S18/S19); P5-4 (recorded demo) needs the camera.
-- Phase 6 after S21: P6-4/P6-5 DONE; P6-1 (secondary motion) and P6-2
-  (motion-library retarget) are the remaining engine rocks; P6-6 (style-
-  LoRA trainer docs) is the small honest-docs item.
-- Phase 7 after S20: P7-1/P7-2/P7-3 DONE; P7-4/P7-5 account-bound; P7-6
-  waits on a recorded-cut session (shot list exists in docs/LAUNCH.md).
+- P5-1..P5-3 DONE (S17/S18/S19); P5-4 needs the camera.
+- Phase 6: P6-1 DONE (S22); P6-4/P6-5 DONE (S21); P6-6 DONE (S23);
+  P6-2 core DONE (S23), bridge+gate S24; P6-3 blocked on LO's answers.
+- Phase 7: P7-1/P7-2/P7-3 DONE; P7-4/P7-5 account-bound; P7-6 waits on a
+  recorded-cut session.

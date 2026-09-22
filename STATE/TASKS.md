@@ -103,11 +103,38 @@ quadruped) with ≤2 manual corrections each, proven headless.
 **Gate:** benchmark table published; 18+ module proven OFF by default via tests in both frontends; policy refusals fire add-on + MCP.
 
 - [x] P6-1 [S22] Secondary motion: hair/cloth follow-through (spring chains). — DONE S22, DESIGN-FIRST exactly as the work order required: docs/SECONDARY_MOTION.md (mechanism: per-link damped angular springs toward parent-frame rest directions; direction-only v1 data model with zero dead fields; hook = strictly AFTER the certified composition; D-008 constants 3.0 Hz / ζ 0.5 / 240 Hz substep, declared untuned) → probe BEFORE build (`xtask/secondary_probe.py`: caught the pose-basis composition bug pre-code — pb = C @ rest @ basis proven by a non-commuting roll test; final: COMPOSE/REEVAL/COMPOSE-XFORM 0.0000°, FOLLOW 24.84°, SETTLE 0.00°, DETERM byte-identical) → core `secondary.py` (ChainSpec loud-validation format 1 + demo_tail.json DATA, simulate_secondary deterministic integer-substep Euler, 21 CI tests incl. the pinned translation-inertness contract and the hips→spine coincident-joint fallback) → addon `bake_action(secondary=…)` binding (appendage bones only, validated, keys ride after FK roles through the carried world_t) → gate `RM_SECONDARY` section in verify_pose_apply.sh (SIM 1.81°/determ, BAKE 4/280/1120, REEVAL 0.0000°, FKINV 0.00000°). Follow-ups declared, not shipped: track embedding in the file format, chain-binding presets, MCP session action, panel UI, live-mode integration, positional (translation-inertia) state.
-- [ ] P6-2 Motion library retarget: Mixamo/BVH/FBX → any mapped rig.
+- [ ] P6-2 [S23] Motion library retarget: Mixamo/BVH/FBX → any mapped rig.
+  - PARTIAL (S23): the opener landed — docs/MOTION_LIBRARY.md DESIGN-FIRST
+    (positions-only conversion, hips-anchored, rest-span scale, walk-in-place,
+    per-clip rest alignment, missing-role ledgers, measured flips,
+    confidence-1.0-with-provenance) → probe BEFORE build (`xtask/motion_probe.py`,
+    RM_MOTION lines, ALL PASS exit 0) → core `motion.py` (MotionClip format-1
+    loud validation + pose_from_sample + action_from_clip through the P2-3
+    constructor) + 27 CI tests (406 total) incl. the certified-composition
+    contract pinned CORE-SIDE on a sliding-walk clip (detect finds the known
+    plants, lock zeroes the slide >=5x, nothing mutates its input).
+    PROBE FINDINGS (each would have shipped a bug): posed head =
+    `pb.matrix.to_translation()` (multiplying armature-space head_local by
+    pb.matrix double-applies rest); positions are the ONLY convention-free
+    metric (BVH reconstruction reverses bone axes and re-rolls freely); BVH
+    import needs `axis_forward='Y', axis_up='Z'` on exporter-written files
+    (defaults land a 90 deg rotation, '-Y' lands a VERTICAL MIRROR); sample
+    positions BEFORE any rotation-mode change (forcing QUATERNION orphans
+    euler fcurves and freezes the motion); retarget applies onto the TARGET's
+    own topology, never re-applies rotations onto the imported rig.
+    BONUS FINDING: the local Xbot.glb carries SEVEN real Mixamo clips (walk/
+    run/idle/agree/headShake/sad_pose/sneak_pose, 670 fcurves each) — a REAL
+    animated fixture for the gate, no Adobe login.
+  - REMAINS for S24 (the probe's code is the recipe): the bridge sampler
+    (import clip -> per-frame role-position JSON, shell glue per D-009),
+    synthetic BVH/FBX fixture generation, the RM_MOTION gate section
+    (fixture -> import -> sample -> convert -> certified composition -> bake
+    on the metarig, re-eval vs source, foot_slide before/after), and the
+    Xbot.glb `walk` clip as the REAL-Motion gate row.
 - [ ] P6-3 Public benchmark suite packaging.
 - [x] P6-4 [S21] 18+ module per docs/POLICY.md (core-enforced, sober docs, no explicit content in repo). — DONE S21 (D-019): the core PolicyEngine stood since P0-10; what was missing was the add-on half — `addon/riggermortis_addon/policy.py` (bpy-free binding: the single engine always built via the default path; `sync()` derives from the two preference toggles through `enable_adult_module(confirm=True)`/`disable_adult_module()` only; `format_refusal` puts the code VERBATIM in the report line; retryable refusals alone carry the preferences hint) + wiring (RM_OT_policy_check `rm.policy_check` operator, `policy_subject` enum, panel "Content policy" readout with draw-time idempotent sync, guarded prefs sync in register()). MCP deliberately gains NO enable path (fresh SFW engine per call; D-019). docs/POLICY.md § Where-the-lines-live rewritten as-built + new § Enforcement; README policy sections state the both-frontend pinning.
 - [x] P6-5 [S21] Enforcement tests: fresh-install default OFF; refusal codes through add-on and MCP. — DONE S21: 9 new tests (358 total): `test_policy_enforcement.py` (strict `confirm is True`; no constructor shortcut; fresh-install OFF via the binding; both-toggles rule; any-toggle-off disables; verbatim codes + hint placement; enabled-gate/hard-line split; subject list == core contract) via a conftest package-shim loader (the addon `__init__` imports bpy; policy.py does not) + `test_mcp_fresh_install_default_off_and_no_enable_tool` (OFF twice, no enable/adult/confirm tool, gated subject refuses) + the network-audit default-use sweep extended over the binding (both toggle states, full check sweep — zero socket events). Blender gate extended (blender_verify.sh 5/5): the addon enabled via `addon_utils.enable` (the real checkbox path; `addons.new()` takes no args on 5.1), real AddonPreferences defaults, RM_POLICY lines (ENABLE-ADDON/FRESH-OFF/ONE-TOGGLE-STILL-OFF/ENABLE-BOTH-TOGGLES/HARD-LINES-HOLD/DISABLE-REOFF) grep-tested, PHASE 0 BLENDER GATE: PASS. Battery at close: lint clean, 358 passed, media-guard clean, blender/export/session/pose/style/live gates PASS.
-- [ ] P6-6 Optional style-LoRA trainer docs (honest GPU cost; never a dependency). No training in CI.
+- [x] P6-6 [S23] Optional style-LoRA trainer docs (honest GPU cost; never a dependency). No training in CI. — DONE S23, docs-only: docs/STYLE_LORA.md (what a LoRA is NOT in this engine — input-side reference images only, the procedural style system covers output; honest cost table SD1.5/SDXL/Flux/CPU labeled community-reported order-of-magnitude, NOT measured here; this box's CPU-only ORT reality cited as the mid-laptop baseline; the never-list: no weights beyond the two pinned DWPose models, no training code in core/addon/mcp per D-003, no CI training job, no new extra; sober licensing/policy section — inputs carry POLICY.md's lines too, the trained artifact is yours; recipe shape without untested tool versions; a Reproduce block of PROVABLE nothings — greps for torch/diffusers/peft/accelerate in pyproject, train/gpu in ci.yml, and `rigpose models list` showing the complete two-model universe, all verified against the repo at write time). README docs-table row gained the pointer. Nothing else touched: no code, no CI, STYLE.md untouched (style source of record; style behavior unchanged), no media.
 
 ## Phase 7 — Launch kit
 **Gate:** artist poses a rig <60s from README alone; developer connects MCP <5min from docs; CI regenerates all media.
