@@ -14,7 +14,7 @@ into manga pages and comic PDFs.
 Everything runs on the user's machine: no cloud, no accounts, no uploads, no
 telemetry — and a CI test keeps that verifiably true.
 
-## Status: Phases 0–4 closed (mapping, posing, video, MCP, style/manga) · Phase 5 live mode: P5-1 + P5-2 + P5-3 shipped, gate-verified on replayed streams — the recorded live demo (P5-4) waits on a real camera · Phase 6 opened: the 18+ enforcement pair (P6-4 + P6-5) shipped — module default-OFF, two-toggle enable, test-pinned in both frontends · secondary motion (P6-1) shipped — spring-chain follow-through on appendage bones, riding after the certified composition (docs/SECONDARY_MOTION.md)
+## Status: Phases 0–4 closed (mapping, posing, video, MCP, style/manga) · Phase 5 live mode: P5-1 + P5-2 + P5-3 shipped, gate-verified on replayed streams — the recorded live demo (P5-4) waits on a real camera · Phase 6 opened: the 18+ enforcement pair (P6-4 + P6-5) shipped — module default-OFF, two-toggle enable, test-pinned in both frontends · secondary motion (P6-1) shipped — spring-chain follow-through on appendage bones, riding after the certified composition (docs/SECONDARY_MOTION.md) · motion-library retarget (P6-2) opened design-first: the converter core landed (docs/MOTION_LIBRARY.md) — imported Mixamo/BVH/FBX clips become the same canonical actions the video pipeline produces, so the certified foot-slide cleanup runs unchanged; the Blender bridge + gate land next
 
 | | |
 |---|---|
@@ -180,7 +180,7 @@ bridge for a live Blender).
 | `addon/` | Blender add-on | Artist UI (N-panel), viewport review, payload apply/bake, live driver. Thin — calls core. |
 | `mcp/` | `riggermortis-mcp` | Agent tools over stdio/local socket. Thin — calls core. Structured policy refusals. |
 | `xtask/` | — | Demo scene scripting, headless media rendering, benchmarks, CI glue. |
-| `docs/` | — | Tutorials, benchmarks, policy, launch kit. |
+| `docs/` | — | Tutorials, benchmarks, policy, launch kit; optional style-LoRA recipe (docs-only, [docs/STYLE_LORA.md](docs/STYLE_LORA.md)). |
 | `STATE/` | — | Cross-session project state (tasks, decisions, progress). |
 
 ## Content policy (short version)

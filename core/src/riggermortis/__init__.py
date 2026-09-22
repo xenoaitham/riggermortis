@@ -33,6 +33,7 @@ from .contacts import (
 from .errors import (
     BridgeError,
     MappingError,
+    MotionError,
     PayloadError,
     PolicyError,
     PresetError,
@@ -66,6 +67,12 @@ from .live import (
     run_live,
 )
 from .mapper import RigMapping, RoleAssignment, map_rig
+from .motion import (
+    ClipFrame,
+    MotionClip,
+    action_from_clip,
+    pose_from_sample,
+)
 from .policy import (
     ADULT_MODULE_DISABLED,
     INVALID_REQUEST,
@@ -166,4 +173,9 @@ __all__ = [
     "skeleton_segments",
     "joint_points",
     "pick_joint",
+    "MotionClip",
+    "ClipFrame",
+    "MotionError",
+    "action_from_clip",
+    "pose_from_sample",
 ]

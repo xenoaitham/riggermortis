@@ -23,6 +23,22 @@ mkdir -p "$(dirname "$OUT")"
 LOG=$(mktemp)
 trap 'rm -f "$LOG"' EXIT
 
+# Resolve Blender the way every other gate does: $BLENDER wins, then the
+# known 5.1.0 install, then PATH. (S23 catch: bare `blender` on PATH
+# resolved to the BROKEN apt 4.0.2 — every screenshot miss since S16 ran
+# it; the "windowed GL flakiness" was at least partly this binary.)
+BLENDER_BIN=${BLENDER:-}
+if [ -z "$BLENDER_BIN" ]; then
+  for cand in "$HOME/blender-5.1.0-linux-x64/blender" "$(command -v blender || true)"; do
+    if [ -n "$cand" ] && [ -x "$cand" ]; then BLENDER_BIN=$cand; break; fi
+  done
+fi
+if [ -z "$BLENDER_BIN" ]; then
+  echo "no usable Blender found — set BLENDER=/path/to/blender" >&2
+  exit 1
+fi
+echo "using Blender: $BLENDER_BIN ($("$BLENDER_BIN" --version 2>/dev/null | head -1))"
+
 set +e
 ATTEMPT=1
 while [ "$ATTEMPT" -le 2 ]; do
@@ -31,7 +47,7 @@ while [ "$ATTEMPT" -le 2 ]; do
   RM_CORE_SRC="$REPO/core/src" \
   RM_ADDON_DIR="$REPO/addon" \
   RM_SCREENSHOT_OUT="$OUT" \
-    timeout 240 blender --python "$REPO/xtask/ui_screenshot.py" >"$LOG" 2>&1
+    timeout --kill-after=10 240 "$BLENDER_BIN" --python "$REPO/xtask/ui_screenshot.py" >"$LOG" 2>&1
   BLENDER_EXIT=$?
   grep -q "RM_UI SCREENSHOT DONE" "$LOG" && break
   ATTEMPT=$((ATTEMPT + 1))

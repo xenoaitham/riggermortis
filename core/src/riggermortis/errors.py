@@ -42,6 +42,10 @@ class SecondaryError(RiggermortisError):
     """A secondary-motion chain spec or simulation input is invalid."""
 
 
+class MotionError(RiggermortisError):
+    """A motion-library clip sample is malformed or cannot be converted."""
+
+
 class BridgeError(RiggermortisError):
     """The Blender headless bridge failed (missing binary, bad script output)."""
 
