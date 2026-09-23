@@ -20,10 +20,14 @@ chain bindings fingerprint-gated from author to bake; **P6-2a's REFACTOR
 HALF DONE (S25)** — the clip sampler loop is add-on-owned
 (`riggermortis_addon/clip_sample.py`), `xtask/sample_clip.py` is a thin
 caller, output proven BYTE-IDENTICAL at promotion. The retarget_clip
-session action (P6-2a's remains) is S26's rock. P6-3 stays BLOCKED on LO's
-answers to the licensing question list (7 questions, in STATE/NEXT.md — a
-POLICY call only LO makes; do not package). Phase 7: P7-1/P7-2/P7-3 DONE
-(S20); P7-4/P7-5 account-bound (LO); P7-6 waits on a recorded-cut session.
+session action (P6-2a's remains) is S26's rock. **P6-3 is UNBLOCKED
+(D-020, recorded post-S25): the 7 licensing questions are ANSWERED
+(CC0 suite, ControlNet + BY-SA slots replaced, in-repo distribution, the
+suite becomes the CI gate fixture, P2-8 retired as satisfied-by-Xbot) —
+packaging is buildable work order material, do package.** Phase 7:
+P7-1/P7-2/P7-3 DONE (S20); P7-4/P7-5 account-bound (LO); P7-6 waits on a
+recorded-cut session. The camera blocker is DIAGNOSED but deliberately
+PARKED LAST (see Known blockers).
 STEP 0 includes verifying the latest main run is green (gh run list / gh
 run view; if red: download the log, root-cause, fix the real substance
 FIRST, the S12..S25 discipline).
@@ -122,9 +126,14 @@ branch in addon/session.py calling `clip_sample.sample_clip(...)`
 in-process → `action_from_clip` → the certified composition →
 `bake_action` on the scene's mapped rig, metrics returned; local paths
 only per D-003; gate + session-verify rows, grep-tested both shapes;
-schema v1 stays v1). **B** (if A lands early): a second Xbot clip (run
-or sneak_pose — the glb carries SEVEN real clips) through the same REAL
-row, measured into BENCHMARKS MOTION. **C cheap wins while gates run**:
+schema v1 stays v1). **B: P6-3 packaging per D-020** (replace the 2
+ControlNet slots + the BY-SA slot with owned/CC0 art — n=10 kept,
+honest re-run note for swapped slots; SOURCES manifest; media-guard
+allowlist in the same commits; the CI detection job over the public
+suite; LO reviews the photo set for identifiable people before it
+ships). **C** (if A and B land early): a second Xbot clip (run or
+sneak_pose — the glb carries SEVEN real clips) through the same REAL
+row, measured into BENCHMARKS MOTION. **D cheap wins while gates run**:
 windowed UI screenshot attempt (best-effort; miss #12 as of S25 — never
 stage a replacement); doc cross-checks (README status vs TASKS/NEXT; the
 three claim-bearing surfaces vs BENCHMARKS, one grep sweep;
@@ -137,7 +146,7 @@ work order and the P6-3 question list for LO), STATE/TASKS.md (P6-1a DONE
 entry carries the full S25 state; P6-2a carries the refactor boundary),
 STATE/PROGRESS.md (S25 entries), STATE/DECISIONS.md (esp. D-003, D-008,
 D-009, D-015/016, D-017, D-019 — EXECUTED, don't re-litigate; D-018 is
-RESERVED), STATE/CONVENTIONS.md, STATE/SESSIONS.md,
+RESERVED; **D-020 is the P6-3 licensing answers — the packaging brief**), STATE/CONVENTIONS.md, STATE/SESSIONS.md,
 docs/MOTION_LIBRARY.md, docs/SECONDARY_MOTION.md, docs/LIVE.md,
 docs/BENCHMARKS.md, docs/POLICY.md, docs/STYLE_LORA.md, and the
 claim-bearing surfaces docs/LAUNCH.md + docs/TUTORIALS.md.
@@ -265,13 +274,17 @@ FP every time, plus the heredoc/commit-message FPs when text names
 source files.
 
 Known blockers (parked — do not burn time on them) Live capture device —
-NEEDS-HUMAN (DroidCam silent in S17..S25; re-verify at session start with
-the one command above; the phone side must stream). PyPI + Blender
-Extensions + MCP registry submissions — account-bound (LO);
-docs/PUBLISHING.md runbooks. P6-3 public benchmark suite —
-NEEDS-LO-ANSWERS (the 7-question licensing list is in STATE/NEXT.md;
-packaging waits). Windowed Blender GL stability — best-effort only; never
-fake media to compensate. P1-8a fallback estimator — parked
-(D-011/D-012). P2-8 real walking clip — NEEDS-HUMAN, but see the NEXT
-note: the Xbot.glb walk clip may satisfy much of what it wanted — LO's
-call.
+DIAGNOSED post-S25 (not a missing device: /dev/video0 exists via
+v4l2loopback_dc; the DroidCam client process was never running and no
+phone served port 4747 anywhere on 192.168.100.0/24 — box side READY,
+phone step physical). LO deliberately PARKED it as the LAST unblock:
+when he brings the phone up (WiFi mode, same network, DroidCam app open),
+run the client, re-verify with the one command above, and P5-4 becomes
+the session's work. PyPI + Blender Extensions + MCP registry
+submissions — account-bound (LO; walkthrough given post-S25);
+docs/PUBLISHING.md runbooks. P6-3 public benchmark suite — UNBLOCKED
+(D-020); packaging is work order B, not a blocker. Windowed Blender GL
+stability — best-effort only; never fake media to compensate. P1-8a
+fallback estimator — parked (D-011/D-012). P2-8 real walking clip —
+RETIRED (D-020 #7) as satisfied-by-Xbot; a real human clip stays
+welcome, never gating.

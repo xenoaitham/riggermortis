@@ -462,6 +462,45 @@ nothing had pinned:
   flow. The refusal shape every future content tool must return is
   already pinned (P3-3 `Refusal.to_dict()` mirroring).
 
+## D-020 P6-3 licensing/packaging answers — the benchmark suite is UNBLOCKED (2026-09-23, post-S25 blocker triage)
+
+The 7 questions parked in NEXT.md since S21/S22/S23, answered by LO
+(CC0 confirmed directly; the rest delegated to the session with "you
+choose the best, I trust you" — recorded here so the delegation is
+explicit and revisitable):
+
+1. **Suite media license: CC0** (code stays MIT). Everything the project
+   generates or crops is dedicated CC0; third-party items that cannot be
+   CC0-compatible are REPLACED, not licensed around (answers 2+3).
+2. **ControlNet screenshot crops (anime_4/anime_6): REPLACE.** The two
+   slots go to LO-owned or CC0-licensed art (keeping n=10); the
+   third-party-UI-screenshot rights question is killed by not shipping
+   them. The benchmark swap needs an honest re-run note for the 2 slots.
+3. **The CC BY-SA Commons illustration: REPLACE** (same treatment). One
+   BY-SA file means one special case documented forever; uniform CC0
+   across the suite wins over dataset variety.
+4. **Identifiable people: LO reviews the 10 photo-set images** at
+   packaging time (the files surfaced to him); any slot showing an
+   identifiable real person gets replaced. The policy page's real-person
+   line applies to inputs.
+5. **Distribution: IN-REPO, `docs/`-tracked.** CI can run it, one source
+   of truth, ~20 images is a few MB of clone growth; the media-guard
+   allowlist is extended in the same commits as the media (standing rule).
+6. **The PUBLIC suite becomes the CI gate fixture.** Determinism is the
+   project's brand; ~20 CPU detections per push (~17 s at the measured
+   0.85 s/image) is acceptable cost, and published benchmark numbers
+   become reproducible by anyone cloning the repo.
+7. **P2-8: RETIRED as satisfied-by-Xbot** for pipeline-verification
+   purposes — the Xbot.glb `walk` REAL row exercises the whole
+   import→sample→convert→composition→bake path and is already
+   published with its honest label (Mixamo-rooted synthetic-real hybrid
+   data, NOT human video). A real human clip remains welcome if it ever
+   appears, but it is no longer gating anything.
+
+Consequence: P6-3 packaging is buildable work (slots to replace, SOURCES
+manifest, media-guard allowlist, the CI detection job) — work order
+material for S26+, no longer a NEEDS-HUMAN blocker.
+
 ## NEEDS-HUMAN queue (updated 2026-09-16 S8)
 
 - RETIRED — anime sourcing: set complete at 10/10 (SOURCES.md; Commons CC BY-SA crop provenance).

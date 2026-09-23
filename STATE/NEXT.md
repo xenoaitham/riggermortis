@@ -37,7 +37,9 @@
 ## S26 work order (unless the camera flips the fork)
 
 P6-1a is CLOSED (schema + CLI + session wiring + gate equivalence row).
-The sampler refactor (the retarget_clip precondition) is DONE. So:
+The sampler refactor (the retarget_clip precondition) is DONE. **P6-3 is
+UNBLOCKED (D-020 — the 7 licensing questions are answered; packaging is
+buildable work).** So:
 
 1. **A — the retarget_clip session action** (task P6-2a, its REMAINS
    list): the executor branch in `addon/session.py` calling
@@ -49,15 +51,23 @@ The sampler refactor (the retarget_clip precondition) is DONE. So:
    (D-003); the action vocabulary is additive (P3-5 bridge); gate +
    session-verify rows proving it, grep-tested both shapes. Schema v1
    stays v1.
-2. **B — if A lands early**: deepen the RM_MOTION REAL row with a second
-   Xbot clip (run or sneak_pose — the glb carries SEVEN clips) through the
-   same path, measured rows into the BENCHMARKS MOTION block.
-3. **C — cheap wins while gates run**: windowed UI screenshot attempt
+2. **B — P6-3 packaging per D-020** (buildable now): replace the two
+   ControlNet crop slots + the BY-SA Commons slot (LO-owned/CC0 art,
+   n=10 kept, honest re-run note for the swapped slots), the SOURCES
+   manifest (CC0, per-file provenance), media-guard allowlist extension
+   in the SAME commits as the media, and the CI detection job over the
+   public suite (the suite IS the canonical gate fixture per D-020 #6).
+   LO reviews the 10 photo-set images for identifiable people before
+   they ship (D-020 #4 — surface the files to him).
+3. **C — if A and B land early**: deepen the RM_MOTION REAL row with a
+   second Xbot clip (run or sneak_pose — the glb carries SEVEN clips)
+   through the same path, measured rows into the BENCHMARKS MOTION block.
+4. **D — cheap wins while gates run**: windowed UI screenshot attempt
    (best-effort; miss #12 as of S25 — never stage a replacement); doc
    cross-checks (README status vs TASKS/NEXT; the three claim-bearing
    surfaces vs BENCHMARKS, one grep sweep; AGENT_DEMO.md numbers still
-   cite the P3-7 run; docs/PUBLISHING.md unchanged). Keep docs/LIVE.md and
-   docs/BENCHMARKS.md in sync with reality as you go.
+   cite the P3-7 run; docs/PUBLISHING.md unchanged). Keep docs/LIVE.md
+   and docs/BENCHMARKS.md in sync with reality as you go.
 
 Watch out for (S25's earned facts — do not re-learn them):
 
@@ -111,54 +121,43 @@ Watch out for (S25's earned facts — do not re-learn them):
   (git-diff-verified at close). Keep it that way unless a number actually
   changes, and grep all three together when it does.
 
-## P6-3 scope probe — the licensing/redistribution questions ONLY LO can answer
+## P6-3 licensing questions — ANSWERED (D-020, 2026-09-23)
 
-(unchanged from S21/S22/S23; packaging waits)
+The 7 questions parked here since S21/S22/S23 are answered — see
+**STATE/DECISIONS.md D-020** for the full recorded decisions: suite media
+**CC0**; ControlNet crops **replaced**; the BY-SA Commons illustration
+**replaced**; **LO reviews** the photo set for identifiable people at
+packaging time; distribution **in-repo docs/**; the public suite
+**becomes the CI gate fixture**; **P2-8 retired** as satisfied-by-Xbot
+(honest label kept). The answers were LO's directly (CC0) or explicitly
+delegated to the session ("you choose the best, I trust you") and are
+revisitable — they live in an append-only DECISIONS entry, not a chat
+scrollback.
 
-1. **Suite license**: the repo is MIT (code). Images are NOT code — pick
-   the suite's media license (CC0 / CC-BY / CC-BY-SA?) and confirm it is
-   compatible with every sourced item's terms.
-2. **The Apache-2.0 ControlNet screenshot crops** (anime_4/anime_6):
-   redistributing screenshots of a third-party web UI is a different
-   question from the license on the underlying repo — is LO comfortable
-   shipping them publicly, or do those two slots get replaced?
-3. **CC BY-SA items** (the Commons illustration): attribution +
-   share-alike-on-derivatives — are benchmark crops "derivatives" LO wants
-   under share-alike, and is per-image attribution in a shipped SOURCES
-   file the format he wants?
-4. **Identifiable people**: confirm no photo-set image shows an
-   identifiable real person (else model-release territory — the policy
-   page's real-person line applies to inputs too, not just outputs).
-5. **Distribution mechanics**: in-repo `docs/`-tracked, a separate release
-   artifact, or an external dataset host? (In-repo grows the clone and
-   touches the media-guard allowlist; a release artifact keeps the repo
-   light but splits the CI story.)
-6. **Does the PUBLIC suite become the canonical gate fixture** (CI runs
-   detection on 20 images per push — cost + determinism implications), or
-   do published numbers stay tied to the git-ignored local sets with the
-   public suite as a re-runnable extra?
-7. **If the P2-8 real walking clip ever lands** (NEEDS-HUMAN): does it
-   join the public suite under the same bar? NOTE (S24): the Xbot.glb
-   `walk` clip now flows the whole pipeline — whether IT reopens P2-8 is
-   LO's call (it is Mixamo-rooted synthetic-real hybrid data, not a human
-   video).
+Blocked / deferred (updated 2026-09-23 post-S25 triage):
 
-Blocked / deferred (unchanged unless noted):
-
-- Live capture device — NEEDS-HUMAN (DroidCam silent in S17–S25; the
-  phone side must stream; P5-4 and the live capture→apply measurement wait
-  on it — everything buildable shipped without it).
+- Live capture device — the LONG-STANDING blocker is now DIAGNOSED
+  (post-S25 triage): /dev/video0 exists (v4l2loopback_dc registered), the
+  DroidCam CLIENT was simply never running, and the subnet scan found no
+  phone serving 4747. Box side READY; the remaining step is physical
+  (phone on the same network + DroidCam app open, WiFi mode per LO).
+  LO deliberately PARKED this as the LAST unblock — P5-4 runs when the
+  phone comes up, not before.
 - PyPI + Blender Extensions + MCP registry submissions — account-bound
-  (LO); docs/PUBLISHING.md runbooks.
-- P6-3 public benchmark suite — NEEDS-HUMAN (LO's answers gate packaging).
+  (LO); docs/PUBLISHING.md runbooks; walkthrough given post-S25 (waiting
+  on the accounts).
+- P6-3 public benchmark suite — **UNBLOCKED (D-020)**; packaging is
+  buildable S26 work (work order B).
 - P1-8a fallback estimator — parked (D-011/D-012).
-- P2-8 real walking clip — NEEDS-HUMAN; the Xbot.glb `walk` clip (S23/S24)
-  may satisfy much of what it wanted — LO's call whether that reopens it.
+- P2-8 real walking clip — **RETIRED (D-020 #7)** as satisfied-by-Xbot
+  for pipeline-verification purposes; a real human clip stays welcome,
+  never gating.
 - Phase 4 — CLOSED (D-017); manga media regenerates via
   `bash xtask/manga_build.sh` (media-guard pins the 8 files).
-- Phase 5 — P5-1..P5-3 DONE; P5-4 needs the camera.
+- Phase 5 — P5-1..P5-3 DONE; P5-4 needs the camera (diagnosed, parked
+  last).
 - Phase 6 — P6-1 DONE (S22); P6-1a DONE (S25); P6-2 DONE (S23+S24);
   P6-2a refactor half DONE (S25), session action remains; P6-4/P6-5 DONE
-  (S21); P6-6 DONE (S23); P6-3 blocked on LO's answers.
-- Phase 7: P7-1/P7-2/P7-3 DONE; P7-4/P7-5 account-bound; P7-6 waits on a
-  recorded-cut session.
+  (S21); P6-6 DONE (S23); P6-3 UNBLOCKED (D-020).
+- Phase 7: P7-1/P7-2/P7-3 DONE; P7-4/P7-5 account-bound; P7-6 waits on
+  P5-4's live shot.
