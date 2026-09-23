@@ -32,6 +32,7 @@ media-guard:
 		exit 1; \
 	fi; \
 	for want in docs/media/boom.gif docs/media/ui_screenshot.png $(WALK_GIFS) $(AGENT_GIF) \
+		docs/media/launch_cut.mp4 \
 		docs/manga/page_01.png docs/manga/page_02.png docs/manga/page_03.png \
 		docs/manga/page_04.png docs/manga/page_05.png docs/manga/page_06.png \
 		docs/manga/hero_3styles.png docs/manga/paper_dart.pdf; do \
@@ -40,7 +41,7 @@ media-guard:
 			exit 1; \
 		fi; \
 	done; \
-	extra=$$(git ls-files docs/media/ | grep -Fxv -e docs/media/boom.gif -e docs/media/ui_screenshot.png $(patsubst %,-e %,$(WALK_GIFS)) -e $(AGENT_GIF) || true); \
+	extra=$$(git ls-files docs/media/ | grep -Fxv -e docs/media/boom.gif -e docs/media/ui_screenshot.png $(patsubst %,-e %,$(WALK_GIFS)) -e $(AGENT_GIF) -e docs/media/launch_cut.mp4 || true); \
 	if [ -n "$$extra" ]; then \
 		echo "docs/media/ contains unallowlisted file(s): $$extra — hero media is pinned to the pipeline outputs (extending the allowlist is a deliberate, documented change in the same commit as the media)" >&2; \
 		exit 1; \
@@ -86,6 +87,15 @@ session-verify:
 # (git-ignored) — not a CI target.
 agent-demo:
 	bash xtask/agent_demo.sh
+
+# P7-6 launch cut (partial): the 60s video assembled ONLY from committed
+# pipeline footage — docs/LAUNCH.md § 5 is the shot source of record. Shot 6
+# typesets the real tail of a REAL `make gate` run (cached at
+# out/launch_cut/gate_capture.log; pass --recapture-gate to re-run the
+# battery first). Local pipeline output like the manga media: CI pins the
+# committed mp4 via media-guard, it does not rebuild the cut.
+launch-cut:
+	bash xtask/launch_cut.sh
 
 # Style gate (P4-1 materials + P4-2 line art + P4-3 screentones): presets
 # -> deterministic builds; EEVEE frames when the box has a GPU context
