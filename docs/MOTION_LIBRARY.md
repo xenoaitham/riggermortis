@@ -201,10 +201,37 @@ already imported; teaching Blender to import is the user's one command, and
   extract/retarget round-trip → root-drop.
 - **CI** `core/tests/test_motion_library.py` — the core conversion contract
   (see the as-built note in § What landed in S23).
-- **Gate** `RM_MOTION` section in `xtask/verify_pose_apply.sh` — fixture
-  export → import → sample → convert → certified composition → bake on the
-  metarig, re-evaluated vs the source clip, foot_slide before/after. Lands
-  with the Blender-side bridge (S24), riding the probe's proven recipe.
+- **Gate** `RM_MOTION` section in `xtask/verify_pose_apply.sh` — DONE
+  (S24): fixtures are generated at gate time (nothing binary committed),
+  the bridge sampler runs as a real per-file spawn, and the convert →
+  certified-composition → bake-on-the-metarig → fcurve re-eval half rides
+  its own probe with every line grep-tested (the XBOT row PASS|SKIPPED,
+  both shapes verified). Numbers live in `docs/BENCHMARKS.md` MOTION.
+- **Bridge sampler** `xtask/sample_clip.py` — DONE (S24): the probe's
+  sampling loop productionized as a standalone Blender-side script (shell
+  glue spawns it, D-009):
+
+  ```bash
+  RM_CORE_SRC=core/src blender -b --python xtask/sample_clip.py -- \
+      clip.bvh out.clip.json [--action NAME] [--rig NAME] [--stride N] [--fps F]
+  ```
+
+  Builtin importers (BVH pins `axis_forward='Y', axis_up='Z'`), the REAL
+  core mapper (no name hardcoding; hips must map or it refuses with a
+  hint), per-frame `frame_set → view_layer.update() → pb.matrix.to_translation()`
+  heads in ARMATURE space, format-1 JSON with the rest-torso-span
+  `scale_ref` and the rig fingerprint carried through. A multi-action file
+  without `--action` refuses listing the actions (actionable, never a
+  silent first pick); a near-static sample is valid input but ships with a
+  loud warning + note (the frozen-motion symptom). Two independent sample
+  passes must agree byte-for-byte (DETERM, exit 1 otherwise).
+- **Fixture builder** `xtask/motion_fixture.py` — DONE (S24): the probe's
+  humanoid extended with hands + toes (19 roles → only root + shoulders
+  ledger-missing), keyed with a 49-frame SYNTHETIC sliding walk (rigid
+  ±5°-sweep stance = 0.0143 u/frame of ankle drift, below the detector's
+  documented 0.02 enter bar; 50° swing knee flexion; every transition C1).
+  Generates BVH + FBX at gate time into the gate's temp dir; nothing
+  binary is committed.
 
 ## What landed in S23 (honest split)
 
@@ -227,6 +254,71 @@ proved. As-built:
   DCC export quirks; per-engine importer flags beyond the measured BVH/FBX/
   glTF trio.
 
+## What landed in S24 (the bridge, as-built)
+
+- **In-repo, S24**: `xtask/sample_clip.py` (the bridge sampler, above),
+  `xtask/motion_fixture.py` (the synthetic fixture builder), the
+  `RM_MOTION` gate section in `xtask/verify_pose_apply.sh`, and the
+  REAL-Motion row (Xbot.glb `walk`) — measured numbers in
+  `docs/BENCHMARKS.md` MOTION: fixture lock 0.6140 u → 0.000014 u (44997×
+  vs the ≥5× bar), metarig re-eval 0.0000° on both rows, FBX vs BVH
+  canonical 0.000005 u.
+- **The sampler's measured facts (do not re-learn them the hard way)**:
+  the core mapper maps the BVH-conventional fixture names 19/19 with ZERO
+  corrections (the probe never tested this — S24 measured it); Xbot maps
+  21 canonical roles with 46 bones honestly unmapped (Mixamo fingers);
+  Xbot's `scale_ref` measures 40.4154 (cm-scale source) — the scale-free
+  contract doing exactly its job. Fixture keys are JOINT angles (each
+  basis rotates the bone about its own head in the parent-posed frame):
+  keying the shin with the thigh's angle bends the knee — the first
+  fixture draft doubled its stance drift to 0.029 u/frame and the
+  detector's enter gate (0.02, D-008-untuned) honestly refused it; rigid
+  stance (knee 0) is the correct authoring.
+- **Instrument finding**: Blender 5.1.0's bundled FBX importer CRASHES on
+  any light (`lamp.cycles.cast_shadow` is gone upstream) — fixture scenes
+  must be factory-EMPTY (`wm.read_factory_settings(use_empty=True)`, the
+  probe's wipe pattern) or the default light rides the export and the
+  re-import dies.
+- **The REAL-data finding (published, not tuned)**: the Xbot `walk` clip
+  carries root motion; hips-anchored (walk-in-place, D-008) it becomes a
+  treadmill whose stance feet glide 0.022–0.19 u/frame — above the
+  untuned enter_speed 0.02, so the detector honestly reports 0 plants and
+  the lock is a verified bit-for-bit no-op. Nothing re-tuned to force a
+  pass (D-008); the remedy is the declared coordinated positional/
+  root-motion upgrade below. In-place/slow clips plant normally (the
+  fixture row IS that shape).
+
+## Future: an MCP session action for clips (DESIGN sketch — NOT built)
+
+Declared follow-up from S23/S24; written down so the eventual build is a
+deliberate amendment, not scope creep. The tool schema stays v1 (additive
+only, per the registry pin); nothing here is implemented.
+
+- **Shape**: a new `retarget_clip` session action (enqueue_action kind, the
+  P3-5 bridge — additive to the action vocabulary, not the tool table):
+  `{action: "retarget_clip", clip: <abs path>, clip_action: "walk",
+  stride: 1, contacts: true}` → the add-on-side executor imports the file
+  IN-PROCESS (bpy ops inside Blender — no D-009 violation; D-009 bans
+  spawning FROM .py, and session actions already run inside Blender), maps
+  via the same core mapper, samples per the bridge recipe, converts with
+  `action_from_clip`, runs the certified composition, and bakes onto the
+  scene's mapped rig through `bake_action` — returning the metrics the
+  gate prints (frames, mapped roles, scale_ref, contact intervals,
+  slide before/after, re-eval worst deg).
+- **Why not yet**: the sampler's Blender-side half lives in
+  `xtask/sample_clip.py`; a session executor would either re-implement it
+  inside the add-on (a second copy of the import/sample loop — the D-016
+  lockstep problem again) or the add-on would need to import a module
+  from `xtask/` (a packaging smell — the add-on ships standalone). The
+  honest resolution is promoting the import/sample loop into
+  `riggermortis_addon/` (bpy-owning module, unit-tested via the conftest
+  shim like the rest of the add-on) with `xtask/sample_clip.py` becoming
+  a thin caller — a deliberate refactor with its own gate update, not a
+  sketched-afterthought.
+- **Policy**: clips are files on the artist's disk; the action reads local
+  paths only (loopback/local-only lines unchanged, D-003). No new
+  capability flag; progress streaming already covers long actions.
+
 ## Reproduce (as-built)
 
 ```bash
@@ -236,4 +328,12 @@ blender -b --python xtask/motion_probe.py
 
 # the unit contract (as-built; only after the probe passes)
 cd core && python3 -m pytest tests/test_motion_library.py
+
+# the end-to-end gate (S24; needs the local models + rigs like every
+# pose-verify section — RM_MOTION lines; the Xbot row SKIPS without the glb)
+BLENDER=/path/to/blender RIGPOSE=rigpose PY=python3 make pose-verify
+
+# the bridge standalone (any imported clip -> format-1 sample JSON)
+RM_CORE_SRC=core/src blender -b --python xtask/sample_clip.py -- \
+    clip.bvh out.clip.json [--action NAME] [--stride N]
 ```

@@ -525,3 +525,62 @@ Reproduce: probe
 `blender -b --python xtask/secondary_probe.py`; gate
 `BLENDER=… RIGPOSE=… PY=… make pose-verify`; unit contract
 `pytest core/tests/test_secondary.py`.
+
+### Motion library retarget (P6-2, session 24) — test/gate-pinned
+
+Imported clips (Mixamo glTF / BVH / FBX) as a SECOND animation source for
+the same canonical actions (design of record: `docs/MOTION_LIBRARY.md`;
+the S23 probe proved the Blender-side recipe, S24 productionized it). The
+converter MEASURES instead of solves: hips-anchored positions scaled by the
+source rest torso span (`scale_ref`), flips measured not guessed, confidence
+1.0 with provenance, root translation dropped (walk-in-place, D-008). The
+certified downstream (condition → detect → lock → bake) runs UNCHANGED —
+the composition never learns the action came from a clip.
+
+- **The bridge (`xtask/sample_clip.py`, shell-glue spawned, D-009)** —
+  builtin importers only (BVH pins the measured `axis_forward='Y',
+  axis_up='Z'` contract), the REAL core mapper (no name hardcoding), per
+  frame `frame_set` → `view_layer.update()` → mapped-role
+  `pb.matrix.to_translation()` heads, format-1 clip JSON. Two independent
+  sample passes per file must agree byte-for-byte (the probe's DETERM,
+  now per-file, grep-tested in the gate).
+- **Fixture row (SYNTHETIC, generated at gate time — nothing binary
+  committed; `xtask/motion_fixture.py`)**: a 49-frame sliding walk whose
+  stance legs are RIGID and sweep ±5° about the hip on the 0.84 m radius —
+  0.0143 canonical u/frame of deliberate ankle drift (below the detector's
+  documented 0.02 enter bar, so plants classify while visibly sliding;
+  thresholds NOT fitted, D-008), swing knee flexion 50°. Through the full
+  bridge: sampler maps 19/19 bones (0 unmapped), `scale_ref` 0.420000 m,
+  DETERM PASS; converter produces 49 canonical frames, 22-role ledger
+  honest (root + shoulders absent → ledgered, never guessed); detector
+  finds exactly the authored phase structure — foot.L (2–12)(25–36)(49),
+  foot.R (13–24)(37–48); the lock zeroes the slide **0.6140 u → 0.000014 u
+  (44997×; the published bar is ≥5×)**; `bake_action` on the real metarig
+  keys 49 frames / 686 keys, re-evaluates from the fcurves at **0.0000°**
+  (bar 0.5°, 14 roles × 6 spread frames, 84 checks), `lock_dev` 0.00°,
+  48 frames pinned.
+- **FBX vs BVH (the same authored walk, both formats)**: canonical
+  positions agree to **0.000005 u** (bar 0.005 u, the probe's round-trip
+  family) — the bridge is format-honest by positions.
+- **REAL-Motion row (Xbot.glb `walk`, the gated real Mixamo export — no
+  Adobe login)**: sampler maps 21 canonical roles (46 bones honestly
+  unmapped — Mixamo fingers etc.), `scale_ref` **40.4154** (the source is
+  cm-scale — exactly the case `scale_ref` exists for), DETERM PASS;
+  converter emits 24 frames; `bake_action` on the metarig re-evaluates at
+  **0.0000°** (bar 0.5°, 16 roles × 6 frames, 96 checks). **The honest
+  contact finding, published not tuned**: the detector reports 0 contact
+  intervals on this clip — it carries Mixamo ROOT MOTION, so hips-anchoring
+  (walk-in-place per D-008) turns it into a treadmill whose stance feet
+  glide 0.022–0.19 u/frame, above the D-008-UNTUNED enter_speed 0.02; the
+  lock is a bit-for-bit no-op on it (the no-op-on-clean-data contract,
+  verified). Nothing was re-tuned to force plants — the remedy is the
+  already-declared coordinated positional/root-motion upgrade
+  (`docs/MOTION_LIBRARY.md` § out of scope), the same contract change the
+  secondary-motion positional upgrade would make. In-place clips and slow
+  walks plant normally (the fixture row above IS that shape).
+- **Where**: gate `make pose-verify` → `RM_MOTION` lines (CONVERT /
+  CONTACTS / LOCK / FIXTURE BAKE / FIXTURE REEVAL / FBX / XBOT — the XBOT
+  row PASSes on the local box, SKIPPED honestly without the sample; both
+  grep shapes verified), unit contract `pytest
+  core/tests/test_motion_library.py` (27 tests incl. the certified
+  composition pin), design + recipe `docs/MOTION_LIBRARY.md`.

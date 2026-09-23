@@ -50,6 +50,34 @@ if [ ! -s "$PAYLOADS/xbot_payload.json" ] || [ "$(fmt "$PAYLOADS/xbot_payload.js
   "$RIGPOSE" pose "$IMG" "$XBOT_RIG" --out "$PAYLOADS/xbot_payload.json" > /dev/null
 fi
 
+# -- P6-2 motion library: fixture -> bridge sampler -> convert/bake gate ------
+# Synthetic sliding-walk fixtures are GENERATED at gate time (nothing binary
+# committed); the REAL-Motion row samples the local Xbot.glb `walk` when it
+# exists and SKIPS honestly otherwise.
+echo "== building motion fixtures (SYNTHETIC sliding walk, gate-time only)"
+"$BLENDER" -b --python "$REPO/xtask/motion_fixture.py" -- \
+  "$TMP/rm_walk.bvh" "$TMP/rm_walk.fbx" 2>&1 | tee "$TMP/motion_fixture.log"
+grep -q "RM_MOTIONFIX BUILD: PASS" "$TMP/motion_fixture.log"
+
+echo "== sampling fixtures + real clip through the bridge sampler"
+"$BLENDER" -b --python "$REPO/xtask/sample_clip.py" -- \
+  "$TMP/rm_walk.bvh" "$TMP/rm_walk.bvh.clip.json" --tag BVH 2>&1 | tee "$TMP/sample_BVH.log"
+grep -q "RM_MOTION SAMPLE BVH: ok=True" "$TMP/sample_BVH.log"
+grep -q "RM_MOTION DETERM BVH: PASS" "$TMP/sample_BVH.log"
+"$BLENDER" -b --python "$REPO/xtask/sample_clip.py" -- \
+  "$TMP/rm_walk.fbx" "$TMP/rm_walk.fbx.clip.json" --tag FBX 2>&1 | tee "$TMP/sample_FBX.log"
+grep -q "RM_MOTION SAMPLE FBX: ok=True" "$TMP/sample_FBX.log"
+grep -q "RM_MOTION DETERM FBX: PASS" "$TMP/sample_FBX.log"
+RM_CLIP_XBOT="$TMP/xbot_walk.clip.json"
+if [ -s "$XBOT_GLB" ]; then
+  "$BLENDER" -b --python "$REPO/xtask/sample_clip.py" -- \
+    "$XBOT_GLB" "$RM_CLIP_XBOT" --action walk --tag XBOT 2>&1 | tee "$TMP/sample_XBOT.log"
+  grep -q "RM_MOTION SAMPLE XBOT: ok=True" "$TMP/sample_XBOT.log"
+  grep -q "RM_MOTION DETERM XBOT: PASS" "$TMP/sample_XBOT.log"
+else
+  rm -f "$RM_CLIP_XBOT"
+fi
+
 cat > "$TMP/probe.py" <<'PY'
 import json
 import math
@@ -677,6 +705,241 @@ grep -q "RM_TAILS METARIG_NOOP: PASS" "$TMP/probe.log"
 grep -q "RM_OVERLAY HANDLER: PASS" "$TMP/probe.log"
 grep -qE "RM_OVERLAY OFFSCREEN: (PASS|SKIPPED)" "$TMP/probe.log"
 grep -q "RM_POSE_APPLY GATE: PASS" "$TMP/probe.log"
+
+cat > "$TMP/motion_gate.py" <<'PY'
+"""P6-2 motion-library gate: sampled clips -> certified composition -> bake.
+
+Consumes the bridge sampler's clip JSONs (fixture BVH + FBX, and the REAL
+Xbot.glb `walk` sample when it exists), converts through core
+``action_from_clip``, runs the certified composition (detect -> lock), bakes
+on the real metarig through the add-on's own ``bake_action``, and
+re-evaluates from the fcurves against the locked canonical poses. Bars:
+the >=5x slide-reduction family on the deliberately sliding fixture (the
+CI clip pins the same contract core-side), the 0.5 deg FK-family bar on
+independent fcurve re-evaluation, and FBX-vs-BVH canonical equality. The
+REAL row gates retarget fidelity and reports its contact finding HONESTLY —
+thresholds are never tuned to make real data plant (D-008).
+"""
+import json
+import math
+import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, os.environ["RM_CORE_SRC"])
+sys.path.insert(0, os.environ["RM_ADDON_DIR"])
+
+import bpy  # noqa: E402
+from mathutils import Vector  # noqa: E402
+
+import riggermortis as core  # noqa: E402
+from riggermortis_addon import bake, bpy_bridge, pose_apply  # noqa: E402
+
+SLIDE_BAR_U = 0.05  # the fixture slide must be real before the lock runs
+LOCK_FAMILY = 5  # the published >=5x slide-reduction criterion
+REEVAL_BAR_DEG = 0.5  # FK family
+ROUNDTRIP_BAR_U = 0.005  # exporter round-trip family (probe-measured 0.000000)
+SPREAD = 6  # re-evaluated frames per bake
+
+
+def first_armature():
+    for obj in bpy.context.scene.objects:
+        if obj.type == "ARMATURE":
+            return obj
+    raise RuntimeError("no armature found in scene")
+
+
+def metarig():
+    bpy.ops.wm.open_mainfile(filepath=os.environ["RM_METARIG_BLEND"])
+    obj = first_armature()
+    mapping = pose_apply.mapping_from_props(obj, core) or core.map_rig(
+        core.RigData.from_dict(bpy_bridge.rig_data_from_armature(obj))
+    )
+    return obj, mapping
+
+
+def spread_frames(frames, count=SPREAD):
+    n = len(frames)
+    idxs = sorted({round(i * (n - 1) / (count - 1)) for i in range(count)})
+    return [frames[i] for i in idxs]
+
+
+def reeval(obj, mapping, frames):
+    """Independent fcurve re-evaluation: mapped-role bone world directions vs
+    the canonical targets of the (locked) poses at spread frames."""
+    worst, checked = 0.0, 0
+    for af in spread_frames(frames):
+        bpy.context.scene.frame_set(af.frame)
+        bpy.context.view_layer.update()
+        for role, assignment in sorted(mapping.assignments.items()):
+            target = core.bone_target_direction(af.pose, role)
+            if target is None:
+                continue
+            pb = obj.pose.bones.get(assignment.bone)
+            if pb is None:
+                continue
+            d = (pb.matrix.to_3x3() @ Vector((0.0, 1.0, 0.0))).normalized()
+            checked += 1
+            worst = max(worst, math.degrees(d.angle(Vector(target).normalized())))
+    return checked, worst
+
+
+def bake_and_reeval(tag, obj, mapping, locked, report, expect_locked):
+    rep = bake.bake_action(
+        obj, locked.frames, core, name=f"rm_motion_{tag}", frame_offset=0,
+        contacts=report,
+    )
+    baked_ok = (
+        len(rep["baked_frames"]) == len(locked.frames)
+        and rep["worst_deg"] <= REEVAL_BAR_DEG
+        and (rep["locked_frames"] > 0) == expect_locked
+    )
+    print(
+        f"RM_MOTION {tag} BAKE: {'PASS' if baked_ok else 'FAIL'} "
+        f"frames={len(rep['baked_frames'])} keys={rep['keys']} "
+        f"worst={rep['worst_deg']:.4f}deg lock_dev={rep['lock_dev_deg']:.2f}deg "
+        f"locked={rep['locked_frames']} mapping={rep['mapping_source']}"
+    )
+    checked, worst = reeval(obj, mapping, locked.frames)
+    reeval_ok = worst <= REEVAL_BAR_DEG
+    print(
+        f"RM_MOTION {tag} REEVAL: {'PASS' if reeval_ok else 'FAIL'} "
+        f"checked={checked} worst={worst:.4f}deg bar<={REEVAL_BAR_DEG}deg "
+        f"frames={SPREAD}"
+    )
+    return baked_ok and reeval_ok
+
+
+ok = True
+
+# -- the SYNTHETIC sliding-walk fixture (the slide-cleaning deliverable) ------
+clip = core.MotionClip.load(Path(os.environ["RM_CLIP_BVH"]))
+action = core.action_from_clip(clip)
+idxs = [af.frame for af in action.frames]
+seen_roles = set()
+for af in action.frames:
+    seen_roles.update(af.pose.positions)
+missing_n = len(set(core.ALL_ROLES) - seen_roles)
+convert_ok = (
+    len(action.frames) == len(clip.frames)
+    and idxs == sorted(cf.frame for cf in clip.frames)
+    and missing_n > 0
+    and any("absent from the clip" in n for n in action.notes)
+)
+print(
+    f"RM_MOTION CONVERT: {'PASS' if convert_ok else 'FAIL'} "
+    f"frames={len(action.frames)} fps={clip.fps:g} scale_ref={clip.scale_ref:.6f} "
+    f"roles={len(seen_roles)} missing_roles={missing_n} (ledgered, never guessed)"
+)
+ok &= convert_ok
+
+report = core.detect_contacts(action.frames)
+left = [iv for iv in report.intervals if iv.foot == "foot.L"]
+right = [iv for iv in report.intervals if iv.foot == "foot.R"]
+contacts_ok = len(left) >= 2 and len(right) >= 2
+print(
+    f"RM_MOTION CONTACTS: {'PASS' if contacts_ok else 'FAIL'} "
+    f"left={[(iv.start, iv.end) for iv in left]} "
+    f"right={[(iv.start, iv.end) for iv in right]}"
+)
+ok &= contacts_ok
+
+slide_before = core.foot_slide(action.frames, report).total
+locked, lock_rep = core.lock_feet(action, report)
+after = lock_rep.slide_after.total
+lock_ok = (
+    slide_before > SLIDE_BAR_U
+    and after * LOCK_FAMILY <= lock_rep.slide_before.total
+)
+print(
+    f"RM_MOTION LOCK: {'PASS' if lock_ok else 'FAIL'} "
+    f"before={lock_rep.slide_before.total:.4f}u after={after:.6f}u "
+    f"bar before>{SLIDE_BAR_U}u, after*{LOCK_FAMILY}<=before "
+    f"(ratio={'inf' if after == 0 else f'{lock_rep.slide_before.total / after:.0f}x'})"
+)
+ok &= lock_ok
+
+obj, mapping = metarig()
+ok &= bake_and_reeval("FIXTURE", obj, mapping, locked, report, expect_locked=True)
+
+# -- FBX fixture: the same authored walk must convert identically -------------
+clip_f = core.MotionClip.load(Path(os.environ["RM_CLIP_FBX"]))
+action_f = core.action_from_clip(clip_f)
+worst = 0.0
+for fa, fb in zip(action.frames, action_f.frames):
+    for role in fa.pose.positions:
+        worst = max(
+            worst,
+            max(abs(fa.pose.positions[role][i] - fb.pose.positions[role][i])
+                for i in range(3)),
+        )
+fbx_ok = (
+    len(action_f.frames) == len(action.frames)
+    and worst <= ROUNDTRIP_BAR_U
+)
+print(
+    f"RM_MOTION FBX: {'PASS' if fbx_ok else 'FAIL'} "
+    f"worst={worst:.6f}u bar<={ROUNDTRIP_BAR_U}u frames={len(action_f.frames)}"
+)
+ok &= fbx_ok
+
+# -- the REAL-Motion row: Xbot.glb `walk` (SKIPPED honestly when absent) -------
+xbot_path = os.environ.get("RM_CLIP_XBOT", "")
+if not xbot_path or not os.path.isfile(xbot_path):
+    print("RM_MOTION XBOT: SKIPPED (no clip sample; set RM_CLIP_XBOT to the "
+          "sampler's output for the local Xbot.glb `walk`)")
+else:
+    xok = True
+    clip_x = core.MotionClip.load(Path(xbot_path))
+    action_x = core.action_from_clip(clip_x)
+    print(
+        f"RM_MOTION XBOT CONVERT: PASS frames={len(action_x.frames)} "
+        f"fps={clip_x.fps:g} scale_ref={clip_x.scale_ref:.4f} "
+        f"roles={len(next(iter(action_x.frames)).pose.positions)}"
+    )
+    report_x = core.detect_contacts(action_x.frames)
+    l_x = [iv for iv in report_x.intervals if iv.foot == "foot.L"]
+    r_x = [iv for iv in report_x.intervals if iv.foot == "foot.R"]
+    slide_x = core.foot_slide(action_x.frames, report_x).total
+    locked_x, lock_x = core.lock_feet(action_x, report_x)
+    unchanged = all(
+        af.pose.positions == src.pose.positions
+        for af, src in zip(locked_x.frames, action_x.frames)
+    ) if lock_x.slide_before.total == 0.0 else True
+    print(
+        f"RM_MOTION XBOT CONTACTS: intervals={len(l_x) + len(r_x)} "
+        f"(L={len(l_x)} R={len(r_x)}) slide_before={slide_x:.4f}u "
+        f"lock_noop_intact={'PASS' if unchanged else 'FAIL'} — the honest "
+        f"finding, never threshold-tuned (see docs/BENCHMARKS.md MOTION)"
+    )
+    xok &= unchanged
+    obj, mapping = metarig()
+    xok &= bake_and_reeval(
+        "XBOT", obj, mapping, locked_x, report_x, expect_locked=len(l_x) + len(r_x) > 0
+    )
+    print(f"RM_MOTION XBOT: {'PASS' if xok else 'FAIL'}")
+    ok &= xok
+
+print("RM_MOTION GATE:", "PASS" if ok else "FAIL")
+PY
+
+echo "== running motion-library gate probe (P6-2)"
+RM_CORE_SRC="$REPO/core/src" \
+RM_ADDON_DIR="$REPO/addon" \
+RM_METARIG_BLEND="$METARIG_BLEND" \
+RM_CLIP_BVH="$TMP/rm_walk.bvh.clip.json" \
+RM_CLIP_FBX="$TMP/rm_walk.fbx.clip.json" \
+RM_CLIP_XBOT="$RM_CLIP_XBOT" \
+  "$BLENDER" -b --python "$TMP/motion_gate.py" 2>&1 | tee "$TMP/motion_gate.log"
+
+grep -q "RM_MOTION CONVERT: PASS" "$TMP/motion_gate.log"
+grep -q "RM_MOTION CONTACTS: PASS" "$TMP/motion_gate.log"
+grep -q "RM_MOTION LOCK: PASS" "$TMP/motion_gate.log"
+grep -q "RM_MOTION FIXTURE BAKE: PASS" "$TMP/motion_gate.log"
+grep -q "RM_MOTION FIXTURE REEVAL: PASS" "$TMP/motion_gate.log"
+grep -q "RM_MOTION FBX: PASS" "$TMP/motion_gate.log"
+grep -qE "RM_MOTION XBOT: (PASS|SKIPPED)" "$TMP/motion_gate.log"
+grep -q "RM_MOTION GATE: PASS" "$TMP/motion_gate.log"
 
 echo ""
 echo "P1-6 BLENDER POSE-APPLY GATE: PASS"
