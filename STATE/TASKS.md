@@ -227,3 +227,19 @@ quadruped) with ≤2 manual corrections each, proven headless.
 - [ ] P7-4 Blender Extensions listing (manifest ready).
 - [ ] P7-5 PyPI publish (needs human account) + docs.
 - [ ] P7-6 60-second video cut from pipeline footage; CI media-regeneration gate. media: launch video.
+  - PARTIAL (post-S25 triage, 2026-09-23): the cut is BUILT —
+    `make launch-cut` (xtask/launch_cut.sh, shell-glue ffmpeg per D-009)
+    assembles the docs/LAUNCH.md § 5 script from committed pipeline footage
+    only: docs/media/launch_cut.mp4 (60.0s, 1280x720@30, 1800 frames,
+    ffprobe parse-back RM_LAUNCH PARSE, visual check on all 7 shots). Shot 6
+    typesets the REAL tail of a REAL `make gate` run (cached log;
+    --recapture-gate re-runs the battery); the pending-live lower-third is
+    verbatim from the script; NO live footage exists and none is pretended.
+    Media + media-guard allowlist extension in the same commit.
+  - REMAINS: the reserved 8th shot (real camera → posed rig with the
+    measured capture→apply number) splices in when P5-4 lands — a one-clip
+    edit against the existing assembly; and the deliberate decision on
+    whether CI re-runs `make launch-cut` per push (today: CI PINS the
+    committed mp4 via media-guard; the gate-capture cache makes a CI rebuild
+    expensive — llvmpipe-class cost, the D-017 precedent says pin, don't
+    re-render).
