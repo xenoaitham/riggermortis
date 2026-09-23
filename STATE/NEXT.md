@@ -1,6 +1,15 @@
 # NEXT SESSION SHOULD …
 
-1. **Camera re-verify FIRST, one command** (it decides everything):
+0. **THE PLAN OF RECORD IS STATE/ROADMAP.md** ("the Producer", Phase 8+,
+   written post-S25 at LO's direction, critic-passed 9.8/10): coupled
+   multi-character scenes, fingers, facials, the reference camera solve,
+   spine arch + roll, root motion, multi-character video → scene
+   animation, review UX + the anime estimator. Session map S26=P8-1 …
+   S35=Scene Test. The roadmap's standing constraints (additive-only
+   canonical changes via D-021, the coupling/camera honesty law, park
+   criteria, D-019 coverage) are law for every session below.
+
+1. **Camera re-verify FIRST, one command** (it decides the session shape):
 
    `timeout 12 ffmpeg -hide_banner -loglevel error -f v4l2 -video_size 640x480 -i /dev/video0 -frames:v 1 out/live_probe/cam_test.png`
 
@@ -36,38 +45,17 @@
 
 ## S26 work order (unless the camera flips the fork)
 
-P6-1a is CLOSED (schema + CLI + session wiring + gate equivalence row).
-The sampler refactor (the retarget_clip precondition) is DONE. **P6-3 is
-UNBLOCKED (D-020 — the 7 licensing questions are answered; packaging is
-buildable work).** So:
-
-1. **A — the retarget_clip session action** (task P6-2a, its REMAINS
-   list): the executor branch in `addon/session.py` calling
-   `clip_sample.sample_clip(...)` in-process (the loop is already
-   add-on-owned — no second copy, the D-016 lesson applied early), then
-   `core.action_from_clip` → the certified composition → `bake_action` on
-   the scene's mapped rig, returning the metrics the gate prints
-   (frames/roles/scale_ref/contacts/slide/reeval). Local paths only
-   (D-003); the action vocabulary is additive (P3-5 bridge); gate +
-   session-verify rows proving it, grep-tested both shapes. Schema v1
-   stays v1.
-2. **B — P6-3 packaging per D-020** (buildable now): replace the two
-   ControlNet crop slots + the BY-SA Commons slot (LO-owned/CC0 art,
-   n=10 kept, honest re-run note for the swapped slots), the SOURCES
-   manifest (CC0, per-file provenance), media-guard allowlist extension
-   in the SAME commits as the media, and the CI detection job over the
-   public suite (the suite IS the canonical gate fixture per D-020 #6).
-   LO reviews the 10 photo-set images for identifiable people before
-   they ship (D-020 #4 — surface the files to him).
-3. **C — if A and B land early**: deepen the RM_MOTION REAL row with a
-   second Xbot clip (run or sneak_pose — the glb carries SEVEN clips)
-   through the same path, measured rows into the BENCHMARKS MOTION block.
-4. **D — cheap wins while gates run**: windowed UI screenshot attempt
-   (best-effort; miss #12 as of S25 — never stage a replacement); doc
-   cross-checks (README status vs TASKS/NEXT; the three claim-bearing
-   surfaces vs BENCHMARKS, one grep sweep; AGENT_DEMO.md numbers still
-   cite the P3-7 run; docs/PUBLISHING.md unchanged). Keep docs/LIVE.md
-   and docs/BENCHMARKS.md in sync with reality as you go.
+**P8-1 CanonicalScene + the casting desk + camera v0** (the roadmap's
+S26 rock; full spec + accept bars in STATE/ROADMAP.md): design-first
+docs/SCENES.md, probe-first xtask/scene_probe.py (RM_SCENE lines), core
+scene.py + payload v3 additive (v2 back-compat byte-identical), the
+Casting Desk operator + session apply_scene, camera v0 (approximate,
+labeled, refuse-to-stage floor), gate rows grep-tested both shapes.
+Early-finish option: the P8-3 fingers data audit (what the detection
+payload actually carries of the 133 kps — measured, not assumed).
+The old S26 items (retarget_clip session action = P6-2a remains;
+P6-3 packaging) move to roadmap slack — still owed, scheduled by LO's
+priority call at each session fork.
 
 Watch out for (S25's earned facts — do not re-learn them):
 
