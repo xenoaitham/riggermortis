@@ -40,7 +40,11 @@ Notes:
 1. Account at https://extensions.blender.org (confirmed free in D-001).
 2. The add-on manifest (`addon/riggermortis_addon/blender_manifest.toml`)
    targets Blender 4.2+; the repo gate runs 4.0.2 — retest the manifest
-   against a 4.2 build before uploading (`blender --command extension build`).
+   against a 4.2+ build before uploading. RETESTED (post-S25 triage,
+   2026-09-23): builds clean on the dev box's real 5.1.0 —
+   `blender --command extension build --source-dir addon/riggermortis_addon
+   --output-dir <dir>` → `riggermortis-0.0.1.zip` (~80 KB). Rebuild right
+   before uploading so the zip carries the current tree.
 3. Upload the built extension zip, fill the listing (description from
    README, MIT license, tag: Rigging), submit for review.
 
