@@ -159,5 +159,8 @@ Blocked / deferred (updated 2026-09-23 post-S25 triage):
 - Phase 6 — P6-1 DONE (S22); P6-1a DONE (S25); P6-2 DONE (S23+S24);
   P6-2a refactor half DONE (S25), session action remains; P6-4/P6-5 DONE
   (S21); P6-6 DONE (S23); P6-3 UNBLOCKED (D-020).
-- Phase 7: P7-1/P7-2/P7-3 DONE; P7-4/P7-5 account-bound; P7-6 waits on
-  P5-4's live shot.
+- Phase 7: P7-1/P7-2/P7-3 DONE; P7-4/P7-5 account-bound; P7-6 PARTIAL —
+  the 60s cut is BUILT from existing footage (`make launch-cut`,
+  docs/media/launch_cut.mp4, TASKS entry carries the detail); what remains
+  is the reserved live-shot splice after P5-4 and the pin-vs-re-render CI
+  decision.

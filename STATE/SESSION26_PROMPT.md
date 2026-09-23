@@ -25,8 +25,13 @@ session action (P6-2a's remains) is S26's rock. **P6-3 is UNBLOCKED
 (CC0 suite, ControlNet + BY-SA slots replaced, in-repo distribution, the
 suite becomes the CI gate fixture, P2-8 retired as satisfied-by-Xbot) —
 packaging is buildable work order material, do package.** Phase 7:
-P7-1/P7-2/P7-3 DONE (S20); P7-4/P7-5 account-bound (LO); P7-6 waits on a
-recorded-cut session. The camera blocker is DIAGNOSED but deliberately
+P7-1/P7-2/P7-3 DONE (S20); P7-4/P7-5 account-bound (LO); **P7-6 PARTIAL
+(post-S25 triage): the 60s cut is BUILT — `make launch-cut` assembled
+docs/LAUNCH.md's script from committed footage only
+(docs/media/launch_cut.mp4, parse-back + visual check PASS); what remains
+is the reserved live-shot splice once P5-4 records, plus the deliberate
+pin-vs-re-render CI decision (today CI pins the mp4 via media-guard).**
+The camera blocker is DIAGNOSED but deliberately
 PARKED LAST (see Known blockers).
 STEP 0 includes verifying the latest main run is green (gh run list / gh
 run view; if red: download the log, root-cause, fix the real substance
