@@ -7,113 +7,93 @@
    - **Frames land** → flip to **P5-4** (the recorded live demo + the TRUE
      capture→apply measurement; claim or retire the <100 ms mid-laptop gate
      honestly; update the three live-number surfaces in the same session;
-     the D-018 failsafe/duplicate-floor revisit trigger becomes live-relevant).
-   - **Silent again (11th session)** → **finish P6-2** (the work S23 set up):
-     the Blender-side bridge sampler, the fixtures, and the RM_MOTION gate
-     section. Details in the work order below. P6-3 packaging stays blocked
-     until LO answers the licensing questions (a POLICY call only LO makes).
+     the D-018 failsafe/duplicate-floor revisit trigger becomes
+     live-relevant). Silent 12 straight sessions so far.
+   - **Silent again (13th)** → the work order below. P6-3 packaging stays
+     blocked until LO answers the licensing questions (a POLICY call only
+     LO makes; the 7 questions are at the bottom of this file).
 
-2. **Then read, in order**: STATE/TASKS.md (the P6-2 PARTIAL entry carries
-   the full S23 state), STATE/PROGRESS.md (S23 entries), STATE/DECISIONS.md
+2. **Then read, in order**: STATE/TASKS.md (P6-2 is DONE with the full
+   S23+S24 entry), STATE/PROGRESS.md (S24 entries), STATE/DECISIONS.md
    (D-019 executed; D-018 stays RESERVED), STATE/CONVENTIONS.md,
-   STATE/SESSIONS.md, docs/MOTION_LIBRARY.md (P6-2's design of record —
-   the as-built probe section IS the S24 recipe), docs/SECONDARY_MOTION.md,
-   docs/LIVE.md, docs/BENCHMARKS.md, docs/POLICY.md, docs/STYLE_LORA.md
-   (NEW — P6-6, docs-only). Register as **Session 24**, claim tasks with
-   [S24], PROGRESS stamps via `date -u` ONLY (S23 had to correct one
-   in-line estimated stamp — read the clock before every append).
+   STATE/SESSIONS.md, docs/MOTION_LIBRARY.md (now carries the S24
+   as-built section + the DESIGN-only retarget_clip sketch),
+   docs/SECONDARY_MOTION.md, docs/LIVE.md, docs/BENCHMARKS.md (new MOTION
+   block), docs/POLICY.md, docs/STYLE_LORA.md. Register as **Session 25**,
+   claim tasks with [S25], PROGRESS stamps via `date -u` ONLY (S24 caught
+   its own future-stamp slip within minutes — read the clock immediately
+   before every append).
 
 3. **Baseline**: `cd core && /home/potato/miniconda3/bin/python3 -m pytest
-   tests` (**406 expected** — S23 added 27) + `make lint
-   PY=/home/potato/miniconda3/bin/python3`, and verify the latest main CI
-   run green (`gh run list --branch main`; S23's push is the newest run).
-   If red: download the log, root-cause, fix the real substance FIRST.
+   tests` (**406 expected** — S24 added no tests; the motion contract is
+   S23's 27) + `make lint PY=/home/potato/miniconda3/bin/python3`, and
+   verify the latest main CI run green (`gh run list --branch main`; S24's
+   push is the newest run). If red: download the log, root-cause, fix the
+   real substance FIRST.
 
-## P6-2 completion (S24's rock, unless the camera flips the fork)
+## S25 work order (unless the camera flips the fork)
 
-What exists after S23 (all probe-proven, see docs/MOTION_LIBRARY.md
-§ Probe answers): the core converter (`motion.py`: clip JSON →
-`CanonicalAction`), 27 CI tests, and the probe `xtask/motion_probe.py`
-whose code IS the recipe. What S24 builds:
+P6-2 is CLOSED (converter core S23 + bridge/gate S24). What remains in
+Phase 6 is P6-3 (blocked on LO's answers) — so S25's rock is a declared
+follow-up, in this order:
 
-1. **The bridge sampler** (shell glue per D-009 — spawn never lives in a
-   .py): import a clip file with the BUILTIN importers (the probe's
-   `import_path`: BVH needs `axis_forward='Y', axis_up='Z'` — MEASURED),
-   map the source skeleton via the existing mapper/`import_and_extract.py`
-   machinery, then per frame: `frame_set` → `view_layer.update()` → sample
-   mapped-role `pb.matrix.to_translation()` heads → write the format-1 clip
-   JSON (`fps`, `scale_ref` = the source REST torso span, role-keyed
-   positions in source meters). Extend `import_and_extract.py` or add
-   `xtask/sample_clip.py` — your call, follow the existing script shapes.
-2. **Fixture generation** (CI-safe, zero downloads): headless export of
-   synthetic BVH/FBX clips (the probe's `build_humanoid` + `key_step_action`
-   + the exporters; BVH export has NO axis params — files are Blender-world
-   already). Commit nothing binary; generate at gate time into out/.
-3. **The RM_MOTION gate section** (in `verify_pose_apply.sh`, grep-tested
-   BOTH the PASS and SKIPPED lines like every RM_ section): fixture →
-   import → sample → `action_from_clip` → certified composition →
-   `bake_action` on the metarig → re-eval from fcurves vs the source clip
-   (the 0.5° FK-family bar) + foot_slide before/after on a deliberately
-   sliding walk (the lock's ≥5x family). Sections must print exactly their
-   own shape — S22's rule: no combined PASS line unless that IS the shape.
-4. **The REAL-Motion row**: the local `out/real_rigs/Xbot.glb` carries
-   SEVEN real Mixamo clips (walk/run/idle/agree/headShake/sad_pose/
-   sneak_pose — 670 fcurves each, probe-measured). Gate on `walk`:
-   import → sample → convert → lock → report the slide numbers in
-   docs/BENCHMARKS.md (new MOTION block, test/gate-cited). SKIPPED
-   honestly when the glb is absent (CI has no models/assets).
+1. **A — chain-binding presets** (the P6-1 follow-up, declared twice as
+   the most user-visible): extend the P0-09 per-rig preset schema so a
+   saved preset can carry `secondary` chain bindings (ChainSpec list per
+   rig, appendage bones resolved against the preset's mapping). Schema is
+   format-versioned DATA with loud validation like every preset family;
+   wire the panel/session path so a loaded preset feeds
+   `bake_action(secondary=…)` without re-authoring chains per session.
+   Design-first in docs/SECONDARY_MOTION.md (extend it, never fork it),
+   CI tests for the schema, gate extension only if the probe discipline
+   calls for one.
+2. **B — if A lands early**: the retarget_clip session action, per the
+   DESIGN sketch in docs/MOTION_LIBRARY.md — which starts with the
+   honest refactor: promote the import/sample loop from
+   `xtask/sample_clip.py` into a bpy-owning `riggermortis_addon` module
+   (conftest-shim testable) with the xtask script becoming a thin caller,
+   gate re-verified byte-identical BEFORE any new wiring. Schema stays
+   v1 additive.
+3. **C — if B also lands**: deepen the RM_MOTION REAL row with a second
+   Xbot clip (run or sneak_pose) through the same path — measured rows
+   into the BENCHMARKS MOTION block, gate line per clip.
 
-Then: TASKS tick with the full done entry, BENCHMARKS block, README status
-line gains the P6-2 clause (no live-number surfaces touched), SESSIONS row,
-SESSION25_PROMPT.md.
+Watch out for (S24's earned facts — do not re-learn them):
 
-Watch out for:
-
-- **S23 probe facts (do not re-learn them the hard way)**: posed head =
-  `pb.matrix.to_translation()` (pb.matrix @ head_local double-applies
-  rest); positions are the ONLY convention-free metric (BVH re-rolls and
-  reverses bone AXES while positions stay right); sample positions BEFORE
-  any rotation-mode change (forcing QUATERNION orphans euler fcurves —
-  the motion silently freezes); retarget FK-applies onto the TARGET's own
-  topology, never re-applies rotations onto the imported rig; a
-  mode-forced re-import evaluates STATIC (all frames one pose).
-- **BVH axis flags are a measured contract**: exporter has NO axis params
-  (files are Blender-world); importer defaults land a 90° rotation,
-  `-Y` lands a VERTICAL MIRROR, `Y`/`Z` is exact. Pin them in the sampler.
-- **S22 secondary facts (standing)**: pb = C @ rest @ basis is PROVEN;
-  chains key strictly AFTER FK roles; D-008 constants stay untuned; the
-  direction-only translation-inert contract is pinned.
-- **S21 policy facts (standing)**: add-on modules bpy-free AT IMPORT if
-  unit-tested via the conftest shim; no MCP enable tool (D-019).
-- **Claim-bearing surfaces**: when a number changes, grep README +
-  docs/LAUNCH.md + docs/TUTORIALS.md together. S23 changed NO live
-  numbers (the README status line gained clauses only) — verify the same
-  holds for whatever S24 lands, and put any new motion numbers ONLY in
-  docs/BENCHMARKS.md + docs/MOTION_LIBRARY.md.
-- **ui_screenshot.sh is FIXED (S23)**: it now resolves $BLENDER → the
-  5.1.0 install → PATH (it spent S16..S22 launching the BROKEN apt 4.0.2
-  — LO caught it), and `timeout --kill-after=10` prevents a hung GL
-  teardown from stalling the attempt loop. The windowed miss persists
-  (miss #10 was ON 5.1) — attempts stay best-effort, never staged.
-- **STATE timestamps are REAL**: `date -u` before every PROGRESS append.
-- **Gates' env trap**: BLENDER=/home/potato/blender-5.1.0-linux-x64/
-  blender, RIGPOSE=/home/potato/miniconda3/bin/rigpose,
-  PY=/home/potato/miniconda3/bin/python3 — else they 127 (or worse, grab
-  the broken 4.0.2).
-- **Media rules**: any new media ships with the allowlist extension in the
-  SAME commit + a visual check. The WALKRIGS block is generator-owned.
-- **Mimosa**: intercepts bash writes of ANY source-looking file — use
-  Write/Edit; expect the pagedoc.py `import struct` FP at every commit;
-  heredoc/append FPs when text names source files — Edit tool + `-F`
-  commit-message files.
-- **P5-2/P5-3 facts (load-bearing)**: LiveTail/LiveConsumer semantics,
-  smoothing core-side on the canonical pose, mirror order PROVEN,
-  defaults D-008-untuned, failsafe one-tick edge, replay never relabeled
-  live, <100 ms gate UNCLAIMED until a real stream.
+- **Fixture/sampler keying is JOINT-angle**: a pose-bone basis rotates the
+  bone about its OWN head in the parent-posed frame — keying a parent's
+  angle onto the child bends the joint (the first fixture draft doubled
+  its stance drift to 0.029 u/f and the detector honestly refused it).
+- **Blender 5.1.0's bundled FBX importer CRASHES on any light**
+  (`lamp.cycles.cast_shadow` gone upstream) — generated/exported scenes
+  must be factory-EMPTY before FBX export.
+- **The Xbot `walk` REAL row has 0 detected plants — published, not
+  tuned** (root motion → hips-anchored treadmill glide 0.022–0.19 u/f vs
+  the D-008-untuned enter_speed 0.02). Do NOT retune contact thresholds to
+  make real clips plant; the remedy is the declared coordinated
+  positional/root-motion upgrade.
+- The sampler's BVH axis flags (`axis_forward='Y', axis_up='Z'`) are a
+  MEASURED contract; the mapper maps the BVH-conventional names 19/19 with
+  0 corrections (measured S24), Xbot 21 roles + 46 unmapped.
+- **The gate's env trap** (standing): BLENDER=/home/potato/
+  blender-5.1.0-linux-x64/blender, RIGPOSE=/home/potato/miniconda3/bin/
+  rigpose, PY=/home/potato/miniconda3/bin/python3 — else they 127 (or
+  worse, grab the broken apt 4.0.2).
+- **STATE timestamps are REAL**: `date -u` immediately before every
+  PROGRESS append (S24 future-stamped one entry and corrected it in-line
+  within minutes — don't be S24).
+- **Mimosa** (standing): intercepts bash writes of ANY source-looking
+  file — use Write/Edit; expect the pagedoc.py import-struct FP at every
+  commit and push; heredoc/append FPs when text names source files.
+- **Claim-bearing surfaces**: S24 touched ONLY the README status line
+  (gate-cited numbers) + BENCHMARKS + MOTION_LIBRARY; LAUNCH.md and
+  TUTORIALS.md and the README live bullet are untouched. Keep it that way
+  unless a number actually changes, and grep all three together when it
+  does.
 
 ## P6-3 scope probe — the licensing/redistribution questions ONLY LO can answer
 
-(unchanged from S21/S22; packaging waits)
+(unchanged from S21/S22/S23; packaging waits)
 
 1. **Suite license**: the repo is MIT (code). Images are NOT code — pick
    the suite's media license (CC0 / CC-BY / CC-BY-SA?) and confirm it is
@@ -138,24 +118,26 @@ Watch out for:
    do published numbers stay tied to the git-ignored local sets with the
    public suite as a re-runnable extra?
 7. **If the P2-8 real walking clip ever lands** (NEEDS-HUMAN): does it
-   join the public suite under the same bar?
+   join the public suite under the same bar? NOTE (S24): the Xbot.glb
+   `walk` clip now flows the whole pipeline — whether IT reopens P2-8 is
+   LO's call (it is Mixamo-rooted synthetic-real hybrid data, not a human
+   video).
 
 Blocked / deferred (unchanged unless noted):
 
-- Live capture device — NEEDS-HUMAN (DroidCam silent in S17–S23; the
+- Live capture device — NEEDS-HUMAN (DroidCam silent in S17–S24; the
   phone side must stream; P5-4 and the live capture→apply measurement wait
   on it — everything buildable shipped without it).
 - PyPI + Blender Extensions + MCP registry submissions — account-bound
   (LO); docs/PUBLISHING.md runbooks.
 - P6-3 public benchmark suite — NEEDS-HUMAN (LO's answers gate packaging).
 - P1-8a fallback estimator — parked (D-011/D-012).
-- P2-8 real walking clip — NEEDS-HUMAN (out/video_smoke/SOURCES.md).
-  NOTE: the Xbot.glb `walk` clip (S23 finding) may satisfy much of what
-  P2-8 wanted from a real clip — LO's call whether that reopens it.
+- P2-8 real walking clip — NEEDS-HUMAN; the Xbot.glb `walk` clip (S23/S24)
+  may satisfy much of what it wanted — LO's call whether that reopens it.
 - Phase 4 — CLOSED (D-017); manga media regenerates via
   `bash xtask/manga_build.sh` (media-guard pins the 8 files).
-- P5-1..P5-3 DONE (S17/S18/S19); P5-4 needs the camera.
-- Phase 6: P6-1 DONE (S22); P6-4/P6-5 DONE (S21); P6-6 DONE (S23);
-  P6-2 core DONE (S23), bridge+gate S24; P6-3 blocked on LO's answers.
+- Phase 5 — P5-1..P5-3 DONE; P5-4 needs the camera.
+- Phase 6 — P6-1 DONE (S22); P6-2 DONE (S23+S24); P6-4/P6-5 DONE (S21);
+  P6-6 DONE (S23); P6-3 blocked on LO's answers.
 - Phase 7: P7-1/P7-2/P7-3 DONE; P7-4/P7-5 account-bound; P7-6 waits on a
   recorded-cut session.

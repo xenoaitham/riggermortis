@@ -103,7 +103,35 @@ quadruped) with ≤2 manual corrections each, proven headless.
 **Gate:** benchmark table published; 18+ module proven OFF by default via tests in both frontends; policy refusals fire add-on + MCP.
 
 - [x] P6-1 [S22] Secondary motion: hair/cloth follow-through (spring chains). — DONE S22, DESIGN-FIRST exactly as the work order required: docs/SECONDARY_MOTION.md (mechanism: per-link damped angular springs toward parent-frame rest directions; direction-only v1 data model with zero dead fields; hook = strictly AFTER the certified composition; D-008 constants 3.0 Hz / ζ 0.5 / 240 Hz substep, declared untuned) → probe BEFORE build (`xtask/secondary_probe.py`: caught the pose-basis composition bug pre-code — pb = C @ rest @ basis proven by a non-commuting roll test; final: COMPOSE/REEVAL/COMPOSE-XFORM 0.0000°, FOLLOW 24.84°, SETTLE 0.00°, DETERM byte-identical) → core `secondary.py` (ChainSpec loud-validation format 1 + demo_tail.json DATA, simulate_secondary deterministic integer-substep Euler, 21 CI tests incl. the pinned translation-inertness contract and the hips→spine coincident-joint fallback) → addon `bake_action(secondary=…)` binding (appendage bones only, validated, keys ride after FK roles through the carried world_t) → gate `RM_SECONDARY` section in verify_pose_apply.sh (SIM 1.81°/determ, BAKE 4/280/1120, REEVAL 0.0000°, FKINV 0.00000°). Follow-ups declared, not shipped: track embedding in the file format, chain-binding presets, MCP session action, panel UI, live-mode integration, positional (translation-inertia) state.
-- [ ] P6-2 [S23] Motion library retarget: Mixamo/BVH/FBX → any mapped rig.
+- [x] P6-2 [S23→S24] Motion library retarget: Mixamo/BVH/FBX → any mapped rig.
+  - CLAIMED [S24] (2026-09-23): the REMAINS list — bridge sampler, synthetic
+    BVH/FBX fixtures, RM_MOTION gate section, Xbot.glb `walk` REAL-Motion row.
+  - DONE (S23 core + S24 bridge; see docs/MOTION_LIBRARY.md as-built +
+    docs/BENCHMARKS.md MOTION): S23 landed the design page, the probe
+    (RM_MOTION ALL PASS) and core `motion.py` + 27 CI tests; S24 landed the
+    bridge — `xtask/sample_clip.py` (builtin importers, BVH axis flags
+    pinned, REAL core mapper — fixture names map 19/19 with 0 corrections,
+    Xbot 21 roles + 46 honestly unmapped; per-frame
+    frame_set→update→pb.matrix.to_translation() heads; format-1 JSON with
+    rest-span scale_ref [Xbot: 40.4154, cm-scale source] + fingerprint;
+    per-file DETERM byte-identity; multi-action files refuse with the list;
+    near-static samples warn loudly, never silently), `xtask/motion_fixture.py`
+    (49-frame SYNTHETIC sliding walk, rigid ±5° stance = 0.0143 u/frame
+    drift + 50° swing knee, BVH+FBX at gate time, nothing binary committed;
+    factory-EMPTY scene — 5.1's FBX importer crashes on any light), and the
+    `RM_MOTION` gate section (verify_pose_apply.sh, every line grep-tested,
+    XBOT PASS|SKIPPED both shapes verified). GATE NUMBERS: fixture slide
+    0.6140 u → 0.000014 u (44997×, bar ≥5×), detector finds the authored
+    phases exactly (L (2,12)(25,36)(49) R (13,24)(37,48)), metarig bake
+    49 frames/686 keys re-evals 0.0000° (bar 0.5°), FBX vs BVH 0.000005 u;
+    REAL row: Xbot.glb `walk` bakes on the metarig at 0.0000° (96 checks)
+    with the HONEST published finding that its root motion → hips-anchored
+    treadmill glide (0.022–0.19 u/f) exceeds the D-008-untuned enter_speed
+    (0 plants detected; lock a verified no-op — nothing tuned to force
+    plants; remedy = the declared positional/root-motion upgrade). All
+    prior gate numbers byte-identical (RM_BAKE 0.0242° ×3, RM_FOOT_LOCK,
+    RM_SECONDARY, RM_TAILS unchanged). Lint clean (both scripts on the
+    Makefile lint list).
   - PARTIAL (S23): the opener landed — docs/MOTION_LIBRARY.md DESIGN-FIRST
     (positions-only conversion, hips-anchored, rest-span scale, walk-in-place,
     per-clip rest alignment, missing-role ledgers, measured flips,
