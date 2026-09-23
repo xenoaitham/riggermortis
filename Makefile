@@ -51,7 +51,7 @@ media-guard:
 		echo "docs/manga/ contains unallowlisted file(s): $$mextra — manga media is pinned to xtask/manga_build.sh outputs (extend the allowlist in the same commit as the media)" >&2; \
 		exit 1; \
 	fi; \
-	echo "media guard clean: media/ empty; docs/media/ = the 7 pinned pipeline outputs; docs/manga/ = the 8 pinned P4-8 outputs"
+	echo "media guard clean: media/ empty; docs/media/ = the 8 pinned pipeline outputs (incl. the P7-6 launch cut); docs/manga/ = the 8 pinned P4-8 outputs"
 
 # Full Phase 0 gate against a real local Blender (needs `make install` first)
 blender-verify:
