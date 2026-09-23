@@ -57,6 +57,83 @@ def test_map_save_preset_then_load(rig_json, tmp_path, capsys):
     assert "preset override" in capsys.readouterr().out
 
 
+# -- P6-1a: chain-binding presets through the CLI authoring surface ----------
+
+def _bindings_file(tmp_path, name="bindings.json"):
+    path = tmp_path / name
+    path.write_text(
+        json.dumps({
+            "format": 1,
+            "secondary": [{
+                "chain": {
+                    "format": 1, "name": "tail", "anchor_role": "hips",
+                    "links": 4, "rest_direction": [0.0, -0.35, -1.0],
+                },
+                "bones": ["rm_tail_1", "rm_tail_2", "rm_tail_3", "rm_tail_4"],
+            }],
+        }),
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_preset_save_with_secondary_then_load_prints_chains(
+    rig_json, tmp_path, capsys
+):
+    from riggermortis.presets import load_preset
+
+    preset = tmp_path / "p.rigpreset.json"
+    bindings = _bindings_file(tmp_path)
+    assert (
+        main(["preset", "save", str(rig_json), str(preset),
+              "--secondary", str(bindings)])
+        == EXIT_OK
+    )
+    assert "secondary chain tail" in capsys.readouterr().out
+    loaded = load_preset(preset)
+    assert loaded.format == 2
+    assert [b.chain.name for b in loaded.secondary] == ["tail"]
+    assert loaded.secondary[0].bones == ("rm_tail_1", "rm_tail_2", "rm_tail_3", "rm_tail_4")
+    # the same preset re-applies to its rig, chains visible — never hidden
+    assert main(["preset", "load", str(rig_json), str(preset)]) == EXIT_OK
+    out = capsys.readouterr().out
+    assert "preset override" in out
+    assert "secondary chain tail: 4 link(s) off hips" in out
+
+
+def test_preset_set_secondary_replaces_bindings_in_place(
+    rig_json, tmp_path, capsys
+):
+    from riggermortis.presets import load_preset
+
+    preset = tmp_path / "p.rigpreset.json"
+    assert main(["preset", "save", str(rig_json), str(preset)]) == EXIT_OK
+    assert "secondary chains: none" in capsys.readouterr().out
+    assert (
+        main(["preset", "set-secondary", str(preset),
+              str(_bindings_file(tmp_path))])
+        == EXIT_OK
+    )
+    assert "preset updated" in capsys.readouterr().out
+    loaded = load_preset(preset)
+    assert loaded.format == 2
+    assert [b.chain.name for b in loaded.secondary] == ["tail"]
+
+
+def test_preset_save_with_bad_bindings_is_actionable(
+    rig_json, tmp_path, capsys
+):
+    bad = tmp_path / "bad.json"
+    bad.write_text('{"format": 1, "secondary": [{"chain": {}}]}', encoding="utf-8")
+    code = main(["preset", "save", str(rig_json), str(tmp_path / "p.json"),
+                 "--secondary", str(bad)])
+    captured = capsys.readouterr()
+    assert code == EXIT_HANDLED_ERROR
+    assert "error:" in captured.err
+    assert "hint:" in captured.err
+    assert "Traceback" not in captured.err
+
+
 def test_map_set_applies_manual_reassignment(rig_json, capsys):
     assert main(["map", str(rig_json), "--json", "--set", "hips=spine"]) == EXIT_OK
     payload = json.loads(capsys.readouterr().out)

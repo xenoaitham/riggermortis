@@ -91,6 +91,7 @@ import bpy  # noqa: E402
 from mathutils import Vector  # noqa: E402
 
 import riggermortis as core  # noqa: E402
+from riggermortis import presets as rm_presets  # noqa: E402
 from riggermortis_addon import bpy_bridge, pose_apply  # noqa: E402
 
 TOL_DEG = 0.5
@@ -583,8 +584,62 @@ def run_secondary():
             f"RM_SECONDARY FKINV: {'PASS' if fkinv_ok else 'FAIL'} "
             f"worst={worst_fk:.5f}deg bar<=0.001deg (certified composition untouched)"
         )
+
+        # P6-1a: the SAME chain through a SAVED PRESET — the full author ->
+        # save -> load -> fingerprint-gate -> simulate -> bake path via
+        # core.presets inside Blender. The preset-carried binding must key
+        # EXACTLY what the direct binding above keyed (same deterministic
+        # simulation, same bake validation), a fingerprint mismatch must
+        # refuse, and force must proceed.
+        rig_data = core.RigData.from_dict(bpy_bridge.rig_data_from_armature(obj))
+        preset = rm_presets.preset_from_mapping(
+            rig_data, mapping,
+            secondary=[rm_presets.SecondaryBinding(
+                chain=spec, bones=tuple(chain_bones),
+            )],
+        )
+        preset_path = job_dir / "gate_secondary.rigpreset.json"
+        rm_presets.save_preset(preset, preset_path)
+        loaded = rm_presets.load_preset(preset_path)
+        bindings = rm_presets.resolve_secondary(loaded, rig_data.fingerprint())
+        tracks_p, _rep_p = core.simulate_secondary(
+            action, [b.chain for b in bindings], fps=30.0,
+        )
+        pairs = [(tracks_p[b.chain.name], list(b.bones)) for b in bindings]
+        rep_pre = bake.bake_action(
+            obj, action.frames, core, name="rm_sec_preset", secondary=pairs,
+        )
+        pre = rep_pre.get("secondary", {}).get("tail", {})
+        preset_ok = (
+            loaded.format == 2
+            and [b.chain.name for b in loaded.secondary] == ["tail"]
+            and pre.get("bones") == 4
+            and pre.get("keys") == sec.get("keys")
+            and len(rep_pre["baked_frames"]) == n
+        )
+        print(
+            f"RM_SECONDARY PRESET: {'PASS' if preset_ok else 'FAIL'} "
+            f"format={loaded.format} chains={len(loaded.secondary)} "
+            f"keys={pre.get('keys')} direct_keys={sec.get('keys')}"
+        )
+        mismatch_refused = False
+        try:
+            rm_presets.resolve_secondary(loaded, "0" * 64)
+        except core.PresetError:
+            mismatch_refused = True
+        forced = rm_presets.resolve_secondary(loaded, "0" * 64, force=True)
+        gate_ok = mismatch_refused and len(forced) == 1
+        print(
+            f"RM_SECONDARY PRESET_GATE: {'PASS' if gate_ok else 'FAIL'} "
+            f"mismatch_refused={mismatch_refused} force_bindings={len(forced)}"
+        )
+
+        clean(rep_pre["action"])
         clean(rep_sec["action"])
-        return sim_ok and bake_ok and reeval_ok and fkinv_ok
+        return (
+            sim_ok and bake_ok and reeval_ok and fkinv_ok
+            and preset_ok and gate_ok
+        )
     except Exception as exc:  # noqa: BLE001
         print(f"RM_SECONDARY: FAIL ({exc.__class__.__name__}: {exc})")
         return False
@@ -700,6 +755,8 @@ grep -q "RM_SECONDARY SIM: PASS" "$TMP/probe.log"
 grep -q "RM_SECONDARY BAKE: PASS" "$TMP/probe.log"
 grep -q "RM_SECONDARY REEVAL: PASS" "$TMP/probe.log"
 grep -q "RM_SECONDARY FKINV: PASS" "$TMP/probe.log"
+grep -q "RM_SECONDARY PRESET: PASS" "$TMP/probe.log"
+grep -q "RM_SECONDARY PRESET_GATE: PASS" "$TMP/probe.log"
 grep -q "RM_TAILS XBOT: PASS" "$TMP/probe.log"
 grep -q "RM_TAILS METARIG_NOOP: PASS" "$TMP/probe.log"
 grep -q "RM_OVERLAY HANDLER: PASS" "$TMP/probe.log"

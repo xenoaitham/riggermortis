@@ -113,6 +113,7 @@ def bake_action(
     # let the chain overwrite the certified FK keys.
     sec_bindings: list[tuple[str, dict[int, Any], list[str]]] = []
     sec_report: dict[str, dict[str, int]] = {}
+    chain_owner: dict[str, str] = {}
     if secondary is not None:
         mapped_bones = {a.bone for a in mapping.assignments.values()}
         for track, bones in secondary:
@@ -129,6 +130,12 @@ def bake_action(
                     f"for {len(track.directions[0])} link(s) (hint: the "
                     "binding must list exactly one bone per chain link)"
                 )
+            if len(set(bones)) != len(bones):
+                raise ValueError(
+                    f"secondary chain {track.name!r}: duplicate bone in the "
+                    "binding (hint: one bone per link — a repeated name "
+                    "double-keys the chain)"
+                )
             missing = [b for b in bones if b not in obj.pose.bones]
             if missing:
                 raise ValueError(
@@ -142,6 +149,16 @@ def bake_action(
                     f"(FK owns them): {', '.join(overlap)} (hint: chains key "
                     "appendage bones only, never canonical roles)"
                 )
+            for b in bones:
+                other = chain_owner.get(b)
+                if other is not None:
+                    raise ValueError(
+                        f"secondary chain {track.name!r}: bone {b!r} is "
+                        f"already bound to chain {other!r} (hint: a bone "
+                        "implements ONE chain — double-binding lets one "
+                        "chain overwrite the other's keys)"
+                    )
+                chain_owner[b] = track.name
             anchor_assignment = mapping.assignments.get(track.anchor_role)
             if anchor_assignment is None:
                 raise ValueError(

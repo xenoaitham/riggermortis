@@ -207,9 +207,11 @@ already imported; teaching Blender to import is the user's one command, and
   certified-composition → bake-on-the-metarig → fcurve re-eval half rides
   its own probe with every line grep-tested (the XBOT row PASS|SKIPPED,
   both shapes verified). Numbers live in `docs/BENCHMARKS.md` MOTION.
-- **Bridge sampler** `xtask/sample_clip.py` — DONE (S24): the probe's
-  sampling loop productionized as a standalone Blender-side script (shell
-  glue spawns it, D-009):
+- **Bridge sampler** `xtask/sample_clip.py` (thin caller) +
+  `riggermortis_addon/clip_sample.py` (the loop) — DONE (S24; PROMOTED
+  S25): the probe's sampling loop is the add-on-owned library (bpy
+  imported inside functions, conftest-shim tested for the pure parts) and
+  the standalone script is argv/env glue (shell spawns it, D-009):
 
   ```bash
   RM_CORE_SRC=core/src blender -b --python xtask/sample_clip.py -- \
@@ -224,7 +226,10 @@ already imported; teaching Blender to import is the user's one command, and
   without `--action` refuses listing the actions (actionable, never a
   silent first pick); a near-static sample is valid input but ships with a
   loud warning + note (the frozen-motion symptom). Two independent sample
-  passes must agree byte-for-byte (DETERM, exit 1 otherwise).
+  passes must agree byte-for-byte (DETERM, exit 1 otherwise). Promotion
+  contract (S25): output proven BYTE-IDENTICAL to the pre-promotion script
+  (same fixture → same 57111-byte JSON) and the gate re-verified with every
+  RM_MOTION number unchanged.
 - **Fixture builder** `xtask/motion_fixture.py` — DONE (S24): the probe's
   humanoid extended with hands + toes (19 roles → only root + shoulders
   ledger-missing), keyed with a 49-frame SYNTHETIC sliding walk (rigid
@@ -288,11 +293,11 @@ proved. As-built:
   root-motion upgrade below. In-place/slow clips plant normally (the
   fixture row IS that shape).
 
-## Future: an MCP session action for clips (DESIGN sketch — NOT built)
+## Future: an MCP session action for clips (DESIGN sketch — refactor half DONE S25)
 
 Declared follow-up from S23/S24; written down so the eventual build is a
 deliberate amendment, not scope creep. The tool schema stays v1 (additive
-only, per the registry pin); nothing here is implemented.
+only, per the registry pin); the session action itself is not implemented.
 
 - **Shape**: a new `retarget_clip` session action (enqueue_action kind, the
   P3-5 bridge — additive to the action vocabulary, not the tool table):
@@ -305,16 +310,18 @@ only, per the registry pin); nothing here is implemented.
   scene's mapped rig through `bake_action` — returning the metrics the
   gate prints (frames, mapped roles, scale_ref, contact intervals,
   slide before/after, re-eval worst deg).
-- **Why not yet**: the sampler's Blender-side half lives in
-  `xtask/sample_clip.py`; a session executor would either re-implement it
-  inside the add-on (a second copy of the import/sample loop — the D-016
-  lockstep problem again) or the add-on would need to import a module
-  from `xtask/` (a packaging smell — the add-on ships standalone). The
-  honest resolution is promoting the import/sample loop into
-  `riggermortis_addon/` (bpy-owning module, unit-tested via the conftest
-  shim like the rest of the add-on) with `xtask/sample_clip.py` becoming
-  a thin caller — a deliberate refactor with its own gate update, not a
-  sketched-afterthought.
+- **The blocker is GONE (S25)**: the import/sample loop now lives in
+  `riggermortis_addon/clip_sample.py` (bpy-owning, bpy imported inside
+  functions, conftest-shim tested for the pure parts) and
+  `xtask/sample_clip.py` is a thin caller (argv + env glue + exit codes).
+  Byte-identity was PROVEN at promotion time: the pre-refactor script and
+  the promoted library sample the same fixture to the same 57111-byte clip
+  JSON, and the gate re-ran with every RM_MOTION number byte-identical
+  (BVH/FBX/XBOT rows unchanged). The session executor can call
+  `clip_sample.sample_clip(...)` directly — no second copy of the loop
+  (the D-016 lockstep lesson applied BEFORE it could bite). What remains
+  for the session action: the executor branch + the in-process convert →
+  certified composition → bake wiring + gate/session-verify rows.
 - **Policy**: clips are files on the artist's disk; the action reads local
   paths only (loopback/local-only lines unchanged, D-003). No new
   capability flag; progress streaming already covers long actions.

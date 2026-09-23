@@ -518,6 +518,17 @@ composition, never a trajectory value.
   without the binding at 0.00000° (bar 0.001°) — the certified composition
   (stabilize → smooth → reduce → detect → lock) is untouched; secondary
   rides strictly after it and keys appendage bones only.
+- **Chain-binding preset equivalence (P6-1a, S25; gate `RM_SECONDARY
+  PRESET` + `RM_SECONDARY PRESET_GATE` lines)**: the same chain through the
+  full preset path — author (`preset_from_mapping` with bindings) → save →
+  load (format 2) → fingerprint-gate (`resolve_secondary`) → simulate →
+  bake — keys EXACTLY what the direct binding keyed (280 = 280 chain keys,
+  4 bones, 70 frames); a mismatched fingerprint refuses (`mismatch_refused=
+  True`) and `force=True` proceeds (1 binding). Schema: 426-test suite
+  (17 `core/tests/test_preset_secondary.py` + 3 CLI round-trips) pins the
+  format-2 write / format-1 back-compat read, loud per-field validation,
+  sorted storage, byte-stable re-save, and the one-bone-one-chain guard on
+  both the preset and the bake.
 
 No timing claims: the simulation is per-frame pure math on the frames the
 bake already walks (no process, no socket, no I/O — D-003/D-009 untouched).

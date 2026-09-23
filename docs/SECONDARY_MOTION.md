@@ -161,6 +161,90 @@ wrong bone counts or missing bones refuse with hints. The Blender-side math
 was probe-validated FIRST (below). NOT an MCP session action in v1 (schema
 stays v1 additive — documented follow-up), NOT a panel control yet.
 
+## Chain-binding presets (P6-1a — the declared follow-up, S25)
+
+The § Data model note above says it: v1 did not touch the frozen preset
+schema. P6-1a extends the P0-09 per-rig preset so a saved preset carries the
+chain bindings — author once per rig, and every later bake (session bridge,
+gate) feeds ``bake_action(secondary=…)`` from the file instead of
+re-authoring chains per session.
+
+**Schema.** The per-rig preset bumps to format **2** (written) with
+back-compat READ of format 1 (the payload-v2/v1-read pattern P1-11 B1
+established: an old file still loads, it just carries no chains; a new file
+read by an old build refuses loudly with "unsupported preset format"). The
+new optional ``secondary`` field is a list of binding objects, each EXACTLY:
+
+```json
+{"chain": {"format": 1, "name": "tail", "anchor_role": "hips", "links": 4,
+           "rest_direction": [0.0, -0.35, -1.0], "freq_hz": 3.0,
+           "damping_ratio": 0.5},
+ "bones": ["tail.01", "tail.02", "tail.03", "tail.04"]}
+```
+
+``chain`` validates through ``core.secondary.ChainSpec.from_dict`` — ONE
+validator implementation (the demo_tail.json discipline: data file, loud
+validation, no code duplication). ``bones`` is the rig-specific half: the
+appendage bones implementing the chain, parent-first, ``bones[0]`` parented
+under the anchor role's mapped bone — exactly what ``bake_action`` already
+validates against the live rig. The preset loader validates what a file can
+know without a rig: unknown fields refuse with a hint, ``len(bones) ==
+chain.links``, non-empty unique bone names, **chain names unique across
+bindings** (they key the tracks), and **no bone shared between two chains**
+(a double-keyed bone would let one chain overwrite the other's keys — the
+bake gains the same cross-chain guard for direct-API users).
+
+Bindings are stored sorted by chain name (keyed sorts, determinism) and the
+direction floats round-trip exactly (``ChainSpec`` passes already-unit
+vectors through unchanged).
+
+**Fingerprint contract.** The bindings ride the SAME fingerprint gate as the
+mapping (P0-09): a rig whose bones changed refuses the preset — and the
+refusal matters MORE for chains, because the tail bones the binding names
+may not exist anymore. ``core.resolve_secondary(preset, rig_fingerprint,
+force=False)`` is the single gate: mismatch raises ``PresetError`` with the
+apply-time hint, ``force=True`` proceeds (the bake's own per-bone validation
+is still the last word).
+
+**Wiring surfaces (v1).** Authoring is the CLI: ``rigpose preset save RIG
+OUT [--secondary BINDINGS.json]`` and ``rigpose preset set-secondary PRESET
+BINDINGS.json`` (add chains to an existing preset without re-mapping;
+BINDINGS.json = ``{"format": 1, "secondary": [binding, …]}``, validated by
+the same loader). Consumption is the session bridge's ``bake_action``: new
+optional params ``preset_path`` + ``preset_force`` (+ ``fps``, the frame
+rate the secondary simulation assumes, default 30.0 — substep alignment is
+exact for any fps) load the preset, fingerprint-gate it, simulate the chains
+over the CERTIFIED composition's locked action (stabilize → detect → lock
+untouched; the simulation reads, never mutates), and feed
+``bake_action(secondary=…)``. A chain whose anchor never orients on any
+frame is reported ``never_started`` in the result — the bake proceeds with
+the chains that did start, nothing is silent. Panel bake buttons stay
+declared follow-up scope (the P7-2 GAP lines: the session bridge is the
+verified artist-facing bake path today).
+
+**Honesty.** A preset whose ``secondary`` is empty behaves exactly as before
+(mapping-only). ``preset load`` prints the chains a preset carries so the
+file's payload is visible, never hidden.
+
+**As-built (S25, 2026-09-23).** Landed exactly as designed above, with the
+same one-validator discipline: the load path and the direct constructor
+share the duplicate-name / one-bone-one-chain guard; the Blender bake grew
+the same cross-chain guard for direct-API users. Gated: `make pose-verify`
+runs the FULL preset path in real Blender — author → save → load (format 2)
+→ fingerprint-gate → simulate → bake — and the preset-carried binding keys
+EXACTLY what the direct binding keyed (`RM_SECONDARY PRESET: PASS
+format=2 chains=1 keys=280 direct_keys=280`); a mismatched fingerprint
+refuses and `force=True` proceeds (`RM_SECONDARY PRESET_GATE: PASS`).
+Schema: 17 tests in `core/tests/test_preset_secondary.py` + 3 CLI
+round-trips in `test_cli.py` (426 total). All prior gate numbers
+byte-identical (RM_SECONDARY 1.81° / 280 keys, RM_BAKE 0.0242°, the
+RM_MOTION block unchanged). The session-bridge executor gains
+``preset_path`` / ``preset_force`` / ``fps`` (default 30.0) on
+``bake_action`` — same core calls the gate exercises; a chain whose anchor
+never orients reports under ``never_started`` and the bake proceeds with
+the chains that did start. Panel bake buttons stay declared follow-up
+scope (the P7-2 GAP lines).
+
 ## Probe answers (as-built, 2026-09-22 — `xtask/secondary_probe.py`,
 RM_SECONDARY lines, Blender 5.1.0 headless)
 
@@ -193,8 +277,9 @@ RM_SECONDARY lines, Blender 5.1.0 headless)
   until P5-4 lands.
 - **Track embedding in the payload/action file format** — a contract
   change; v1 recomputes tracks deterministically at bake time instead.
-- **Chain-binding presets, MCP session action, panel UI** — declared
-  follow-ups in that order.
+- **Chain-binding presets** — SHIPPED P6-1a (see § Chain-binding presets;
+  the "frozen preset schema" v1 note above is superseded by format 2).
+- **MCP session action, panel UI** — declared follow-ups in that order.
 - **Uniform segments only** — per-link lengths are trivial to add later;
   v1 keeps the schema minimal.
 
@@ -235,4 +320,10 @@ cd core && python3 -m pytest tests/test_secondary.py
 # rig/payload prerequisites the gate already builds — RM_SECONDARY lines)
 BLENDER=/path/to/blender RIGPOSE=/path/to/rigpose PY=/path/to/python3 \
   make pose-verify
+
+# the P6-1a preset path (unit contract + the in-Blender preset row)
+cd core && python3 -m pytest tests/test_preset_secondary.py tests/test_cli.py
+# author from the shell:
+python3 -m riggermortis.cli preset save rig.json out.rigpreset.json \
+  --secondary bindings.json
 ```

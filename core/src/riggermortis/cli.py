@@ -4,7 +4,8 @@ Subcommands:
     inspect <rig.json>      bone inventory + skeleton stats
     map <rig.json>          propose role mapping, print report (--set applies
                             manual reassignments, review-UI equivalent)
-    preset save|load        persist / apply reviewed mappings
+    preset save|load|set-secondary  persist / apply reviewed mappings
+                    (+ P6-1a chain bindings)
     policy status           content-policy status (adult module off by default)
     detect <image>          DWPose person detection + 133 keypoints
     pose <image> <rig>      one-command posing: detect -> figure select ->
@@ -31,7 +32,15 @@ from .inference.figures import FigureBoard
 from .io import load_rig
 from .mapper import map_rig, propose_reassignment
 from .policy import PolicyEngine
-from .presets import apply_preset, load_preset, preset_from_mapping, save_preset
+from .presets import (
+    PRESET_FORMAT,
+    Preset,
+    apply_preset,
+    load_preset,
+    load_secondary_bindings,
+    preset_from_mapping,
+    save_preset,
+)
 
 EXIT_OK = 0
 EXIT_HANDLED_ERROR = 2
@@ -73,10 +82,22 @@ def _build_parser() -> argparse.ArgumentParser:
     p_ps = preset_sub.add_parser("save", help="map a rig and save the mapping as a preset")
     p_ps.add_argument("rig", help="rig JSON file")
     p_ps.add_argument("out", help="preset output path (.rigpreset.json)")
+    p_ps.add_argument(
+        "--secondary", metavar="BINDINGS_JSON", default=None,
+        help="attach chain bindings (P6-1a) from a bindings file: "
+        '{"format": 1, "secondary": [{"chain": {...}, "bones": [...]}]}',
+    )
     p_pl = preset_sub.add_parser("load", help="load a preset and re-apply it to its rig")
     p_pl.add_argument("rig", help="rig JSON file")
     p_pl.add_argument("preset", help="preset path")
     p_pl.add_argument("--force", action="store_true", help="apply even if the rig fingerprint changed")
+    p_pss = preset_sub.add_parser(
+        "set-secondary",
+        help="attach/replace chain bindings (P6-1a) on an existing preset "
+        "without re-mapping",
+    )
+    p_pss.add_argument("preset", help="preset path (updated in place)")
+    p_pss.add_argument("bindings", help="bindings file: {\"format\": 1, \"secondary\": [...]}")
 
     p_policy = sub.add_parser("policy", help="content policy operations")
     policy_sub = p_policy.add_subparsers(dest="policy_command", required=True)
@@ -311,9 +332,33 @@ def cmd_map(args: argparse.Namespace) -> int:
 def cmd_preset_save(args: argparse.Namespace) -> int:
     rig = load_rig(args.rig)
     mapping = map_rig(rig)
-    path = save_preset(preset_from_mapping(rig, mapping), args.out)
+    secondary = load_secondary_bindings(args.secondary) if args.secondary else None
+    path = save_preset(preset_from_mapping(rig, mapping, secondary=secondary), args.out)
     print(f"preset saved: {path}")
+    _print_chains(preset_from_mapping(rig, mapping, secondary=secondary))
     return EXIT_OK
+
+
+def cmd_preset_set_secondary(args: argparse.Namespace) -> int:
+    preset = load_preset(args.preset)
+    preset.secondary = load_secondary_bindings(args.bindings)
+    preset.format = PRESET_FORMAT
+    save_preset(preset, args.preset)
+    print(f"preset updated: {args.preset}")
+    _print_chains(preset)
+    return EXIT_OK
+
+
+def _print_chains(preset: Preset) -> None:
+    """The preset's chain payload, visible — never hidden (P6-1a)."""
+    if not preset.secondary:
+        print("secondary chains: none")
+        return
+    for b in preset.secondary:
+        print(
+            f"secondary chain {b.chain.name}: {b.chain.links} link(s) off "
+            f"{b.chain.anchor_role} -> bones: {', '.join(b.bones)}"
+        )
 
 
 def cmd_preset_load(args: argparse.Namespace) -> int:
@@ -323,6 +368,7 @@ def cmd_preset_load(args: argparse.Namespace) -> int:
     print(mapping.table())
     print()
     print(mapping.summary())
+    _print_chains(preset)
     return EXIT_OK
 
 
@@ -687,6 +733,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "preset":
             if args.preset_command == "save":
                 return cmd_preset_save(args)
+            if args.preset_command == "set-secondary":
+                return cmd_preset_set_secondary(args)
             return cmd_preset_load(args)
         if args.command == "policy":
             if args.policy_command == "status":

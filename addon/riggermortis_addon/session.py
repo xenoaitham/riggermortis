@@ -317,6 +317,15 @@ def _exec_bake_action(params: dict[str, Any]) -> dict[str, Any]:
     is reported over the UNLOCKED roles; locked-chain roles on contact
     frames deviate BY DESIGN (the plant pin) and are reported separately as
     ``reeval_lock_dev_deg`` — the evaluated twin of the bake's lock_dev_deg.
+
+    P6-1a: optional ``preset_path`` (a per-rig preset carrying secondary
+    chain bindings, docs/SECONDARY_MOTION.md) fingerprint-gates through
+    ``resolve_secondary`` (``preset_force`` overrides), simulates the chains
+    over the CERTIFIED (locked) action at ``fps`` (default 30.0 — the frame
+    rate the playback assumes; substep alignment is exact for any fps), and
+    feeds ``bake_action(secondary=…)``. A chain whose anchor never orients
+    is reported under ``never_started`` — the bake proceeds with the chains
+    that did start, never silent.
     """
     from pathlib import Path
 
@@ -357,8 +366,62 @@ def _exec_bake_action(params: dict[str, Any]) -> dict[str, Any]:
     )
     contacts = core.detect_contacts(conditioned.frames)
     locked, lock = core.lock_feet(conditioned, contacts)
+
+    # P6-1a: preset-carried chain bindings — fingerprint-gated in core, then
+    # simulated over the CERTIFIED (locked) action; the bake re-validates
+    # every bound bone against the live rig.
+    preset_path = str(params.get("preset_path") or "")
+    preset_report: dict[str, Any] | None = None
+    secondary: list[tuple[Any, list[str]]] | None = None
+    if preset_path:
+        fps_sim = params.get("fps", 30.0)
+        if (
+            isinstance(fps_sim, bool)
+            or not isinstance(fps_sim, (int, float))
+            or float(fps_sim) <= 0.0
+        ):
+            raise ValueError(
+                f"fps must be a positive number (got {fps_sim!r}; hint: the "
+                "frame rate the baked action plays back at)"
+            )
+        force = bool(params.get("preset_force", False))
+        preset = core.load_preset(preset_path)
+        rig_fp = core.RigData.from_dict(
+            bpy_bridge.rig_data_from_armature(obj)
+        ).fingerprint()
+        bindings = core.resolve_secondary(preset, rig_fp, force=force)
+        preset_report = {
+            "preset": preset_path,
+            "force": force,
+            "fps": float(fps_sim),
+            "chains": [b.chain.name for b in bindings],
+        }
+        if bindings:
+            tracks, sim_rep = core.simulate_secondary(
+                locked, [b.chain for b in bindings], fps=float(fps_sim),
+            )
+            pairs: list[tuple[Any, list[str]]] = []
+            never_started: list[str] = []
+            for b in bindings:
+                track = tracks.get(b.chain.name)
+                if track is None:
+                    never_started.append(b.chain.name)
+                else:
+                    pairs.append((track, list(b.bones)))
+            if pairs:
+                secondary = pairs
+            preset_report.update({
+                "simulated": sorted(tracks),
+                "never_started": sorted(never_started),
+                "substeps_per_frame": sim_rep.substeps_per_frame,
+                "max_dev_deg": {
+                    k: round(v, 4) for k, v in sorted(sim_rep.max_dev_deg.items())
+                },
+            })
+
     baked = bake_mod.bake_action(
         obj, locked.frames, core, name=action_name, contacts=contacts,
+        secondary=secondary,
     )
 
     # Frames x side of the plant pins — the re-eval's honest classifier.
@@ -410,6 +473,7 @@ def _exec_bake_action(params: dict[str, Any]) -> dict[str, Any]:
         "job_dir": job_dir,
         "hip_stabilize": strength,
         "tails_repaired": tails_repaired,
+        "secondary_preset": preset_report,
         "contacts": {
             "intervals": len(contacts.intervals),
             "slide_before_u": round(lock.slide_before.total, 4),

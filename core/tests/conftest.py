@@ -13,20 +13,25 @@ if str(SRC) not in sys.path:
 ADDON_PKG_DIR = SRC.parents[1] / "addon" / "riggermortis_addon"
 
 
-def addon_policy_module():
-    """Import ``addon/riggermortis_addon/policy.py`` headlessly.
+def addon_module(name: str):
+    """Import an add-on submodule headlessly.
 
     The add-on package ``__init__`` imports ``bpy`` at module scope, which a
     test interpreter does not have — so the package is mounted as a bare
     module with ``__path__`` (submodule imports resolve, ``__init__`` never
-    executes). The policy module itself is bpy-free at import by design
-    (P6-4); the REAL bpy preferences flow is gated in
-    ``xtask/blender_verify.sh`` (``RM_POLICY`` lines).
+    executes). Only for modules that are bpy-free at import by design (the
+    add-on convention: bpy imports live inside functions — bake.py,
+    policy.py, clip_sample.py, ...); the REAL bpy flows run in the Blender
+    gates (``xtask/blender_verify.sh``, ``xtask/verify_pose_apply.sh``).
     """
-    name = "riggermortis_addon"
-    pkg = sys.modules.get(name)
+    pkg = sys.modules.get("riggermortis_addon")
     if pkg is None:
-        pkg = types.ModuleType(name)
+        pkg = types.ModuleType("riggermortis_addon")
         pkg.__path__ = [str(ADDON_PKG_DIR)]
-        sys.modules[name] = pkg
-    return importlib.import_module("riggermortis_addon.policy")
+        sys.modules["riggermortis_addon"] = pkg
+    return importlib.import_module(f"riggermortis_addon.{name}")
+
+
+def addon_policy_module():
+    """The P6-4 policy binding (kept for the P6-5 enforcement tests)."""
+    return addon_module("policy")
