@@ -159,6 +159,55 @@ quadruped) with ≤2 manual corrections each, proven headless.
     (fixture -> import -> sample -> convert -> certified composition -> bake
     on the metarig, re-eval vs source, foot_slide before/after), and the
     Xbot.glb `walk` clip as the REAL-Motion gate row.
+- [x] P6-1a [S25] Chain-binding presets (the declared P6-1 follow-up): extend the P0-09 per-rig
+  preset schema so a saved preset can carry `secondary` chain bindings (ChainSpec list per rig,
+  appendage bones resolved against the preset's mapping); design-first in
+  docs/SECONDARY_MOTION.md (extend it, never fork it); loud-validating format-versioned DATA;
+  panel/session wiring so a loaded preset feeds `bake_action(secondary=…)` without re-authoring
+  chains per session.
+  - CLAIMED [S25] (2026-09-23): work order A per NEXT.md (camera silent a 13th session).
+  - DONE S25: preset schema format **2** (written) with back-compat READ of format 1 (the
+    P1-11 payload pattern) — optional `secondary` list of bindings, each EXACTLY
+    `{chain: <ChainSpec dict>, bones: [parent-first appendage bone names]}`; `chain` validates
+    through `core.secondary.ChainSpec.from_dict` (ONE validator), bones must be non-empty
+    unique strings with `len(bones) == chain.links`; shared guard (`_check_bindings`) on BOTH
+    the load path and the direct constructor: chain names unique, **one bone per chain**
+    (cross-chain double-bind refuses — the bake grew the same guard for direct-API users);
+    bindings stored sorted by chain name; already-unit rest directions pass through
+    normalization unchanged so re-save is byte-stable. `resolve_secondary(preset,
+    rig_fingerprint, force=False)` gates the bindings with the SAME fingerprint contract as
+    the mapping. CLI: `preset save --secondary BINDINGS.json` + `preset set-secondary PRESET
+    BINDINGS.json` (add chains without re-mapping) + `preset load` prints the chains (payload
+    visible, never hidden). Session bridge: `bake_action` executor params `preset_path` +
+    `preset_force` + `fps` (default 30.0) — load, gate, simulate over the CERTIFIED (locked)
+    action, feed `bake_action(secondary=…)`; a chain that never orients reports
+    `never_started`, the bake proceeds with chains that did. Gate: `RM_SECONDARY PRESET`
+    (the full preset path in real Blender keys EXACTLY what the direct binding keyed —
+    280=280 chain keys) + `RM_SECONDARY PRESET_GATE` (mismatch refused, force proceeds),
+    both grep-pinned. Tests: 17 in `core/tests/test_preset_secondary.py` + 3 CLI round-trips
+    (426 total). docs/SECONDARY_MOTION.md § Chain-binding presets (design + as-built),
+    docs/BENCHMARKS.md SECONDARY block extension, README status-line clause (gate-cited).
+    Panel bake buttons stay declared follow-up (P7-2 GAP). All prior gate numbers
+    byte-identical.
+- [ ] P6-2a [S25→S26] retarget_clip session action (the MOTION_LIBRARY § Future sketch).
+  - CLAIMED [S25] — REFACTOR HALF DONE (the sketch's declared precondition):
+    the import/sample loop promoted from `xtask/sample_clip.py` into
+    `addon/riggermortis_addon/clip_sample.py` (bpy-owning, bpy imported
+    inside functions, conftest-shim testable — `addon_module()` helper in
+    conftest + 5 tests in `core/tests/test_clip_sample.py`), and
+    `xtask/sample_clip.py` is now a thin caller (argv/env glue + exit-code
+    mapping; usage errors still exit 64, refusals exit 3). Promotion
+    contract PROVEN: old script (git HEAD copy) vs promoted library sample
+    the same fixture to the SAME 57111-byte clip JSON, and `make
+    pose-verify` re-ran with every RM_MOTION number byte-identical (BVH /
+    FBX / XBOT rows unchanged). The executor can now call
+    `clip_sample.sample_clip(...)` directly — no second copy of the loop
+    (D-016 lockstep applied before it could bite).
+  - REMAINS for S26: the `retarget_clip` session-action branch in
+    `addon/session.py` (in-process import → sample → `action_from_clip` →
+    certified composition → `bake_action`, metrics returned), the
+    gate/session-verify rows proving it, and the local-paths-only policy
+    note. Sketch: docs/MOTION_LIBRARY.md § Future.
 - [ ] P6-3 Public benchmark suite packaging.
 - [x] P6-4 [S21] 18+ module per docs/POLICY.md (core-enforced, sober docs, no explicit content in repo). — DONE S21 (D-019): the core PolicyEngine stood since P0-10; what was missing was the add-on half — `addon/riggermortis_addon/policy.py` (bpy-free binding: the single engine always built via the default path; `sync()` derives from the two preference toggles through `enable_adult_module(confirm=True)`/`disable_adult_module()` only; `format_refusal` puts the code VERBATIM in the report line; retryable refusals alone carry the preferences hint) + wiring (RM_OT_policy_check `rm.policy_check` operator, `policy_subject` enum, panel "Content policy" readout with draw-time idempotent sync, guarded prefs sync in register()). MCP deliberately gains NO enable path (fresh SFW engine per call; D-019). docs/POLICY.md § Where-the-lines-live rewritten as-built + new § Enforcement; README policy sections state the both-frontend pinning.
 - [x] P6-5 [S21] Enforcement tests: fresh-install default OFF; refusal codes through add-on and MCP. — DONE S21: 9 new tests (358 total): `test_policy_enforcement.py` (strict `confirm is True`; no constructor shortcut; fresh-install OFF via the binding; both-toggles rule; any-toggle-off disables; verbatim codes + hint placement; enabled-gate/hard-line split; subject list == core contract) via a conftest package-shim loader (the addon `__init__` imports bpy; policy.py does not) + `test_mcp_fresh_install_default_off_and_no_enable_tool` (OFF twice, no enable/adult/confirm tool, gated subject refuses) + the network-audit default-use sweep extended over the binding (both toggle states, full check sweep — zero socket events). Blender gate extended (blender_verify.sh 5/5): the addon enabled via `addon_utils.enable` (the real checkbox path; `addons.new()` takes no args on 5.1), real AddonPreferences defaults, RM_POLICY lines (ENABLE-ADDON/FRESH-OFF/ONE-TOGGLE-STILL-OFF/ENABLE-BOTH-TOGGLES/HARD-LINES-HOLD/DISABLE-REOFF) grep-tested, PHASE 0 BLENDER GATE: PASS. Battery at close: lint clean, 358 passed, media-guard clean, blender/export/session/pose/style/live gates PASS.
