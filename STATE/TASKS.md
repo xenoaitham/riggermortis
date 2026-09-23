@@ -225,7 +225,7 @@ quadruped) with ≤2 manual corrections each, proven headless.
 - [x] P7-2 [S20] Tutorials: gamedev / VTuber / webcomic / indie-animator. — DONE S20: docs/TUTORIALS.md, four tracks with REAL verified command sequences (CLI subcommands + flags checked against cli.py; preset save positional form; import_and_extract via `blender -b --python`); gaps named in GAP: lines, not hidden: VTuber capture half (device NEEDS-HUMAN, live_capture.sh shipped UNTESTED-on-stream), artist-facing bake + turntable buttons (session-bridge paths are the verified ones today; panel buttons future scope). Common-setup block matches the README quickstart.
 - [x] P7-3 [S20] docs/LAUNCH.md: Show-HN, BlenderNation, r/blender drafts, tweet thread, 60s video script. — DONE S20: all five drafted with the claim discipline (every claim cites its test/gate/GIF; live half labeled verbatim "measured on replayed frames; real-camera number pending"; <100 ms UNCLAIMED in every draft incl. the tweet thread); the 60s script's 7 shots cut ONLY from existing footage (committed GIFs/captures/manga + `make gate` output), with an explicit no-live-footage note and the P5-4 shot reserved until it exists; honest "what's not done" paragraphs in every draft.
 - [ ] P7-4 Blender Extensions listing (manifest ready).
-- [ ] P7-5 PyPI publish (needs human account) + docs.
+- [x] P7-5 [S25-triage] PyPI publish — DONE: riggermortis_core 0.0.1 live (see PROGRESS; token handled via env once, rotation advised); fresh-venv install verified.
 - [ ] P7-6 60-second video cut from pipeline footage; CI media-regeneration gate. media: launch video.
   - PARTIAL (post-S25 triage, 2026-09-23): the cut is BUILT —
     `make launch-cut` (xtask/launch_cut.sh, shell-glue ffmpeg per D-009)
