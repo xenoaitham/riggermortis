@@ -97,7 +97,7 @@ def test_pose_writes_payload_and_round_trips(fake_detect, rig_json, tmp_path, ca
     out = tmp_path / "payload.json"
     assert main(["pose", str(_image_file(tmp_path)), str(rig_json), "--out", str(out)]) == EXIT_OK
     payload = json.loads(out.read_text(encoding="utf-8"))
-    assert payload["format"] == 2
+    assert payload["format"] == 3  # v3 write (S26)
     assert payload["image"]["width"] == 640 and payload["image"]["height"] == 820
     assert payload["figure"]["label"] == "figure 1"
     assert payload["rig"]["fingerprint"] == rigify_rig().fingerprint()
@@ -121,7 +121,7 @@ def test_pose_json_flag_prints_payload(fake_detect, rig_json, tmp_path, capsys) 
     code = main(["pose", str(_image_file(tmp_path)), str(rig_json), "--json"])
     assert code == EXIT_OK
     payload = json.loads(capsys.readouterr().out)
-    assert payload["format"] == 2 and payload["rotations"]
+    assert payload["format"] == 3 and payload["rotations"]
 
 
 def test_pose_all_figures_embeds_every_figure(fake_detect, rig_json, tmp_path) -> None:

@@ -71,7 +71,7 @@ def test_unknown_figure_label_is_actionable() -> None:
 def test_unsupported_format_is_actionable() -> None:
     with pytest.raises(PayloadError) as exc:
         payload_mod.figure_entries({"format": 9})
-    assert "formats 1 and 2" in str(exc.value)
+    assert "formats 1, 2 and 3" in str(exc.value)
 
 
 def test_v2_without_figures_list_is_actionable() -> None:
@@ -107,7 +107,7 @@ def test_build_payload_mirrors_selected_into_v1_keys() -> None:
     payload = payload_mod.build_pose_payload(
         Path("img.jpg"), 64, 64, _Rig(), entries, selected_label="figure 2"
     )
-    assert payload["format"] == 2
+    assert payload["format"] == 3  # v3 write (S26); read side pins stay 2
     assert payload["figure"]["label"] == "figure 2"
     assert payload["pose"] == {"a": 1}  # v1 reader sees the selected figure
     assert payload["rotations"] == [{"bone": "x"}]

@@ -26,9 +26,9 @@ from typing import Any
 
 from . import bpy_bridge
 
-PAYLOAD_FORMAT = 2
-#: Formats this build reads: 2 (native) and 1 (back-compat, read-only).
-READABLE_FORMATS = (1, 2)
+PAYLOAD_FORMAT = 3
+#: Formats this build reads: 3 (native), 2, and 1 (back-compat, read-only).
+READABLE_FORMATS = (1, 2, 3)
 
 
 def payload_module() -> Any:

@@ -9,6 +9,13 @@ Format history:
   figure is named by the top-level ``figure`` key, whose ``pose`` /
   ``rotations`` / ``skipped`` / ``notes`` mirror that entry, so v1-shaped
   reads keep working on v2 payloads.
+- **v3** (S26, P8-1): ADDITIVE only — an optional top-level ``pins`` list
+  (scene contact pins, validated by ``scene.ContactPin.from_dict`` — carried
+  as DATA, never enforced by the apply path). Format 3 entries read exactly
+  like format 2; a pins-free v3 payload differs from v2 output only in the
+  ``format`` integer. A v2 payload applied through v3 code is byte-identical
+  (pinned by contract test); an old build reading a v3 file refuses loudly
+  (the preset-format-2 house pattern).
 
 Every reader (add-on apply path, CLI, future MCP tools) goes through this
 module so the contract has exactly one implementation and the back-compat
@@ -21,8 +28,11 @@ from pathlib import Path
 from .errors import PayloadError
 from .types import RigData
 
-#: Format written by this build. Readers accept 1 (read-only) and 2.
-FORMAT = 2
+#: Format written by this build. Readers accept 1 (read-only), 2 and 3.
+FORMAT = 3
+
+#: Formats this build reads.
+READ_FORMATS = (1, 2, 3)
 
 
 def figure_entries(payload: dict[str, object]) -> list[dict[str, object]]:
@@ -33,11 +43,11 @@ def figure_entries(payload: dict[str, object]) -> list[dict[str, object]]:
             hint="regenerate with: rigpose pose <image> <rig.json> --out payload.json",
         )
     fmt = payload.get("format", 1)
-    if fmt == 2:
+    if fmt in (2, 3):
         figures = payload.get("figures")
         if not isinstance(figures, list) or not figures:
             raise PayloadError(
-                "payload v2 has no 'figures' list",
+                f"payload v{fmt} has no 'figures' list",
                 hint="regenerate with: rigpose pose <image> <rig.json> --out payload.json",
             )
         return figures
@@ -60,7 +70,7 @@ def figure_entries(payload: dict[str, object]) -> list[dict[str, object]]:
         }]
     raise PayloadError(
         f"unsupported pose payload format {fmt!r}",
-        hint="this build reads formats 1 and 2; regenerate with: "
+        hint="this build reads formats 1, 2 and 3; regenerate with: "
              "rigpose pose <image> <rig.json> --out payload.json",
     )
 
@@ -115,19 +125,24 @@ def build_pose_payload(
     rig: RigData,
     entries: list[dict[str, object]],
     selected_label: str,
+    pins: list[dict[str, object]] | None = None,
 ) -> dict[str, object]:
-    """Assemble a format-2 payload (D-009).
+    """Assemble a format-3 payload (D-009).
 
     ``entries``: one per figure — ``{"figure": {...meta...}, "pose": ...,
     "rotations": [...], "skipped": [...], "notes": [...]}`` in board order.
     The selected figure's data is mirrored into the v1 top-level keys.
+    ``pins``: optional scene contact pins (``ContactPin.to_dict`` dicts,
+    validated by ``scene.ContactPin.from_dict``) — omitted from the file
+    when empty/None, so a pins-free payload differs from v2 output only in
+    the ``format`` integer.
     """
     if not entries:
         raise PayloadError("no figure entries to embed", hint="detect figures first")
     selected = next(
         (e for e in entries if e["figure"].get("label") == selected_label), entries[0]
     )
-    return {
+    out: dict[str, object] = {
         "format": FORMAT,
         "image": {"path": str(image_path), "width": width, "height": height},
         "figure": dict(selected["figure"]),
@@ -150,3 +165,6 @@ def build_pose_payload(
         ],
         "rig": {"name": rig.name, "fingerprint": rig.fingerprint()},
     }
+    if pins:
+        out["pins"] = list(pins)
+    return out

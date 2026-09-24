@@ -95,7 +95,7 @@ def test_video_job_writes_per_frame_payloads_and_state(tmp_path: Path, rig_json:
     state = json.loads((job / "job.json").read_text(encoding="utf-8"))
     assert len(state["done"]) == 5
     first = json.loads((job / "payloads" / "frame_000000.json").read_text(encoding="utf-8"))
-    assert first["format"] == 2 and first["frame"] == 0 and first["rotations"]
+    assert first["format"] == 3 and first["frame"] == 0 and first["rotations"]
     # the fake varies the figure per frame, so poses differ
     fourth = json.loads((job / "payloads" / "frame_000003.json").read_text(encoding="utf-8"))
     assert fourth["pose"]["positions"] != first["pose"]["positions"]

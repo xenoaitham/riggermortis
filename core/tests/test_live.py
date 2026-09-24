@@ -185,7 +185,7 @@ def test_run_live_emits_contract_valid_pose_lines(tmp_path, rig_json) -> None:
     for event in events:
         entries = figure_entries(event)  # the D-009 contract reads it unchanged
         assert len(entries) == 1
-        assert event["format"] == 2
+        assert event["format"] == 3  # v3 write (S26); the reader side is version-agnostic
         assert event["rig"]["fingerprint"] == rigify_rig().fingerprint()
         envelope = event["live"]
         assert envelope["total_ms"] >= 0.0 and envelope["detect_ms"] >= 0.0

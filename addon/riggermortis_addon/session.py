@@ -40,7 +40,7 @@ RECONNECT_MAX = 5.0
 #: Known action kinds — mirrors mcp/session_bridge.KNOWN_ACTION_KINDS v1.
 KNOWN_ACTION_KINDS = (
     "inspect_scene", "apply_pose", "bake_action", "render_turntable",
-    "apply_style",
+    "apply_style", "apply_scene",
 )
 
 _STATE: dict[str, Any] = {}
@@ -217,6 +217,8 @@ def execute_action(action: dict[str, Any]) -> dict[str, Any]:
             return {"ok": True, "report": _exec_render_turntable(params)}
         if kind == "apply_style":
             return {"ok": True, "report": _exec_apply_style(params)}
+        if kind == "apply_scene":
+            return {"ok": True, "report": _exec_apply_scene(params)}
         return {"ok": False, "error": {
             "code": "unknown_action_kind",
             "message": f"unknown action kind: {kind!r}",
@@ -597,6 +599,38 @@ def _exec_apply_style(params: dict[str, Any]) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # main-thread pump + session lifetime
 # ---------------------------------------------------------------------------
+
+def _exec_apply_scene(params: dict[str, Any]) -> dict[str, Any]:
+    """P8-1: apply a multi-figure payload to N cast armatures in ONE action
+    (docs/SCENES.md). ``assignments`` maps figure label -> armature name;
+    the casting is validated BEFORE any pose is written (uncast /
+    double-cast / unknown-armature refusals are structured). Pins carried
+    by the payload (v3) are REPORTED, never enforced (P8-2's coupling pass
+    is the enforcer)."""
+    from pathlib import Path
+
+    from . import scene_apply
+
+    raw_assignments = params.get("assignments")
+    if not isinstance(raw_assignments, dict) or not raw_assignments:
+        raise ValueError(
+            "apply_scene needs assignments: {figure label: armature name} "
+            "(hint: the Casting Desk pairing, or inspect_scene for the "
+            "armature names)"
+        )
+    payload_path = str(params.get("payload_path") or "")
+    if not payload_path or not Path(payload_path).is_file():
+        raise ValueError(
+            f"payload_path not found: {payload_path!r} (hint: regenerate "
+            "with: rigpose pose <image> <rig.json> --all-figures --out payload.json)"
+        )
+    payload = importlib.import_module(__package__)._load_payload(payload_path)
+    return scene_apply.apply_scene_payload(
+        payload,
+        {str(k): str(v) for k, v in raw_assignments.items()},
+        mirror=bool(params.get("mirror", False)),
+    )
+
 
 def pump_once() -> int:
     """Drain inbound -> execute -> stage results. Runs on the MAIN thread

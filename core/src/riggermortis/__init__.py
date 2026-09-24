@@ -99,6 +99,17 @@ from .review import (
     review_items,
     skeleton_segments,
 )
+from .scene import (
+    PIN_ORIGINS,
+    SCENE_FORMAT,
+    ContactPin,
+    SceneError,
+    SceneFigure,
+    ScenePose,
+    pins_of,
+    scene_from_payload,
+    validate_casting,
+)
 from .secondary import (
     ChainSpec,
     SecondaryError,
@@ -133,6 +144,15 @@ __all__ = [
     "SecondaryTrack",
     "ChainSpec",
     "simulate_secondary",
+    "ContactPin",
+    "PIN_ORIGINS",
+    "SCENE_FORMAT",
+    "SceneError",
+    "SceneFigure",
+    "ScenePose",
+    "pins_of",
+    "scene_from_payload",
+    "validate_casting",
     "Preset",
     "SecondaryBinding",
     "apply_preset",

@@ -56,3 +56,7 @@ class InferenceError(RiggermortisError):
 
 class PayloadError(RiggermortisError):
     """A pose/detection payload is malformed, unsupported, or missing a figure."""
+
+
+class SceneError(RiggermortisError):
+    """A scene (P8-1) is malformed, mis-cast, or references unknown figures."""

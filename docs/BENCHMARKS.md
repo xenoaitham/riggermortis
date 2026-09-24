@@ -595,3 +595,50 @@ the composition never learns the action came from a clip.
   grep shapes verified), unit contract `pytest
   core/tests/test_motion_library.py` (27 tests incl. the certified
   composition pin), design + recipe `docs/MOTION_LIBRARY.md`.
+
+### Scenes + camera v0 (P8-1, session 26) — test/gate-pinned
+
+The CanonicalScene (N named figures + ContactPin data), the Casting Desk,
+and the approximate scene camera (design of record: `docs/SCENES.md`).
+Pins are CARRIED AND REPORTED, never enforced (P8-2 owns enforcement); the
+camera is labeled APPROXIMATE and refuses to stage below the confidence
+floor instead of staging a wrong silent camera.
+
+- **Camera v0 floor derivation (Annex A.1, strike S12) — SYNTHETIC
+  benchmark, labeled**: measured by `xtask/scene_probe.py` on its
+  self-contained two-figure benchmark (Blender 5.1.0, headless). The
+  v0-solved camera (front prior, 50 mm, closed-form width/center match)
+  measures **IoU 0.9657** against a deliberately off-prior reference (35 mm,
+  yawed 12°, low) — the intended-framing class. Degraded cameras: distance
+  ×1.5 → **0.4684**; single-figure framing of a two-figure reference →
+  **0.1324** — the visibly-wrong-shot class. **The floor 0.75 sits inside
+  the gap with margin on both sides.** Scope: synthetic derivation; the
+  P8-5 GT set re-derives it on real references (Annex A.1 re-validation
+  trigger). Projection model pinned by the probe (err 1.09e-07):
+  `u = 0.5 − Δx/d·f/sensor_w`, `v = 0.5 + Δz/d·f/sensor_h` for the level
+  90°/0°/180° camera; `world_to_camera_view` is v-up, unclamped — the
+  reference normalization flips v and clamps to the frame.
+- **Scene gate rows (real assets, real models)** — `xtask/scene_gate.py`
+  via `make pose-verify`, RM_SCENE lines, all PASS: CASTING refusals 3/3
+  (unknown figure / double-cast armature / unknown armature) with
+  subset-casting valid; **APPLY2** — the session executor's `apply_scene`
+  drove ONE 12-figure real detector payload into TWO rigs in one action,
+  re-evaluated worst **0.0198°** (figure 1) / **0.0063°** (figure 2), bar
+  0.5°; **V2-BACKCOMPAT** — the same content as a format-2 payload applies
+  byte-identically through the v3 code (38 bones, exact quaternion
+  equality); **CAMERA-REFUSE** — a reference framing that does not match
+  the scene measures IoU **0.3388** < 0.75 and stages NOTHING (no camera
+  object left, previous scene camera restored); **CAMERA-STAGE** — the
+  matched-layout reference clears the floor at **IoU 0.8279**, the staged
+  `rm_scene_camera` carries `rm_camera_v0="APPROXIMATE"` + the measured
+  IoU and is the scene camera.
+- **Order/cleanup facts (probe-pinned)**: apply order A-then-B vs B-then-A
+  is byte-identical (exact quaternion equality, 38 bones); a second full
+  apply is idempotent; `clear_pose` on one rig leaves the other
+  byte-unchanged.
+- **Where**: probe `blender -b --python xtask/scene_probe.py` (9 RM_SCENE
+  rows, self-contained); gate `make pose-verify` (RM_SCENE CASTING /
+  APPLY2 / V2-BACKCOMPAT / CAMERA-REFUSE / CAMERA-STAGE / GATE, grep-pinned
+  both shapes); unit contract `pytest core/tests/test_scene.py` (28 tests:
+  schema refusals, determinism, payload v3 + the back-compat pin, casting);
+  design of record `docs/SCENES.md`.

@@ -35,17 +35,19 @@ done
 
 mkdir -p "$PAYLOADS"
 fmt() { python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get('format',1))" "$1" 2>/dev/null || echo 0; }
-if [ ! -s "$PAYLOADS/metarig_payload.json" ] || [ "$(fmt "$PAYLOADS/metarig_payload.json")" != "2" ]; then
+# v3 is additive (S26): formats 2 and 3 are both current-build-readable.
+fmt_ok() { case "$1" in 2|3) return 0 ;; *) return 1 ;; esac; }
+if [ ! -s "$PAYLOADS/metarig_payload.json" ] || ! fmt_ok "$(fmt "$PAYLOADS/metarig_payload.json")"; then
   echo "== generating metarig payload (real models)"
   "$RIGPOSE" pose "$IMG" "$METARIG_RIG" --out "$PAYLOADS/metarig_payload.json" > /dev/null
 fi
-if [ ! -s "$PAYLOADS/seedsan_payload.json" ] || [ "$(fmt "$PAYLOADS/seedsan_payload.json")" != "2" ]; then
+if [ ! -s "$PAYLOADS/seedsan_payload.json" ] || ! fmt_ok "$(fmt "$PAYLOADS/seedsan_payload.json")"; then
   echo "== generating seedsan payload (real models)"
   "$RIGPOSE" pose "$IMG" "$SEEDSAN_RIG" --out "$PAYLOADS/seedsan_payload.json" > /dev/null
 fi
 echo "== generating multi-figure payload (B1: real models, --all-figures)"
 "$RIGPOSE" pose "$MULTI_IMG" "$METARIG_RIG" --all-figures --out "$PAYLOADS/girls_multi.json" > /dev/null
-if [ ! -s "$PAYLOADS/xbot_payload.json" ] || [ "$(fmt "$PAYLOADS/xbot_payload.json")" != "2" ]; then
+if [ ! -s "$PAYLOADS/xbot_payload.json" ] || ! fmt_ok "$(fmt "$PAYLOADS/xbot_payload.json")"; then
   echo "== generating xbot payload (real models; P2-8a tail probe)"
   "$RIGPOSE" pose "$IMG" "$XBOT_RIG" --out "$PAYLOADS/xbot_payload.json" > /dev/null
 fi
@@ -997,6 +999,20 @@ grep -q "RM_MOTION FIXTURE REEVAL: PASS" "$TMP/motion_gate.log"
 grep -q "RM_MOTION FBX: PASS" "$TMP/motion_gate.log"
 grep -qE "RM_MOTION XBOT: (PASS|SKIPPED)" "$TMP/motion_gate.log"
 grep -q "RM_MOTION GATE: PASS" "$TMP/motion_gate.log"
+
+# -- P8-1 scenes: multi-rig apply + v2 back-compat + camera v0 stage/refuse ---
+echo "== scene gate: one multi-figure payload -> two rigs + camera v0"
+RM_CORE_SRC="$REPO/core/src" \
+RM_ADDON_DIR="$REPO/addon" \
+RM_SCENE_MULTI="$PAYLOADS/girls_multi.json" \
+RM_SCENE_SINGLE="$PAYLOADS/metarig_payload.json" \
+  "$BLENDER" -b --python "$REPO/xtask/scene_gate.py" 2>&1 | tee "$TMP/scene_gate.log"
+grep -q "RM_SCENE CASTING: PASS" "$TMP/scene_gate.log"
+grep -q "RM_SCENE APPLY2: PASS" "$TMP/scene_gate.log"
+grep -q "RM_SCENE V2-BACKCOMPAT: PASS" "$TMP/scene_gate.log"
+grep -q "RM_SCENE CAMERA-REFUSE: PASS" "$TMP/scene_gate.log"
+grep -q "RM_SCENE CAMERA-STAGE: PASS" "$TMP/scene_gate.log"
+grep -q "RM_SCENE GATE: PASS" "$TMP/scene_gate.log"
 
 echo ""
 echo "P1-6 BLENDER POSE-APPLY GATE: PASS"

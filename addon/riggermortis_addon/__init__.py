@@ -28,6 +28,7 @@ from typing import Any, ClassVar
 import bpy
 from bpy.props import (
     BoolProperty,
+    CollectionProperty,
     EnumProperty,
     FloatProperty,
     IntProperty,
@@ -36,7 +37,20 @@ from bpy.props import (
 )
 from bpy.types import AddonPreferences, Operator, Panel, PropertyGroup
 
-from . import bpy_bridge, live_driver, overlay, policy, pose_apply, session, tails
+from . import (
+    bpy_bridge,
+    live_driver,
+    overlay,
+    policy,
+    pose_apply,
+    session,
+    tails,
+)
+from .casting_desk import (
+    RM_OT_apply_scene,
+    RM_OT_cast_refresh,
+    RM_OT_stage_scene_camera,
+)
 
 POLICY_NOTICE = (
     "Default build is SFW. An opt-in adult module (off by default, requires "
@@ -116,6 +130,51 @@ def _figure_enum_items(self: Any, context: Any) -> list[tuple[str, str, str]]:
     ]
 
 
+_UNCAST = "(none)"
+
+
+def _cast_armature_items(self: Any, context: Any) -> list[tuple[str, str, str]]:
+    """Dynamic per-row enum items: the scene's armatures. ``self`` is the
+    RM_CastSlot instance, so the row's own figure label rides the tooltip."""
+    del context
+    items = [(_UNCAST, "(unassigned)", "No armature paired with this figure yet")]
+    for obj in sorted(bpy.data.objects, key=lambda o: o.name):
+        if obj.type == "ARMATURE":
+            tip = "pair figure " + repr(self.figure_label) + " with " + obj.name
+            items.append((obj.name, obj.name, tip))
+    return items
+
+
+def _cast_get(self: Any) -> str:
+    return self.armature or _UNCAST
+
+
+def _cast_set(self: Any, value: str) -> None:
+    self.armature = "" if value == _UNCAST else value
+
+
+class RM_CastSlot(PropertyGroup):
+    """One Casting Desk row (P8-1): a payload figure and the armature the
+    artist paired it to. The pairing lives on the scene (saved with the
+    .blend); the desk NEVER guesses identity — rows start unassigned."""
+
+    figure_label: StringProperty(  # type: ignore[valid-type]
+        name="Figure",
+        description="Figure label from the payload (pins reference these)",
+    )
+    armature: StringProperty(  # type: ignore[valid-type]
+        name="Armature",
+        description="The armature this figure is paired to (empty = unassigned)",
+    )
+    armature_enum: EnumProperty(  # type: ignore[valid-type]
+        name="Pair with",
+        description="Which scene armature plays this figure",
+        items=_cast_armature_items,
+        get=_cast_get,
+        set=_cast_set,
+    )
+
+
 class RM_SceneSettings(PropertyGroup):
     rig_object: StringProperty(  # type: ignore[valid-type]
         name="Rig",
@@ -157,6 +216,12 @@ class RM_SceneSettings(PropertyGroup):
         description="Flip keys toggled in review this session (comma-separated). "
                     "Session state: the payload file itself stays untouched.",
         default="",
+    )
+    cast_slots: CollectionProperty(  # type: ignore[valid-type]
+        type=RM_CastSlot,
+        name="Casting",
+        description="Figure -> armature pairing for the scene apply (P8-1); "
+                    "the artist pairs, the desk never guesses",
     )
     policy_subject: EnumProperty(  # type: ignore[valid-type]
         name="Subject",
@@ -846,6 +911,41 @@ class RM_PT_main_panel(Panel):
                 box.label(text=line[:80])
 
 
+class RM_PT_casting_desk(Panel):
+    bl_label = "Casting Desk (scene apply)"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_category = "Riggermortis"
+    bl_parent_id = "RM_PT_main_panel"
+    bl_options: ClassVar[set[str]] = {"DEFAULT_CLOSED"}
+
+    def draw(self, context: bpy.types.Context) -> None:
+        layout = self.layout
+        settings = context.scene.rm_settings
+        if not settings.cast_slots:
+            layout.operator("rm.cast_refresh", icon="FILE_REFRESH")
+            layout.label(text="refresh to list the payload's figures", icon="INFO")
+            return
+        uncast = 0
+        for slot in settings.cast_slots:
+            row = layout.row(align=True)
+            row.label(text=slot.figure_label or "?")
+            if slot.armature:
+                row.prop(slot, "armature_enum", text="")
+            else:
+                uncast += 1
+                row.prop(slot, "armature_enum", text="")
+        row = layout.row(align=True)
+        row.operator("rm.cast_refresh", text="", icon="FILE_REFRESH")
+        row.operator("rm.apply_scene", icon="PLAY")
+        if uncast:
+            layout.label(text=f"{uncast} figure(s) unassigned — pair them first",
+                         icon="ERROR")
+        layout.operator("rm.stage_scene_camera", icon="CAMERA_DATA")
+        layout.label(text="camera v0 is ~APPROXIMATE~ (front-prior, IoU-gated)",
+                     icon="INFO")
+
+
 class RM_AddonPreferences(AddonPreferences):
     bl_idname = __package__
 
@@ -883,6 +983,7 @@ class RM_AddonPreferences(AddonPreferences):
 # ---------------------------------------------------------------------------
 
 _CLASSES = (
+    RM_CastSlot,
     RM_SceneSettings,
     RM_WM_Session,
     RM_WM_Live,
@@ -894,11 +995,15 @@ _CLASSES = (
     RM_OT_pick_joint,
     RM_OT_flip_reset,
     RM_OT_clear_pose,
+    RM_OT_cast_refresh,
+    RM_OT_apply_scene,
+    RM_OT_stage_scene_camera,
     RM_OT_session_connect,
     RM_OT_session_disconnect,
     RM_OT_live_start,
     RM_OT_live_stop,
     RM_PT_main_panel,
+    RM_PT_casting_desk,
     RM_AddonPreferences,
 )
 
