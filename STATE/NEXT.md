@@ -33,11 +33,12 @@
    Register as **Session 28**, claim P8-3 with [S28]; PROGRESS stamps via
    `date -u` read IMMEDIATELY before every append, then verify the stamp.
 
-3. **Baseline**: `cd core && /home/potato/miniconda3/bin/python3 -m pytest
-   tests` (**482 expected** — S27 added 23 coupling tests) + `make lint
+3. **PUSH FIRST (see the blocker below), then baseline**: `cd core &&
+   /home/potato/miniconda3/bin/python3 -m pytest tests` (**482 expected**
+   — S27 added 23 coupling tests) + `make lint
    PY=/home/potato/miniconda3/bin/python3`, and `gh run list --branch
-   main` (the S27 push is the newest run). If red: download the log,
-   root-cause, fix the real substance FIRST.
+   main` (the S27 commit 3ca848d is the newest, pushed-pending). If red:
+   download the log, root-cause, fix the real substance FIRST.
 
 ## S28 work order — P8-3 Fingers
 
@@ -105,6 +106,12 @@ no new model, no wrapper change, the P6-6 never-list untouched.
 
 ## Blocked / deferred (parked — do not burn time)
 
+- **PUSH BLOCKED (S27, NEEDS-HUMAN)**: the gh token in ~/.config/gh/
+  hosts.yml is EXPIRED (`gh auth status` fails; no credential helper, no
+  ssh key) — commit **3ca848d** ("Session 27 closed - P8-2 DONE") is
+  complete and pushed-pending on local main. LO runs `gh auth login -h
+  github.com` (one command) and the next session pushes FIRST, then
+  verifies `gh run list` green before any work.
 - Live capture device — parked LAST by LO; P5-4 runs when the phone comes
   up (box side READY; the client just never ran).
 - PyPI description + Blender Extensions upload — LO's site-side steps
