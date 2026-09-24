@@ -10,76 +10,78 @@ no uploads, ever.
 
 Repo: /home/potato/osint/riggermortis — LIVE ON GITHUB:
 https://github.com/xenoaitham/riggermortis (public, MIT, branch main).
-Phases 0–4 CLOSED (D-017). Phase 5: P5-1/2/3 DONE; P5-4 needs the camera
-(DIAGNOSED — see blockers — and PARKED LAST by LO). Phase 6: P6-1 (S22),
-P6-1a (S25), P6-2 (S23+S24), P6-2a refactor half (S25), P6-4/P6-5 (S21),
-P6-6 (S23) DONE; P6-3 UNBLOCKED (D-020). Phase 7: P7-1/2/3 DONE (S20);
-**P7-4: LO REGISTERED the blender.org account — publish deliberately
-deferred to LO's final session**; **P7-5: DONE — riggermortis_core 0.0.1
-LIVE ON PYPI** (fresh-venv install verified; token rotated after use —
-verify `pip install riggermortis-core` still on the manifest claims);
-P7-6 PARTIAL — the 60s launch cut is BUILT (`make launch-cut`,
-docs/media/launch_cut.mp4; the reserved live shot splices in after P5-4).
 
-**THE MISSION SHIFT (read STATE/ROADMAP.md first — it is the plan of
-record)**: Phase 8+ "the Producer" — coupled multi-character NSFW scenes
-(ContactPins + a deterministic coupling pass), FINGERS (the detected-but-
-unused hand keypoints), FACIALS (published landmark→param table), the
-reference camera solve, spine arch + roll, root motion, multi-character
-video → scene animation, review-UX speedrun + the anime fallback
-estimator. Two-round adversarial critic: round 1 5.1/10 FAIL (ten
-strikes), round 2 **9.8/10 PASS** — every strike answered in the
-roadmap's standing constraints. Session map: S26=P8-1 … S35=Scene Test.
-LO's ~15-session estimate is the envelope. **POST-V1 EXTENSION
-(LO-directed, round 3): an INDEPENDENT fresh-subagent critic scored the
-extended roadmap 6.8/10 FAIL with 13 strikes — roadmap Annex A resolves
-every one (pre-declared numeric bars with derivations, refuse branches
-per ledger row, scorecard-overrides-calendar precedence, cut order,
-engine-rendered fixture policy, the NSFW path matrix, non-author blind
-review). V1 SHIPS AT S35 (Phase 8 + Scene Test, LO-locked); THEN Phase 9
-auto-sculpt (proportions + silhouette volume, third-model amendment
-ritual) and Phase 10 text→pose/animation (PoseSpec validator, agent path,
-local-LLM path, measured realism pass), V2 target ~S45. Annex A bars are
-law from S26 onward.**
+**THE MISSION (read STATE/ROADMAP.md first — it is the plan of record,
+critic-passed 9.8/10 on independent fresh-subagent verification, and its
+Annex A pre-declared bars are LAW for every session from this one on):**
+Phase 8 "the Producer" = the V1 scope: coupled multi-character NSFW
+scenes (ContactPins + a deterministic coupling pass), FINGERS (the
+detected-but-unused hand keypoints), FACIALS (a published
+landmark→param table), the reference camera solve, spine arch + roll,
+root motion, multi-character video → scene animation, review-UX
+speedrun + the anime fallback estimator. **V1 ships when the Scene Test
+scorecard is green (target S35 — Annex A.3: the scorecard overrides the
+calendar).** Then post-V1: Phase 9 auto-sculpt (proportions + silhouette
+volume with the third-model ritual) and Phase 10 text→pose/animation
+(the PoseSpec validator, agent path, local-LLM path, measured realism
+pass), V2 target ~S45. S26's rock is **P8-1**.
 
-S25 + triage contract facts (what S26 builds on):
+## S25 + triage contract facts (what S26 builds on)
 
-- **P6-1a chain-binding presets**: preset format 2 (write) / 1+2 (read);
-  `secondary` bindings via the ONE ChainSpec validator; two-layer
-  validation (file-level vs bake-level live-rig checks); CLI
-  `preset save --secondary` / `preset set-secondary`;
-  `resolve_secondary()` fingerprint gate; session `bake_action` params
-  `preset_path`/`preset_force`/`fps`; gate rows RM_SECONDARY PRESET +
-  PRESET_GATE. presets.py is package-imported — `__version__` import
-  stays DEFERRED inside `preset_from_mapping`.
-- **P6-2a refactor half**: the clip-sampler loop lives in
-  `riggermortis_addon/clip_sample.py` (bpy inside functions, shim-tested
-  via the generic `addon_module()` conftest helper);
-  `xtask/sample_clip.py` is a thin caller. Byte-identity PROVEN at
-  promotion; error exits: usage 64, refusals 3, DETERM fail 1.
-- **P6-3 answers = D-020**: CC0 suite, ControlNet + BY-SA slots REPLACED
-  (owned/CC0 art, n=10 kept, honest re-run note), LO reviews the photo
-  set at packaging time, in-repo docs/ distribution, the public suite
-  BECOMES the CI gate fixture, P2-8 RETIRED as satisfied-by-Xbot.
-  Packaging is buildable work (S26+ backlog material, see roadmap slack).
-- **P7-5 PyPI LIVE**: riggermortis_core 0.0.1 on PyPI, fresh-venv
+- **P6-1a chain-binding presets (S25)**: preset format 2 (write) /
+  formats 1+2 (read); `secondary` bindings via the ONE ChainSpec
+  validator; two-layer validation (file-level vs bake-level live-rig
+  checks — do not collapse); CLI `preset save --secondary` /
+  `preset set-secondary`; `resolve_secondary()` fingerprint gate;
+  session `bake_action` params `preset_path`/`preset_force`/`fps`.
+  **presets.py is package-imported — its `from . import __version__`
+  stays DEFERRED inside `preset_from_mapping`** (module-level there is a
+  circular-import crash).
+- **P6-2a refactor half (S25)**: the clip-sampler loop lives in
+  `riggermortis_addon/clip_sample.py` (bpy imported INSIDE functions,
+  conftest-shim testable via the generic `addon_module()` helper in
+  conftest.py); `xtask/sample_clip.py` is a thin caller (argv/env glue;
+  usage exit 64, refusals 3, DETERM fail 1). Byte-identity PROVEN at
+  promotion — the promotion pattern (`git stash push -- <file>` + run +
+  pop + diff) is the tool for any future refactor.
+- **P6-3 UNBLOCKED (D-020)**: CC0 suite; ControlNet + BY-SA slots
+  REPLACED (owned/CC0 art, n=10 kept, honest re-run note for swapped
+  slots); LO reviews the photo set at packaging time; in-repo docs/
+  distribution; the public suite BECOMES the CI gate fixture; P2-8
+  RETIRED as satisfied-by-Xbot. Packaging is roadmap-slack work.
+- **P7-5 PyPI DONE (triage)**: riggermortis_core 0.0.1 LIVE —
+  https://pypi.org/project/riggermortis-core/0.0.1/ — fresh-venv install
   verified (rigpose CLI runs, PRESET_FORMAT=2 shipped, policy defaults
-  OFF). The upload token was env-transient and is ROTATED — nothing to
-  clean in-repo. Remaining: LO's site-side project description.
-- **P7-6 pre-cut**: xtask/launch_cut.sh (shell-glue ffmpeg, D-009),
-  60.0s/1280x720/1800 frames parse-back PASS, 7-shot visual check PASS
-  (3 defects caught+fixed pre-ship: fontcolor, caption placement, an
-  unwired caption), shot 6 typesets the REAL tail of a REAL gate run
-  (cached out/launch_cut/gate_capture.log; --recapture-gate re-runs),
-  no live footage pretended; media + allowlist landed same-commit.
-- **431 tests** (S25 added 20). CI green through the triage pushes
-  (runs 35924803826 + the triage chain). All gate numbers byte-identical
-  through S25 (RM_BAKE 0.0242° ×3, RM_FOOT_LOCK, RM_SECONDARY 1.81°/280
-  keys + the new PRESET rows, RM_TAILS, RM_MOTION block).
-- **D-021 is PROPOSED by the roadmap, NOT yet written**: S26 writes the
-  DECISIONS entry when the finger/face additive namespace lands in code
-  (the frozen 22-role core stays frozen; fingers live in a separate
-  additive map).
+  OFF). The upload token was env-transient; LO was advised to ROTATE it.
+  Nothing in-repo to clean. Remaining: LO's site-side project
+  description.
+- **P7-4**: LO REGISTERED the blender.org account; publish deliberately
+  deferred to LO's FINAL session. Extension zip builds clean on 5.1
+  (~80 KB; rebuild right before upload); runbook in docs/PUBLISHING.md.
+- **P7-6 PRE-CUT (triage)**: the 60s launch video is BUILT —
+  `make launch-cut` (xtask/launch_cut.sh, D-009 shell-glue ffmpeg) from
+  committed footage only; parse-back PASS (60.0s/720p30/1800 frames);
+  7-shot visual check PASS (3 defects caught+fixed pre-ship). Shot 6
+  typesets the REAL tail of a REAL `make gate` run (cached
+  out/launch_cut/gate_capture.log; --recapture-gate re-runs). The
+  reserved live-shot splice lands after P5-4.
+- **Camera DIAGNOSED (triage), PARKED LAST by LO**: /dev/video0 EXISTS
+  (v4l2loopback_dc registered) — the 13 silent sessions were the DroidCam
+  CLIENT never running + no phone serving 4747 (subnet-scan verified).
+  Box side READY (/usr/local/bin/droidcam). When LO brings the phone up
+  (WiFi mode, same network, app open): confirm frames with the STEP 0
+  command and ASK whether P5-4 jumps the queue — parked, not cancelled.
+- **431 tests** (S25 added 20). CI green through 302684c. All gate
+  numbers byte-identical through S25 (RM_BAKE 0.0242° ×3, RM_FOOT_LOCK
+  0.0371→0.0000 m, RM_SECONDARY 1.81°/280 keys + the PRESET/
+  PRESET_GATE rows, RM_TAILS 1.5177→0.2817 m, the RM_MOTION block).
+- **D-018 RESERVED** (S18 duplicate-contract amendment — never skip the
+  number). **D-021 RESERVED for the finger/face additive namespace** —
+  WRITTEN when that code lands (P8-3), never cited as existing before.
+- **The Scene Test** (roadmap) is the north star: a two-character
+  reference in → coupled, fingered, faced, camera-matched scene out; a
+  two-person video in → the same scene animated. Every S26 decision
+  should be readable against it.
 
 STEP 0 — Session protocol (do this first, always)
 
@@ -87,84 +89,118 @@ CAMERA FORK FIRST — it decides the session shape, one command:
 
 timeout 12 ffmpeg -hide_banner -loglevel error -f v4l2 -video_size 640x480 -i /dev/video0 -frames:v 1 out/live_probe/cam_test.png
 
-- Frames LAND: the phone came up — P5-4 becomes doable, but LO parked it
-  LAST: confirm frames, tell LO, then CONTINUE the roadmap work order
-  unless he says otherwise (the live demo is an endgame item).
-- Silent: proceed with the roadmap work order below.
-- Then read, in order: STATE/ROADMAP.md (THE plan of record — the
-  standing constraints section is law for every phase), STATE/NEXT.md,
-  STATE/TASKS.md, STATE/PROGRESS.md (S25 + triage entries),
-  STATE/DECISIONS.md (D-003, D-008, D-009, D-015/016, D-017, D-019,
-  D-020; D-018 RESERVED; D-021 to be WRITTEN by S26), 
-  STATE/CONVENTIONS.md, STATE/SESSIONS.md, docs/SECONDARY_MOTION.md,
-  docs/MOTION_LIBRARY.md, docs/LIVE.md, docs/BENCHMARKS.md, docs/POLICY.md,
-  docs/STYLE_LORA.md, and the claim-bearing surfaces docs/LAUNCH.md +
-  docs/TUTORIALS.md. Register as Session 26, claim tasks with [S26],
-  PROGRESS stamps: `date -u` IMMEDIATELY before every append, and VERIFY
-  the stamp against the clock after writing (S25 misjudged elapsed time
-  repeatedly and corrected in minutes — use the echoed value, not a
-  guess).
+- Frames LAND (the phone came up): confirm to LO, ask whether P5-4 jumps
+  the queue; unless he says yes, CONTINUE the P8-1 work order below.
+- Silent (14th): proceed with P8-1 directly.
+- Then read, in order: STATE/ROADMAP.md (plan of record — the standing
+  constraints AND Annex A are law), STATE/NEXT.md, STATE/TASKS.md (claim
+  P8-1 with [S26]), STATE/PROGRESS.md (S25 + triage entries),
+  STATE/DECISIONS.md (esp. D-003, D-008, D-009, D-015/016, D-017, D-019,
+  D-020; D-018 and D-021 RESERVED), STATE/CONVENTIONS.md,
+  STATE/SESSIONS.md, docs/SECONDARY_MOTION.md, docs/MOTION_LIBRARY.md,
+  docs/LIVE.md, docs/BENCHMARKS.md, docs/POLICY.md, docs/STYLE_LORA.md,
+  and the claim-bearing surfaces docs/LAUNCH.md + docs/TUTORIALS.md.
+- Register as Session 26 in STATE/SESSIONS.md. PROGRESS stamps: run
+  `date -u` IMMEDIATELY before every append and USE THE ECHOED VALUE —
+  do not estimate (S25 misjudged elapsed time five times; every one was
+  corrected, none should have existed). Verify the stamp after writing.
 
 Baseline: cd core && /home/potato/miniconda3/bin/python3 -m pytest tests
 (**431 expected**) + make lint PY=/home/potato/miniconda3/bin/python3 +
-gh run list --branch main (green). If red: download the log, root-cause,
-fix the real substance FIRST.
+gh run list --branch main (latest green; if red: download the log,
+root-cause, fix the real substance FIRST — the S12..S25 discipline).
 
-## S26 work order — P8-1 CanonicalScene + the casting desk + camera v0
+## S26 work order — P8-1 CanonicalScene + the Casting Desk + camera v0
 
-Per STATE/ROADMAP.md P8-1 (the rock; the roadmap's standing constraints
-are law):
+The design/probe/build/gate order is NON-NEGOTIABLE (P6-1/P6-2's
+discipline; the roadmap's standing constraints apply to every line):
 
-1. DESIGN-FIRST in a new docs/SCENES.md (the SECONDARY_MOTION pattern):
-   ScenePose/ContactPin data model, payload v3 ADDITIVE schema
-   (figures[], pins[]; unknown-field policy unchanged), the casting-desk
-   UX, camera v0 semantics (approximate, labeled, refuse-to-stage floor).
-2. PROBE FIRST for the Blender unknowns (multi-armature apply order,
-   per-armature payload recomputation, camera staging) — one
-   xtask/scene_probe.py, RM_SCENE lines, before any build code.
-3. Core `scene.py` + payload v3 + CI tests (back-compat v2
-   byte-identical, determinism, loud validation); D-021 DECISIONS entry
-   if/when the additive namespace solidifies (fingers are P8-3 — D-021
-   can land with P8-1's versioning discipline or defer, say which).
-4. Add-on Casting Desk operator + session `apply_scene` (v1 additive);
-   camera v0 button with the confidence floor.
-5. Gate: RM_SCENE section (verify_pose_apply.sh or a sibling) — 2-rig
-   apply fidelity bars, v2 back-compat, camera staging bars; grep-test
-   both PASS and refuse shapes.
-6. If A lands early: P8-3 fingers DESIGN sections (the data is already
-   in the detection payload — check what the payload carries today vs
-   what detection exposes; the 133-kp question needs a measured answer
-   before P8-3's design page).
+1. **DESIGN-FIRST** in a new docs/SCENES.md (the SECONDARY_MOTION
+   pattern — design of record, as-built appended later, never forked):
+   - `ScenePose`: N named figures, each a full `CanonicalPose`;
+     `ContactPin`: (figure A, role/bone) ↔ (figure B, role/bone),
+     authored or suggested — suggestions are data the artist confirms,
+     NEVER auto-enforced (the honesty law).
+   - Payload v3: ADDITIVE fields only (`figures[]`, `pins[]`); the
+     unknown-field policy stays ignore-with-note; v2 readers keep working
+     — the back-compat pin is BYTE-IDENTICAL apply of a v2 payload
+     through the v3 code (contract test).
+   - The Casting Desk UX: one panel listing detected figures × armatures;
+     the artist pairs them and applies all in one action. Session/MCP:
+     `apply_scene` (v1 additive — KNOWN_ACTION_KINDS grows, the tool
+     table does not).
+   - Camera v0 semantics: approximate, labeled APPROXIMATE everywhere,
+     refuse-to-stage below the confidence floor (Annex A.1: subject bbox
+     IoU >= 0.75 vs reference; the floor's DERIVATION publishes in S26's
+     benchmark block — strike S12's rule).
+2. **PROBE-FIRST** `xtask/scene_probe.py` (RM_SCENE lines, grep-tested
+   PASS/FAIL shapes before push): the Blender unknowns — (a) multi-
+   armature payload recomputation per rig from ONE payload (the D-009
+   recompute path × 2 rigs), (b) the apply order/cleanup semantics for
+   two rigs in one scene, (c) camera staging + framing-IoU measurement
+   mechanics. Build code only after the probe answers.
+3. **Core** `scene.py` + payload v3 + CI tests: loud validation
+   (ScenePose/ContactPin from_dict, unknown fields refuse with hints),
+   determinism (keyed sorts), v2 back-compat byte-identity, the
+   apply-scene contract.
+4. **Add-on**: the Casting Desk operator + `apply_scene` session action;
+   camera v0 button (stage/refuse per the floor).
+5. **Gate**: an RM_SCENE section (verify_pose_apply.sh or a sibling —
+   match the house print-shape exactly): 2-rig apply fidelity (the 0.5°
+   family), v2 back-compat, camera stage/refuse both shapes demonstrated.
+6. **If P8-1 lands early**: the P8-3 fingers DATA AUDIT (measured, not
+   assumed): what the detection layer actually exposes of the 133 kps
+   today (the payload contract vs the detector output), and the docs/
+   FINGERS.md design skeleton. Do NOT start P8-3's build.
 
-Watch out for (standing — the roadmap's constraints + the earned facts):
+Definition of S26 failure (name it, avoid it): scene code that breaks v2
+back-compat, a Casting Desk that guesses identity, a camera that stages
+without the floor, or ANY claim without a test/gate citation. Anything
+80% done is 0% shipped — park cleanly at a unit boundary.
 
-- The roadmap's honesty law: pins enforce ONLY authored links; inferred
-  = suggestion; cameras refuse below the floor; every residual loud.
-- The frozen-API amendment rule + payload additive-only policy (v3).
-- Park criteria: two stalled probe/gate cycles → park, reorder, move on.
-- Policy D-019 across scene surfaces; MCP stays SFW (test-pinned).
-- The env trap: BLENDER=/home/potato/blender-5.1.0-linux-x64/blender,
-  RIGPOSE=/home/potato/miniconda3/bin/rigpose,
-  PY=/home/potato/miniconda3/bin/python3.
-- Mimosa: bash writes of source-looking files blocked (Write/Edit only);
-  pagedoc.py import-struct FP at every commit — disclose, move on;
-  commit messages via -F files.
-- STATE stamps: real UTC, read-then-write-then-verify.
-- Claim-bearing surfaces: only touched when a number changes; grep all
-  three together (README status, LAUNCH, TUTORIALS) when it does.
+Watch out for (standing, earned — do not re-learn):
 
-End of session (non-negotiable) Tick claimed tasks (completed vs
-partially-done + what remains). Append PROGRESS (real UTC). Top of
-STATE/NEXT.md: "NEXT SESSION SHOULD" for 27 (P8-2 coupling per the map,
-or the parked-reorder reality — say which). Write
-STATE/SESSION27_PROMPT.md (this pattern + the roadmap facts). Update
-STATE/SESSIONS.md row. Commit + push; keep CI green, fix inline
-(S12..S25 discipline). Mimosa FPs expected and disclosed.
+- The roadmap's standing constraints are law: additive-only canonical
+  changes (D-021 reserved); the coupling/camera honesty law (enforce
+  authored, suggest inferred, refuse below floors); park criteria (two
+  stalled probe/gate cycles → park with evidence, reorder); the cut
+  order (first cut: P8-4 gaze → P8-9 time-to-fix → P8-5 full solve →
+  P8-6 roll; NEVER cut P8-2 coupling or P8-3 visible fingers); policy
+  D-019 across all new surfaces (MCP stays SFW, test-pinned).
+- Fixture law (D-020 + Annex A.3): engine-rendered fixtures for scene
+  tests; LO-authored references stay LOCAL, never committed; CC0 only
+  for anything shipped.
+- The gate env trap: BLENDER=/home/potato/blender-5.1.0-linux-x64/
+  blender, RIGPOSE=/home/potato/miniconda3/bin/rigpose,
+  PY=/home/potato/miniconda3/bin/python3 — else they 127 (or grab the
+  broken apt 4.0.2).
+- STATE stamps: real UTC, read-then-write-then-verify (S25 future-stamped
+  five times; the discipline exists because of that).
+- Mimosa: bash writes of ANY source-looking file are blocked — use
+  Write/Edit; expect the pagedoc.py import-struct FP at every commit and
+  push (disclose, move on); heredoc/append FPs when text names source
+  files — Edit tool + -F commit-message files.
+- Claim-bearing surfaces: README status line / LAUNCH.md / TUTORIALS.md
+  change ONLY when a number changes, and get one grep sweep together
+  when they do (S25 kept them byte-identical — keep that streak).
+- 5.x slotted actions, the posed-head lesson, joint-angle keying,
+  factory-EMPTY FBX scenes, rotation modes before quaternion writes —
+  the S15..S25 facts in SESSION25_PROMPT.md remain true; skim it if any
+  gate touches those paths.
 
-Known blockers (parked) — Live capture device: DIAGNOSED (loopback
-ready, DroidCam client was never running, nothing on 4747); LO PARKED IT
-LAST — when he brings the phone up (WiFi mode, same network, app open),
-confirm frames with the one command and ask whether P5-4 jumps the queue.
-PyPI description + Blender Extensions upload: LO's site-side steps
-(account registered; publish deferred to LO's final session by LO).
-Windowed GL stability: best-effort, never staged. P1-8a: roadmap P8-9.
+End of session (non-negotiable): tick claimed tasks (completed vs
+partially-done + what remains); append PROGRESS lines (real UTC,
+read-then-verify); top of STATE/NEXT.md: "NEXT SESSION SHOULD" — S27 =
+P8-2 contact coupling per the session map, UNLESS a park/reorder
+happened (say which and why); write STATE/SESSION27_PROMPT.md in this
+pattern (contract facts, STEP 0, the P8-2 work order with its Annex
+bars: pin residual < 2% torso span, conflict rule, bounded repair);
+update STATE/SESSIONS.md row; commit + push (routine commits
+authorized; keep CI green, fix inline like S12..S25); expect and
+disclose the Mimosa pagedoc.py FP.
+
+Known blockers (parked — do not burn time): live capture device —
+DIAGNOSED (see above), parked LAST by LO; P5-4 runs when the phone comes
+up. PyPI description + Blender Extensions upload — LO's site-side steps
+(deferred to his final session by LO). Windowed Blender GL stability —
+best-effort only, never staged. P1-8a — roadmap P8-9.

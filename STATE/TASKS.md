@@ -243,3 +243,66 @@ quadruped) with ≤2 manual corrections each, proven headless.
     committed mp4 via media-guard; the gate-capture cache makes a CI rebuild
     expensive — llvmpipe-class cost, the D-017 precedent says pin, don't
     re-render).
+
+## Phase 8 — "the Producer" (V1): scene engine  [STATE/ROADMAP.md is the plan of record; Annex A bars are LAW]
+
+- [ ] P8-1 [S26] CanonicalScene + the Casting Desk + camera v0. Core
+  `scene.py` (ScenePose: N named figures + ContactPin links; payload v3
+  ADDITIVE — v2 readers byte-identical, back-compat pinned); the Casting
+  Desk operator (figures × armatures pairing, one action applies all);
+  session `apply_scene` (v1 additive); camera v0 (approximate, labeled,
+  refuse-to-stage below the IoU >= 0.75 floor with the floor's derivation
+  published in S26's benchmark block). DESIGN-FIRST docs/SCENES.md;
+  PROBE-FIRST xtask/scene_probe.py (RM_SCENE lines). Accept per ROADMAP
+  P8-1 + Annex A.1.
+- [ ] P8-2 Contact coupling: the deterministic coupling pass enforcing
+  AUTHORED pins (conflict rule: authored order, confidence-weighted,
+  keyed least-squares; per-pin residual; unclosable pins loud). Bar: pin
+  residual < 2% torso span; non-chain roles <= 0.5 deg.
+- [ ] P8-3 Fingers: the additive finger namespace (D-021 WRITTEN at this
+  landing), per-finger confidence gates (occluded = skipped+flagged,
+  100% gated-skip on the occlusion fixtures), preset-mapped apply. Bars:
+  median <= 20 deg / p90 <= 35 deg visible fingers.
+- [ ] P8-4 Facials: the published landmark->param table (gaze ONLY with
+  iris kps), bone/shape-key binding classes, loud no-target reporting.
+  Bars: >= 9/10 monotonicity per param on the 10-state benchmark.
+- [ ] P8-5 Reference camera solve (measured): GT-set bars yaw <= 7.5 /
+  pitch <= 5 deg / distance <= 12%, framing IoU >= 0.75; low confidence
+  refuses; error bars published.
+- [ ] P8-6 Spine arch + roll: arch solve when head observed; roll
+  alignment confidence-gated (straight arms bit-identical).
+- [ ] P8-7 Root motion: the root-motion-aware contact model (design ->
+  probe -> measure; never threshold-fitting); regression-framed vs the
+  Xbot REAL row; in-place path numbers byte-identical.
+- [ ] P8-8 Multi-character video -> scene animation: per-frame multi-
+  figure payloads + per-frame coupling; Hungarian identity assignment +
+  swap alarm (bar: swap <= 2% on the fixture, alarm catches >= 90%);
+  per-frame scene bake cost published.
+- [ ] P8-9 Review UX speedrun (time-to-fix <= 15 s median bar) + P1-8a
+  fallback estimator (adoption bar: no-person <= 1/10, latency <= 2x
+  DWPose CPU, flip-margin parity).
+- [ ] P8-10 The Scene Test + V1 launch (S35 target): the composite
+  scorecard (engine-rendered couple fixtures), every ledger row
+  CLOSED/REFUSED, launch surfaces claim exactly the scored reality.
+
+## Phase 9/10 — post-V1 (V2, target ~S45): auto-sculpt + text
+
+- [ ] P9-1 Proportion auto-sculpt: mechanism probe (lattice vs shape-key
+  binding vs scale-correctives; selection bar: 5% on metarig + Mixamo-
+  class, fewest rig artifacts, name-ascending tie-break); all-fail ends
+  REFUSED-with-evidence (proportion report ships as data).
+- [ ] P9-2 Volume from silhouette: the THIRD pinned model decision
+  (license/checksum/CPU ritual amending the P6-6 never-list; REFUSED path
+  declared); IoU >= 0.85 visible-view scoped.
+- [ ] P9-3 Sculpt + animation wiring: static sculpt at frame one;
+  per-frame soft tissue OUT (declared).
+- [ ] P10-1 PoseSpec + the plausibility validator (pure core, model-free;
+  red-set refusal 100%; injection constants frozen in the contract).
+- [ ] P10-2 Agent-driven posing (MCP/session; SFW over MCP permanently).
+- [ ] P10-3 Local-LLM text-pose CLI (third-model ritual; NSFW path with
+  the 18+ module enabled).
+- [ ] P10-4 Text -> animation (PoseSpec sequences -> canonical actions ->
+  the certified pipeline).
+- [ ] P10-5 Realism pass + the measured bar (physics scorecard + blind
+  review with a non-author reviewer; miss budget <= 4/20; two failed
+  iteration cycles end over-budget classes REFUSED-with-evidence).
