@@ -30,7 +30,17 @@ video → scene animation, review-UX speedrun + the anime fallback
 estimator. Two-round adversarial critic: round 1 5.1/10 FAIL (ten
 strikes), round 2 **9.8/10 PASS** — every strike answered in the
 roadmap's standing constraints. Session map: S26=P8-1 … S35=Scene Test.
-LO's ~15-session estimate is the envelope.
+LO's ~15-session estimate is the envelope. **POST-V1 EXTENSION
+(LO-directed, round 3): an INDEPENDENT fresh-subagent critic scored the
+extended roadmap 6.8/10 FAIL with 13 strikes — roadmap Annex A resolves
+every one (pre-declared numeric bars with derivations, refuse branches
+per ledger row, scorecard-overrides-calendar precedence, cut order,
+engine-rendered fixture policy, the NSFW path matrix, non-author blind
+review). V1 SHIPS AT S35 (Phase 8 + Scene Test, LO-locked); THEN Phase 9
+auto-sculpt (proportions + silhouette volume, third-model amendment
+ritual) and Phase 10 text→pose/animation (PoseSpec validator, agent path,
+local-LLM path, measured realism pass), V2 target ~S45. Annex A bars are
+law from S26 onward.**
 
 S25 + triage contract facts (what S26 builds on):
 
