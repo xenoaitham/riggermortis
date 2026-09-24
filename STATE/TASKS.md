@@ -246,7 +246,7 @@ quadruped) with ≤2 manual corrections each, proven headless.
 
 ## Phase 8 — "the Producer" (V1): scene engine  [STATE/ROADMAP.md is the plan of record; Annex A bars are LAW]
 
-- [ ] P8-1 [S26] CanonicalScene + the Casting Desk + camera v0. Core
+- [x] P8-1 [S26] CanonicalScene + the Casting Desk + camera v0. Core
   `scene.py` (ScenePose: N named figures + ContactPin links; payload v3
   ADDITIVE — v2 readers byte-identical, back-compat pinned); the Casting
   Desk operator (figures × armatures pairing, one action applies all);
@@ -255,6 +255,40 @@ quadruped) with ≤2 manual corrections each, proven headless.
   published in S26's benchmark block). DESIGN-FIRST docs/SCENES.md;
   PROBE-FIRST xtask/scene_probe.py (RM_SCENE lines). Accept per ROADMAP
   P8-1 + Annex A.1.
+  - CLAIMED [S26] (2026-09-24): camera fork silent a 14th session; P8-1
+    per the work order.
+  - DONE S26 (2026-09-24): design-first docs/SCENES.md -> probe-first
+    xtask/scene_probe.py (9/9 RM_SCENE PASS; caught the factor-2 pinhole
+    error + pinned the v-up unclamped projection) -> core scene.py
+    (ContactPin/SceneFigure/ScenePose, loud validation, figures sorted /
+    pins authored-order, scene_from_payload ONE builder, validate_casting)
+    -> payload v3 ADDITIVE (FORMAT=3 write, 1+2+3 read, optional top-level
+    `pins`; v2-through-v3 apply byte-identical PINNED; old builds refuse
+    v3 loudly) -> apply_scene session action (KNOWN_ACTION_KINDS 5->6 both
+    bridge sides, MCP tool table unchanged) + Casting Desk (RM_CastSlot
+    rows, append-only refresh, one Apply Scene action, Stage Scene Camera
+    button; operators in casting_desk.py) -> RM_SCENE gate section
+    (scene_gate.py in verify_pose_apply.sh).
+  - GATE (real assets, real models, Blender 5.1.0): CASTING refusals 3/3 +
+    subset valid; APPLY2 one 12-figure real detector payload -> 2 rigs in
+    ONE action, re-eval worst 0.0198deg/0.0063deg (bar 0.5); V2-BACKCOMPAT
+    byte-identical 38 bones; CAMERA-REFUSE iou 0.3388 < 0.75 nothing
+    staged; CAMERA-STAGE iou 0.8279 >= 0.75, rm_camera_v0="APPROXIMATE" +
+    measured IoU on the staged rm_scene_camera, scene camera set. Floor
+    derivation published (SYNTHETIC-labeled): solved class 0.9657 vs
+    degraded 0.4684/0.1324 — floor 0.75 in the gap (docs/BENCHMARKS.md
+    SCENE). ALL prior gate numbers byte-identical; full battery green;
+    459 tests (28 new); lint clean.
+  - GATE-EARNED AMENDMENTS (recorded in SCENES.md): SUBSET-CASTING (the
+    strict cast-every-figure rule blocked the real 12-figure payload;
+    now any subset may pair — uncast labels REPORTED, never silent) and
+    the stale-matrix lesson (place, view_layer.update(), THEN measure —
+    world_to_camera_view reads a stale matrix_world otherwise).
+  - EARLY-FINISH BONUS: the P8-3 fingers DATA AUDIT (measured on real
+    models — all 133 kps + confidences flow to the detection payload,
+    hand conf means 0.65/0.86 with 0/21 dropouts; the drop is at the
+    canonical-solve boundary) + docs/FINGERS.md design skeleton. P8-3
+    NOT started (D-021 still RESERVED until that code lands).
 - [ ] P8-2 Contact coupling: the deterministic coupling pass enforcing
   AUTHORED pins (conflict rule: authored order, confidence-weighted,
   keyed least-squares; per-pin residual; unclosable pins loud). Bar: pin

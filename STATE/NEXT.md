@@ -1,13 +1,10 @@
 # NEXT SESSION SHOULD …
 
-0. **THE PLAN OF RECORD IS STATE/ROADMAP.md** ("the Producer", Phase 8+,
-   written post-S25 at LO's direction, critic-passed 9.8/10): coupled
-   multi-character scenes, fingers, facials, the reference camera solve,
-   spine arch + roll, root motion, multi-character video → scene
-   animation, review UX + the anime estimator. Session map S26=P8-1 …
-   S35=Scene Test. The roadmap's standing constraints (additive-only
-   canonical changes via D-021, the coupling/camera honesty law, park
-   criteria, D-019 coverage) are law for every session below.
+0. **THE PLAN OF RECORD IS STATE/ROADMAP.md** ("the Producer", critic-passed
+   9.8/10; Annex A pre-declared bars are LAW): S26 landed P8-1 (the
+   CanonicalScene, the Casting Desk, camera v0 with the published floor).
+   The session map says **S27 = P8-2 contact coupling** — the "not touching
+   = bad" fix and the product's core promise (NEVER cut, Annex A).
 
 1. **Camera re-verify FIRST, one command** (it decides the session shape):
 
@@ -15,140 +12,109 @@
 
    - **Frames land** → flip to **P5-4** (the recorded live demo + the TRUE
      capture→apply measurement; claim or retire the <100 ms mid-laptop gate
-     honestly; update the three live-number surfaces in the same session;
-     the D-018 failsafe/duplicate-floor revisit trigger becomes
-     live-relevant). Silent 13 straight sessions so far.
-   - **Silent again (14th)** → the work order below. P6-3 packaging stays
-     blocked until LO answers the licensing questions (a POLICY call only
-     LO makes; the 7 questions are at the bottom of this file).
+     honestly). Silent 14 straight sessions so far; the box side is READY
+     (D-020-era diagnosis: the DroidCam client just was never running).
+   - **Silent again (15th)** → the P8-2 work order below.
 
-2. **Then read, in order**: STATE/TASKS.md (P6-1a DONE with the full S25
-   entry; P6-2a CLAIMED with the refactor half done), STATE/PROGRESS.md
-   (S25 entries), STATE/DECISIONS.md (D-019 executed; D-018 stays
-   RESERVED), STATE/CONVENTIONS.md, STATE/SESSIONS.md,
-   docs/MOTION_LIBRARY.md (its § Future sketch is now HALF-built: the
-   sampler loop lives in `riggermortis_addon/clip_sample.py`, the
-   session-action wiring is what remains), docs/SECONDARY_MOTION.md (§
-   Chain-binding presets = the P6-1a as-built), docs/LIVE.md,
-   docs/BENCHMARKS.md (SECONDARY block gained the P6-1a equivalence row),
-   docs/POLICY.md, docs/STYLE_LORA.md. Register as **Session 26**, claim
-   tasks with [S26], PROGRESS stamps via `date -u` read IMMEDIATELY before
-   every append (S25 future-stamped twice and corrected both within
-   minutes — read the clock, then write the stamp, then verify the stamp).
+2. **Then read, in order**: STATE/ROADMAP.md P8-2 + Annex A.1/A.2 (bars are
+   law), docs/SCENES.md (the P8-1 design of record — P8-2 EXTENDS it, the
+   coupling pass hooks into the scene apply the page describes),
+   STATE/TASKS.md (P8-1 DONE with the full S26 entry), STATE/PROGRESS.md
+   (S26 entries), STATE/DECISIONS.md (D-019/D-020; D-018 + D-021 stay
+   RESERVED — D-021 is written only when finger/face code lands), STATE/
+   CONVENTIONS.md, STATE/SESSIONS.md, docs/BENCHMARKS.md (SCENE block =
+   the S26 numbers), docs/MOTION_LIBRARY.md, docs/POLICY.md,
+   docs/FINGERS.md (the S26 audit — P8-3 material, do NOT start the build).
+   Register as **Session 27**, claim P8-2 with [S27]; PROGRESS stamps via
+   `date -u` read IMMEDIATELY before every append, then verify the stamp.
 
 3. **Baseline**: `cd core && /home/potato/miniconda3/bin/python3 -m pytest
-   tests` (**431 expected** — S25 added 20: 17 preset-schema + 3 CLI + 5
-   clip-sample… minus none removed) + `make lint
-   PY=/home/potato/miniconda3/bin/python3`, and verify the latest main CI
-   run green (`gh run list --branch main`; S25's push is the newest run).
-   If red: download the log, root-cause, fix the real substance FIRST.
+   tests` (**459 expected** — S26 added 28 scene/contract tests; the
+   write-side format pins in test_payload/pose_cmd/video/live now assert 3)
+   + `make lint PY=/home/potato/miniconda3/bin/python3`, and `gh run list
+   --branch main` (the S26 push is the newest run). If red: download the
+   log, root-cause, fix the real substance FIRST.
 
-## S26 work order (unless the camera flips the fork)
+## S27 work order — P8-2 Contact coupling (the "not touching = bad" fix)
 
-**P8-1 CanonicalScene + the casting desk + camera v0** (the roadmap's
-S26 rock; full spec + accept bars in STATE/ROADMAP.md): design-first
-docs/SCENES.md, probe-first xtask/scene_probe.py (RM_SCENE lines), core
-scene.py + payload v3 additive (v2 back-compat byte-identical), the
-Casting Desk operator + session apply_scene, camera v0 (approximate,
-labeled, refuse-to-stage floor), gate rows grep-tested both shapes.
-Early-finish option: the P8-3 fingers data audit (what the detection
-payload actually carries of the 133 kps — measured, not assumed).
-The old S26 items (retarget_clip session action = P6-2a remains;
-P6-3 packaging) move to roadmap slack — still owed, scheduled by LO's
-priority call at each session fork.
+Design → probe → build → gate, in that order (NON-NEGOTIABLE):
 
-Watch out for (S25's earned facts — do not re-learn them):
+1. **DESIGN-FIRST: extend docs/SCENES.md** (never fork it) with the
+   coupling pass design: deterministic iterative redistribution over the
+   canonical figures, hooked AFTER the per-figure solves and BEFORE the
+   bake. **The conflict rule is pre-declared (roadmap, critique-fixed)**:
+   pins resolve in AUTHORED order (the scene model already preserves it —
+   `ScenePose.pins` is never sorted), weighted by per-role confidence;
+   an over-determined set solves least-squares with a keyed iteration
+   order (deterministic); each pin REPORTS its residual; unclosable pins
+   stay loud; the solve never moves a role below its confidence floor.
+   Enforcement boundary: only AUTHORED pins are enforced; `origin:
+   "suggested"` pins are confirmed in the Casting Desk first (the honesty
+   law — the suggestion INFERENCE (keypoint proximity) is also P8-2 work:
+   it feeds the desk as data, never auto-enforced).
+2. **PROBE-FIRST xtask/coupling_probe.py** (RM_COUPLE lines, grep-tested
+   both shapes before push): the Blender unknowns — (a) does the iterative
+   redistribution converge on the gate fixture (hold-from-behind class)
+   within the bar; (b) do non-chain roles stay byte-identical during the
+   solve; (c) the conflict case (competing pins) behaves per the rule.
+3. **Core**: the coupling pass in core (pure, deterministic — the
+   keyed-sorts law), solving over `ScenePose` figures; per-pin residuals
+   in the report; bounded repair cycle (Annex A.2: one default cycle —
+   after it, coupling ships as rigid pin-SNAP reported as such, L1 =
+   CLOSED-LIMITED in DECISIONS).
+4. **Gate**: an RM_COUPLE section (scene_gate.py sibling shape): the
+   coupled-pair fixture (hold-from-behind class, engine-built per Annex
+   A.3 — no external sourcing), pin residual < **2% torso span**, roles
+   NOT on any pin's dependency chain unchanged ≤ **0.5°** (chain roles on
+   resolved pins report deviation as pin cost — strike S9 carve-out),
+   twin-run byte-identical, conflict case documented + gated.
+5. **Early-finish option**: the pin-suggestion inference (keypoint
+   proximity) as DATA for the desk, or P8-3 prep — measured work only.
 
-- **presets.py is package-imported since P6-1a** — its `from . import
-  __version__` is DEFERRED inside `preset_from_mapping` (a module-level
-  import there is a circular-import crash). Same trap for any module
-  `__init__` gains.
-- **Preset schema is format 2 (write) / formats 1+2 (read)** — never bump
-  without widening `_READ_FORMATS`, and never add a binding field without
-  going through `SecondaryBinding.from_dict` (the ONE validator: unknown
-  fields refuse, bones == links, one-bone-per-chain via `_check_bindings`
-  on BOTH the load path and the constructor).
-- **The binding validation is two-layer by design**: the preset loader
-  checks what a file can know (no rig); `bake_action` re-validates every
-  bone against the LIVE rig (exists, parent-first under the anchor's
-  mapped bone, not role-mapped, not double-bound across chains). Do not
-  collapse the layers.
-- **Sampler promotion contract**: `xtask/sample_clip.py` is a THIN CALLER;
-  the loop is `riggermortis_addon/clip_sample.py` with bpy imported
-  INSIDE functions (conftest-shim importable). The RM_MOTION SAMPLE/
-  DETERM/WRITE lines are the gate's grep surface — they live in
-  `sample_clip()`'s report and must stay byte-stable. Error-path exit
-  codes: usage 64, refusals 3, DETERM fail 1 (the old 66 for a missing
-  file became 3; nothing depended on 66).
-- **Byte-identity proofs are cheap**: `git stash push -- <file>`, run the
-  old path, `git stash pop`, diff. S25 proved the sampler promotion this
-  way (57111 bytes == 57111 bytes). Use it for the session action too.
-- **Fixture/sampler keying is JOINT-angle** (S24, standing); **5.1's FBX
-  importer crashes on any light** (factory-EMPTY scenes, standing); **the
-  Xbot walk REAL row has 0 detected plants — published, not tuned**
-  (root motion → hips-anchored glide above the D-008-untuned enter bar;
-  remedy = the declared positional/root-motion upgrade, never
-  threshold-fitting).
-- **The gate's env trap** (standing): BLENDER=/home/potato/
+**S26's contract facts S27 builds on** (do not re-learn):
+
+- `ScenePose.pins` is AUTHORED-ORDER (never sorted — that order is P8-2's
+  precedence); figures are label-sorted. `validate_casting` allows SUBSETS
+  (uncast labels are reported by the apply, never silent).
+- Payload v3: FORMAT=3 write, formats 1+2+3 read; optional top-level
+  `pins` (validated by `ContactPin.from_dict` — the ONE validator);
+  a v2 payload through v3 code applies BYTE-IDENTICALLY (the pinned
+  contract test); a pins-free v3 file differs from v2 output only in the
+  format int.
+- The scene apply COMPOSES the real per-figure `apply_payload` (tails
+  repair per figure, one undo push); apply is order-insensitive and
+  idempotent (probe-proven byte-identical).
+- Camera v0: place, `view_layer.update()`, THEN measure
+  (`world_to_camera_view` reads a stale `matrix_world` otherwise — the
+  S26 gate-earned bug); reference normalization flips v and clamps to the
+  frame; the 0.75 floor derivation is SYNTHETIC-labeled in BENCHMARKS.
+- The gate's camera benchmark condition requires the scene layout to
+  MATCH the reference (payload FROM the reference being posed) — the gate
+  derives separation from the posed subject's measured aspect.
+- The gate env trap (standing): BLENDER=/home/potato/
   blender-5.1.0-linux-x64/blender, RIGPOSE=/home/potato/miniconda3/bin/
   rigpose, PY=/home/potato/miniconda3/bin/python3 — else they 127 (or
-  worse, grab the broken apt 4.0.2).
-- **STATE timestamps are REAL**: `date -u` immediately before every
-  PROGRESS append — and CHECK the stamp against the clock after writing
-  (S25 wrote 21:40Z when the clock said 21:27Z and fixed it in minutes;
-  the S24 slip, twice).
-- **Mimosa** (standing): intercepts bash writes of ANY source-looking
-  file — use Write/Edit (S25: a `git show HEAD:file > /tmp/x.py` redirect
-  was blocked; a pathspec-scoped `git stash push -- <file>` routed the
-  byte-identity proof around it without bypassing the scanner); expect
-  the pagedoc.py import-struct FP at every commit and push; heredoc/append
-  FPs when text names source files.
-- **Claim-bearing surfaces**: S25 touched ONLY the README status line
-  (gate-cited numbers) + BENCHMARKS + SECONDARY_MOTION + MOTION_LIBRARY;
-  LAUNCH.md and TUTORIALS.md and the README live bullet are untouched
-  (git-diff-verified at close). Keep it that way unless a number actually
-  changes, and grep all three together when it does.
+  grab the broken apt 4.0.2).
+- STATE stamps are REAL UTC, read-then-write-then-verify.
+- Mimosa (standing): bash writes of source files blocked — use Write/Edit;
+  the pagedoc.py import-struct FP at every commit; S26 added a RECURRING
+  SQL-injection FP on operator-execute bodies in the add-on `__init__`
+  (no SQL exists — D-003); new operator classes live in
+  `addon/casting_desk.py`-style modules (new-file writes scan clean);
+  heredoc/append FPs when text names source files — Edit tool + -F
+  commit-message files.
+- Claim-bearing surfaces: README/LAUNCH/TUTORIALS change ONLY when a
+  number changes, and get one grep sweep together when they do.
 
-## P6-3 licensing questions — ANSWERED (D-020, 2026-09-23)
+## Blocked / deferred (parked — do not burn time)
 
-The 7 questions parked here since S21/S22/S23 are answered — see
-**STATE/DECISIONS.md D-020** for the full recorded decisions: suite media
-**CC0**; ControlNet crops **replaced**; the BY-SA Commons illustration
-**replaced**; **LO reviews** the photo set for identifiable people at
-packaging time; distribution **in-repo docs/**; the public suite
-**becomes the CI gate fixture**; **P2-8 retired** as satisfied-by-Xbot
-(honest label kept). The answers were LO's directly (CC0) or explicitly
-delegated to the session ("you choose the best, I trust you") and are
-revisitable — they live in an append-only DECISIONS entry, not a chat
-scrollback.
-
-Blocked / deferred (updated 2026-09-23 post-S25 triage):
-
-- Live capture device — the LONG-STANDING blocker is now DIAGNOSED
-  (post-S25 triage): /dev/video0 exists (v4l2loopback_dc registered), the
-  DroidCam CLIENT was simply never running, and the subnet scan found no
-  phone serving 4747. Box side READY; the remaining step is physical
-  (phone on the same network + DroidCam app open, WiFi mode per LO).
-  LO deliberately PARKED this as the LAST unblock — P5-4 runs when the
-  phone comes up, not before.
-- PyPI + Blender Extensions + MCP registry submissions — account-bound
-  (LO); docs/PUBLISHING.md runbooks; walkthrough given post-S25 (waiting
-  on the accounts).
-- P6-3 public benchmark suite — **UNBLOCKED (D-020)**; packaging is
-  buildable S26 work (work order B).
-- P1-8a fallback estimator — parked (D-011/D-012).
-- P2-8 real walking clip — **RETIRED (D-020 #7)** as satisfied-by-Xbot
-  for pipeline-verification purposes; a real human clip stays welcome,
-  never gating.
-- Phase 4 — CLOSED (D-017); manga media regenerates via
-  `bash xtask/manga_build.sh` (media-guard pins the 8 files).
-- Phase 5 — P5-1..P5-3 DONE; P5-4 needs the camera (diagnosed, parked
-  last).
-- Phase 6 — P6-1 DONE (S22); P6-1a DONE (S25); P6-2 DONE (S23+S24);
-  P6-2a refactor half DONE (S25), session action remains; P6-4/P6-5 DONE
-  (S21); P6-6 DONE (S23); P6-3 UNBLOCKED (D-020).
-- Phase 7: P7-1/P7-2/P7-3 DONE; P7-4/P7-5 account-bound; P7-6 PARTIAL —
-  the 60s cut is BUILT from existing footage (`make launch-cut`,
-  docs/media/launch_cut.mp4, TASKS entry carries the detail); what remains
-  is the reserved live-shot splice after P5-4 and the pin-vs-re-render CI
-  decision.
+- Live capture device — parked LAST by LO; P5-4 runs when the phone comes
+  up (box side READY; the client just never ran).
+- PyPI description + Blender Extensions upload — LO's site-side steps
+  (deferred to his final session by LO).
+- P6-3 public benchmark suite packaging — UNBLOCKED (D-020), roadmap-slack
+  work, scheduled by LO's priority call at a session fork.
+- P6-2a `retarget_clip` session action — the refactor half is DONE; the
+  executor wiring is roadmap-slack work.
+- P1-8a fallback estimator — parked (D-011/D-012) until P8-9.
+- Windowed Blender GL stability — best-effort only, never staged.
