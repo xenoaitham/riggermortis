@@ -30,6 +30,19 @@ from .contacts import (
     foot_slide,
     lock_feet,
 )
+from .coupling import (
+    BAR_FRAC as COUPLE_BAR_FRAC,
+)
+from .coupling import (
+    ENFORCE_CONF_FLOOR as COUPLE_ENFORCE_CONF_FLOOR,
+)
+from .coupling import (
+    CoupleReport,
+    PinCoupleRow,
+    Placement,
+    couple_scene,
+    movable_joints,
+)
 from .errors import (
     BridgeError,
     MappingError,
@@ -153,6 +166,13 @@ __all__ = [
     "pins_of",
     "scene_from_payload",
     "validate_casting",
+    "COUPLE_BAR_FRAC",
+    "COUPLE_ENFORCE_CONF_FLOOR",
+    "CoupleReport",
+    "PinCoupleRow",
+    "Placement",
+    "couple_scene",
+    "movable_joints",
     "Preset",
     "SecondaryBinding",
     "apply_preset",

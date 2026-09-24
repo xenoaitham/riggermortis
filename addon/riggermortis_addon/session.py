@@ -629,6 +629,7 @@ def _exec_apply_scene(params: dict[str, Any]) -> dict[str, Any]:
         payload,
         {str(k): str(v) for k, v in raw_assignments.items()},
         mirror=bool(params.get("mirror", False)),
+        couple=bool(params.get("couple", True)),  # P8-2: authored pins enforce
     )
 
 

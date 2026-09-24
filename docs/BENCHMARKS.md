@@ -642,3 +642,59 @@ floor instead of staging a wrong silent camera.
   both shapes); unit contract `pytest core/tests/test_scene.py` (28 tests:
   schema refusals, determinism, payload v3 + the back-compat pin, casting);
   design of record `docs/SCENES.md`.
+
+### Contact coupling (P8-2, session 27) — test/gate-pinned
+
+The deterministic pass enforcing AUTHORED pins over the scene (design of
+record: `docs/SCENES.md` § Contact coupling). Suggested / below-floor /
+unplaced pins are REPORTED LOUD and move nothing; the solve is pure
+position-space surgery (rotations derive at apply time), so the certified
+apply path consumes coupled poses unchanged.
+
+- **Annex A.1 bar met, with three orders of margin**: on the engine-built
+  hold-from-behind-class fixture (canonical-exact rigs, Annex A.3), both
+  authored pins close at rig-space residuals **0.00007 / 0.00016 m** —
+  fracs **0.00016 / 0.00035** of torso span (bar 0.02) through the REAL
+  scene-apply path with placements MEASURED from the posed rigs; the
+  coupled apply re-evaluates at **0.0000°** worst (bar 0.5° family).
+- **Probe numbers** (`xtask/coupling_probe.py`, 7/7 RM_COUPLE rows, pure
+  core + the REAL `apply_canonical_pose`): convergence fracs
+  0.000158/0.000189 in 27 iterations; non-chain positions byte-identical
+  and their derived rotations byte-identical through the real apply while
+  the pinned chains move; competing pins converge to the
+  confidence-weighted compromise (residuals 0.111/0.059 reported, both
+  flagged unclosable, twin byte-identical); suggested + below-floor pins
+  move nothing and say why; unreachable targets straighten the chain and
+  stay loud. SYNTHETIC-labeled (engine-built fixtures; real references
+  re-run the bar per the Annex A.1 re-validation trigger).
+- **Gate rows** (`xtask/couple_gate.py` via `make pose-verify`, RM_COUPLE
+  lines, Blender 5.1.0): COUPLE-RESIDUAL (fracs 0.00016/0.00035 + report
+  rows closed + worst_fk 0.0000°), COUPLE-NONCHAIN (non-subtree positions
+  byte-equal; live apply fidelity worst 0.014° vs the coupled targets —
+  riding subtrees swing rigidly with a moved ancestor, which is the
+  coupled pose's own physics; the "unchanged" guarantee is byte-exact
+  non-subtree positions core-side + the 0.5° apply family, unit-pinned),
+  COUPLE-TWIN (42 bones byte-identical), COUPLE-CONFLICT (compromise
+  reported, fracs 0.2486/0.1292, both unclosable loud, apply succeeds),
+  COUPLE-NOENFORCE (a suggested pin moves nothing, byte-equal, reason
+  reported).
+- **Declared constants (untuned, D-008)**: `MAX_ITERS 32`,
+  `EARLY_EXIT_FRAC 2e-4`, enforcement floor `0.55` (the CONVENTIONS
+  ambiguity bar, reused), bar `0.02` (Annex A.1). Enforcement gates on
+  the PIN's confidence; the endpoints' joint confidence feeds the split
+  weights (`w ∝ 1 − c`).
+- **Gate-earned lessons**: the placement origin must map the canonical
+  ORIGIN (`t = world(anchor) − s·R·canonical(anchor)` — identity for
+  detector-solved poses); the coupled write-back is FULL precision (riding
+  roles keep byte-exact segment directions); and the fixture-builder
+  lesson (parents must exist before children — an alphabetical creation
+  order silently disconnected limbs and only the real-Blender gate caught
+  it; the builder is two-pass and a missing parent refuses).
+- **Where**: probe `/home/potato/miniconda3/bin/python3
+  xtask/coupling_probe.py` (self-contained, no Blender); gate `make
+  pose-verify` (RM_COUPLE RESIDUAL / NONCHAIN / TWIN / CONFLICT /
+  NOENFORCE / GATE, grep-pinned); unit contract `pytest
+  core/tests/test_coupling.py` (23 tests: the movable-chain table,
+  placements, enforcement gate, weights, conflict, reach, scale
+  invariance, purity, determinism, report shape); design of record
+  `docs/SCENES.md` § Contact coupling.

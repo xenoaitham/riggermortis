@@ -289,10 +289,44 @@ quadruped) with ≤2 manual corrections each, proven headless.
     hand conf means 0.65/0.86 with 0/21 dropouts; the drop is at the
     canonical-solve boundary) + docs/FINGERS.md design skeleton. P8-3
     NOT started (D-021 still RESERVED until that code lands).
-- [ ] P8-2 Contact coupling: the deterministic coupling pass enforcing
+- [x] P8-2 [S27] Contact coupling: the deterministic coupling pass enforcing
   AUTHORED pins (conflict rule: authored order, confidence-weighted,
   keyed least-squares; per-pin residual; unclosable pins loud). Bar: pin
   residual < 2% torso span; non-chain roles <= 0.5 deg.
+  - CLAIMED [S27] (2026-09-24): camera fork silent a 15th session; P8-2
+    per the work order.
+  - DONE S27 (2026-09-24): design-first docs/SCENES.md § Contact coupling
+    (movable-chain table, enforcement floor 0.55 = the CONVENTIONS bar,
+    authored-order damped redistribution, placements as measured
+    (R, t, s)) -> probe-first xtask/coupling_probe.py (7/7 RM_COUPLE
+    PASS; caught the pin-vs-role confidence distinction pre-build) ->
+    core coupling.py (couple_scene pure + CoupleReport/PinCoupleRow/
+    Placement; 23 CI tests, 482 total) -> addon scene_apply.py hook
+    (apply -> measure placements from posed rigs -> couple -> full-
+    precision write-back -> re-apply; session apply_scene gains optional
+    `couple` param) -> xtask/couple_gate.py (scene_gate's sibling; 5
+    RM_COUPLE rows) wired into verify_pose_apply.sh + the Makefile lint
+    list.
+  - GATE (real Blender 5.1.0, engine-built canonical-exact fixture rigs
+    per Annex A.3): COUPLE-RESIDUAL rig fracs 0.00016/0.00035 (bar 0.02)
+    worst_fk 0.0000 deg; COUPLE-NONCHAIN non-subtree positions
+    byte-equal + live fk worst 0.014 deg (bar 0.5); COUPLE-TWIN 42 bones
+    byte-identical; COUPLE-CONFLICT compromise reported, unclosable
+    loud, apply succeeds; COUPLE-NOENFORCE suggested pin moves nothing.
+    ALL prior gate numbers byte-identical; probe convergence fracs
+    0.000158/0.000189 in 27 iterations.
+  - GATE-EARNED AMENDMENTS (docs/SCENES.md as-built): the placement
+    origin maps the canonical ORIGIN (t = world(anchor) − s·R·canonical
+    (anchor)); the coupled write-back is FULL precision; the rigid-ride
+    correction (riding subtrees swing their segment directions — the
+    "unchanged" bar lives core-side on byte-exact non-subtree positions
+    + the 0.5° apply family); and the two-pass fixture-builder rule
+    (alphabetical creation silently disconnected limbs — S9's
+    real-Blender-gate class, caught again).
+  - NOT in S27 (declared): the pin-SUGGESTION inference (early-finish
+    option — not reached; the desk-data shape stays declared in
+    SCENES.md), P8-3 prep. L1 = CLOSED (within the bar; no CLOSED-
+    LIMITED downgrade needed).
 - [ ] P8-3 Fingers: the additive finger namespace (D-021 WRITTEN at this
   landing), per-finger confidence gates (occluded = skipped+flagged,
   100% gated-skip on the occlusion fixtures), preset-mapped apply. Bars:

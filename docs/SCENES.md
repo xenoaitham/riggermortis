@@ -219,6 +219,216 @@ derivation; 0.75 sits inside it with margin. Scope labeled: SYNTHETIC
 benchmark derivation (the P8-5 GT set re-derives it on real references;
 Annex A.1's re-validation trigger applies).
 
+## Contact coupling (P8-2) — design (written BEFORE the build)
+
+P8-1 carries pins as DATA; P8-2 is the enforcer: after the per-figure
+solves, a deterministic COUPLING PASS moves the canonical figures so
+AUTHORED pins close. This section is the design of record (the
+SECONDARY_MOTION pattern: constants pre-declared untuned, honesty lines
+binding, as-built numbers appended only when a probe/gate cites them).
+
+### The one architectural fact everything rides on
+
+`CanonicalPose` carries POSITIONS only — per-rig rotations are DERIVED at
+apply time (`fk_apply.bone_target_direction` reads
+`positions[child] - positions[role]`). So the coupling pass is pure
+position-space surgery: move joints in `pose.positions` and the certified
+apply path derives the coupled rotations on ANY rig with zero apply-path
+changes. No rotation algebra in the solver, no payload format change
+(pins already ride v3), no new bars for the apply itself — per-figure
+fidelity stays the 0.5° family by construction.
+
+### Scene space and placements
+
+Canonical poses are hips-anchored and unit-less (canonical units, hip
+height = 1). Coupling solves in a SHARED scene space: each pinned figure
+carries a placement `(R, t, s)` — `scene_p = t + s·(R·canonical_p)`.
+
+- **Core** (`coupling.couple_scene(scene, placements)`): placements are an
+  explicit argument (pure function, explicit inputs). Every figure named by
+  an enforceable pin MUST have a placement — missing ones refuse with a
+  hint (the pin reports `no placement`, it is never silently skipped).
+  Placement components validate loud (unit quaternion, s > 0).
+- **Add-on**: placements are MEASURED from the posed rigs, not guessed —
+  apply first (poses the rigs per the solved figures), `view_layer.update()`
+  (the stale-matrix lesson), then per cast figure: `t` maps the pose's
+  canonical ORIGIN — `t = world(anchor joint) − s·R·canonical(anchor
+  joint)` (detector-solved poses anchor AT the origin — hips sits at
+  (0,0,0) — so the second term is zero there and `t` is simply the posed
+  anchor joint's world position; the general formula keeps engine-built
+  poses whose anchor sits off-origin correct), `R` = the armature object's
+  world rotation (scale-stripped via row normalization; uniform-scale
+  assumption, the camera-v0 class), `s` = posed world torso span (hips
+  joint → neck joint) ÷ `TORSO_SPAN` (0.45). This is the same
+  approximation class the camera v0 staging already uses (rig rest
+  orientation ≈ canonical axes after apply), labeled APPROXIMATE-class,
+  and it is measured — never a constant.
+
+### Enforcement gate (the honesty law, made numeric)
+
+A pin is ENFORCED iff `origin == "authored"` AND `confidence >= 0.55`.
+The floor reuses the published ambiguity bar (CONVENTIONS: geometry-only
+confidence caps 0.75, ambiguity flags < 0.55) — declared untuned, not
+chosen to pass a fixture. Everything else is REPORTED LOUD and moves
+nothing: `suggested` pins (inference data awaiting the artist's
+confirmation in the Casting Desk), below-floor authored pins, pins whose
+figures are uncast (subset casting) or carry no placement. Reasons are
+per-pin report fields, never a silent no-op.
+
+### What moves — the movable-chain table (declared v1)
+
+A role's position is the HEAD of its bone (D-008), so rotating a joint
+moves its DESCENDANTS, never itself. The joints that may rotate for a
+pinned endpoint are fixed by anatomy — the distal limb chains only, the
+girdle/anchor joints stay rigid (D-008's solve anchors):
+
+| endpoint role | movable joints (rotate, in this keyed order) |
+|---|---|
+| `hand.X`, `forearm.X` | `upper_arm.X`, `forearm.X` |
+| `lower_leg.X`, `foot.X`, `toe.X` | `upper_leg.X`, `lower_leg.X` |
+| `chest` | `spine` |
+| `neck`, `head` | `spine`, `chest` |
+| `upper_arm.X`, `shoulder.X`, `upper_leg.X`, `spine`, `hips`, `root` | none (girdle/anchor-rigid endpoint) |
+
+An immovable endpoint contributes weight 0 — the OTHER endpoint carries
+the full correction; both immovable → the pin is unclosable by
+construction and reports so immediately. Spine/chest never move for hand
+pins (no torso swing to chase an arm contact — the artist moves the rig;
+P8-6's arch solve is the later, separately-gated torso articulation).
+
+### The solve — deterministic iterative redistribution
+
+Per iteration, per ENFORCEABLE pin in AUTHORED order (the conflict rule's
+precedence order — the scene model already stores pins unsorted):
+
+1. **Gap split (confidence-weighted)**: `gap = p_a − p_b` (scene space);
+   weights `w ∝ (1 − confidence)` per endpoint — the better-observed role
+   is trusted more and moves less; both confidence 1.0 → 0.5/0.5
+   (declared edge rule); immovable endpoints take weight 0.
+   Targets: `t_a = p_a − w_a·gap`, `t_b = p_b + w_b·gap`.
+2. **Chain carry (the redistribution)**: for each endpoint with movable
+   joints, process them root→leaf (keyed: chain depth, then name — the
+   house sort). Each joint rotates its whole subtree about its OWN
+   position by `1/n` of the carry angle that would take the endpoint from
+   its CURRENT position to its target (recomputed after every joint — a
+   sequential fixed-point pass, which bends the chain instead of swinging
+   it rigidly). Descendant positions ride the rotation exactly.
+3. **Iterate** up to `MAX_ITERS = 32`, early exit when the pin's residual
+   drops below `1e-4` canonical units. Convergence is geometric for
+   reachable targets; unreachable ones straighten the chain toward the
+   target and stop improving (clamped-by-reach, reported — the 2-bone IK
+   ladder's honesty, P2-5 precedent).
+
+**Over-determined sets (competing pins)**: the damped authored-order
+iteration converges to the confidence-weighted compromise (the
+least-squares-family fixed point of the declared iteration); the keyed
+order makes it byte-deterministic; every pin REPORTS its final residual
+and any pin at/over the bar is flagged unclosable — loud, never silently
+absorbed. The conflict case is a gate row, not a footnote.
+
+**Residual bar (Annex A.1, pre-declared)**: `residual_frac = residual /
+mean(scene torso span of the two pinned figures) < 0.02` — the scale-free
+2% torso-span bar. Roles OUTSIDE any pinned limb's subtree are untouched
+by construction (byte-exact positions, pinned core-side). Descendants of
+a moved joint RIDE it as a rigid body — their positions AND segment
+directions rotate together (physically unavoidable: rotating the torso
+swings the arms; the gate-earned correction of this page's first draft,
+which claimed directions stay at rest under a ride). What the bar then
+decomposes into, as built: byte-exact non-subtree positions core-side
+(unit-pinned) + live apply fidelity ≤ 0.5° vs the coupled targets
+Blender-side (the scene_gate instrument) — the composition the RM_COUPLE
+NONCHAIN row gates.
+
+### The report (structured, loud)
+
+`CoupleReport`: per-pin rows in authored order — labels, roles, origin,
+confidence, `enforced` + `reason` (why not: `suggested` / `below
+confidence floor` / `figure not cast` / `no placement` / `immovable both
+ends`), `residual` (scene units), `residual_frac`, `closed` (frac <
+0.02), `iterations`; plus `unclosable` (the loud list, authored order),
+`moved_roles` per figure (sorted), and notes. Purity: `couple_scene`
+NEVER mutates its input (returns coupled figure copies + the report) —
+pinned by test like the certified composition. No enforceable pins →
+byte-identical passthrough (zero-pins scenes are unaffected).
+
+### Where it hooks (the addon path)
+
+`apply_scene_payload` gains the coupling step: apply per figure exactly
+as P8-1 (sorted-label order, tails repair, the real `apply_payload`) →
+`view_layer.update()` → measure placements from the posed rigs →
+`couple_scene` → write the coupled positions into the in-memory payload's
+figure entries at FULL precision (not the file's 4 dp — riding roles keep
+byte-exact segment directions so their derived rotations are untouched;
+the file format is never written by the apply) → RE-APPLY per figure
+(the apply is idempotent and order-insensitive, probe-proven S26) → the
+report gains a `coupling` block. Scenes without enforceable pins never
+enter this path — byte-identical behavior. The session action
+`apply_scene` gains an optional `couple` param (default true) — additive,
+the action-kind table and MCP tool schemas are untouched.
+
+### Contact coupling as-built (S27, 2026-09-24) — probe, gate, amendments
+
+Landed as designed, with three gate-earned amendments recorded above and
+here: (1) the **placement origin** — `t` maps the pose's canonical ORIGIN
+through `t = world(anchor) − s·R·canonical(anchor)` (the first draft read
+`world(anchor)` directly, which displaces any pose whose anchor sits
+off-origin; detector-solved poses are unaffected — hips already sits at
+the canonical origin); (2) the **full-precision write-back** (§ Where it
+hooks — riding roles keep byte-exact segment directions); (3) the
+**rigid-ride correction** (§ The solve — riding subtrees swing their
+segment directions; the Annex A.1 "unchanged" bar lives core-side on
+byte-exact non-subtree positions + the 0.5° apply family, not on world
+directions).
+
+- **Probe** (`xtask/coupling_probe.py`, pure core + the REAL
+  `apply_canonical_pose`, 7/7 RM_COUPLE rows PASS): CONVERGE — both pins
+  of the hold-from-behind-class fixture close at fracs 0.000158/0.000189
+  (bar 0.02) in 27 iterations; NONCHAIN — positions outside the pinned
+  arms byte-identical, no torso swing for hand pins, and through the REAL
+  apply every non-chain role's derived rotation is byte-identical while
+  the chains move; CONFLICT — competing pins converge to the
+  confidence-weighted compromise (residuals 0.111/0.059 reported, both
+  flagged unclosable), twin byte-identical; DETERM, NOENFORCE
+  (suggested + below-floor move nothing, reasons reported), REACH
+  (unreachable target: unclosable loud, chain straightens toward it)
+  all PASS. Probe catch pinned as a regression test: enforcement gates
+  on the PIN's confidence; role joint confidence feeds the weights.
+- **Gate** (`xtask/couple_gate.py` via `make pose-verify`, RM_COUPLE
+  lines, Blender 5.1.0, engine-built canonical-exact fixture rigs per
+  Annex A.3, the REAL scene-apply path with placements MEASURED from the
+  posed rigs): COUPLE-RESIDUAL — both authored pins close at rig-space
+  fracs **0.00016/0.00035** (bar 0.02), report rows closed, coupled-apply
+  fidelity worst **0.0000°**; COUPLE-NONCHAIN — non-subtree positions
+  byte-equal, live apply fidelity worst **0.014°** (bar 0.5°);
+  COUPLE-TWIN — 42 bones byte-identical; COUPLE-CONFLICT — compromise
+  reported (fracs 0.2486/0.1292), both unclosable loud, apply succeeds;
+  COUPLE-NOENFORCE — a suggested pin moves nothing (byte-equal) and
+  reports its reason.
+- **Gate-earned fixture lesson** (the S9 class, again): the gate's first
+  fixture builder created bones alphabetically and fell back silently to
+  `parent=None` for children whose parents sort later (forearm →
+  upper_arm) — disconnected limbs pass the core simulation while the real
+  rig ignores chain rotations. The builder is two-pass now and a missing
+  parent REFUSES. Only a real-Blender gate catches this class.
+- All prior gate numbers byte-identical; battery green; **482 tests**
+  (+23 coupling contract tests); lint clean.
+
+## What coupling does NOT do (v1 honesty lines)
+
+- **Joints, not skin**: pins close JOINT-to-JOINT distances (the canonical
+  skeleton has no surface). The 2% bar is joint-space; surface contact is
+  not claimed anywhere.
+- **No figure placement**: the solver moves LIMBS, never translates or
+  rotates a whole figure — rigs stand where the artist put them, and an
+  unreachable pin reports `move the rigs` instead of dragging a body
+  across the floor.
+- **Suggested pins are never enforced**: the proximity inference (P8-2
+  work, feeds the desk as DATA) proposes; only the artist's confirmation
+  (origin → `authored`) disposes.
+- **No torso articulation for hand pins** (the movable-chain table); spine
+  motion arrives with P8-6's gated arch solve, not as a coupling
+  side effect.
+
 ## Where it hooks — nothing certified is touched
 
 `apply_scene_payload` COMPOSES the existing apply path; it does not fork
@@ -228,6 +438,9 @@ it. Per figure: the same `apply_payload` the single-rig operator runs
 contract's apply semantics, and the review overlay are untouched — the
 scene is a NEW consumer of the SAME primitives, which is why per-figure
 fidelity inherits the 0.5° family bar instead of declaring a new one.
+The P8-2 coupling step is the same pattern one level up: a NEW pure core
+consumer of the scene model, hooked between the per-figure solves and the
+final apply — the apply primitives themselves are untouched.
 
 ## Determinism (pinned by tests)
 

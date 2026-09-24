@@ -1014,5 +1014,17 @@ grep -q "RM_SCENE CAMERA-REFUSE: PASS" "$TMP/scene_gate.log"
 grep -q "RM_SCENE CAMERA-STAGE: PASS" "$TMP/scene_gate.log"
 grep -q "RM_SCENE GATE: PASS" "$TMP/scene_gate.log"
 
+# -- P8-2 coupling: authored pins close on canonical-exact fixture rigs -------
+echo "== couple gate: authored pins close, conflict + no-enforce honest"
+RM_CORE_SRC="$REPO/core/src" \
+RM_ADDON_DIR="$REPO/addon" \
+  "$BLENDER" -b --python "$REPO/xtask/couple_gate.py" 2>&1 | tee "$TMP/couple_gate.log"
+grep -q "RM_COUPLE COUPLE-RESIDUAL: PASS" "$TMP/couple_gate.log"
+grep -q "RM_COUPLE COUPLE-NONCHAIN: PASS" "$TMP/couple_gate.log"
+grep -q "RM_COUPLE COUPLE-TWIN: PASS" "$TMP/couple_gate.log"
+grep -q "RM_COUPLE COUPLE-CONFLICT: PASS" "$TMP/couple_gate.log"
+grep -q "RM_COUPLE COUPLE-NOENFORCE: PASS" "$TMP/couple_gate.log"
+grep -q "RM_COUPLE GATE: PASS" "$TMP/couple_gate.log"
+
 echo ""
 echo "P1-6 BLENDER POSE-APPLY GATE: PASS"
