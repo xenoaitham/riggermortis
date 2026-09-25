@@ -265,7 +265,9 @@ def _exec_apply_pose(params: dict[str, Any]) -> dict[str, Any]:
     """The REAL payload-apply path (D-009) — same machinery as Apply Pose.
     P8-3: optional ``preset_path``/``preset_force`` — when the preset carries
     finger bindings (``hands``), they fingerprint-gate against the LIVE rig
-    and feed the apply (the P6-1a bake_action param pattern; additive)."""
+    and feed the apply (the P6-1a bake_action param pattern; additive).
+    P8-4: the preset's ``face_bones`` ride the SAME gate; the shape-key class
+    needs no bindings (the convention scan is automatic in apply_payload)."""
     import bpy
 
     payload = importlib.import_module(__package__)._load_payload(
@@ -273,25 +275,34 @@ def _exec_apply_pose(params: dict[str, Any]) -> dict[str, Any]:
     )
     obj = _resolve_armature(params.get("armature_name"))
     finger_map = None
+    face_map = None
     preset_path = str(params.get("preset_path") or "")
     if preset_path:
         core = _import_core()
         preset = core.load_preset(preset_path)
-        if preset.hands:
+        if preset.hands or preset.face_bones:
             rig = core.RigData.from_dict(
                 bpy_bridge.rig_data_from_armature(obj)
             )
-            finger_map = core.resolve_hands(
-                preset, rig.fingerprint(), force=bool(params.get("preset_force", False))
-            )
+            if preset.hands:
+                finger_map = core.resolve_hands(
+                    preset, rig.fingerprint(), force=bool(params.get("preset_force", False))
+                )
+            if preset.face_bones:
+                face_map = core.resolve_face(
+                    preset, rig.fingerprint(), force=bool(params.get("preset_force", False))
+                )
     report = pose_apply.apply_payload(
         obj, payload,
         mirror=bool(params.get("mirror", False)),
         figure=params.get("figure") or None,
         finger_map=finger_map,
+        face_bones=face_map,
     )
     if finger_map:
         report["finger_bindings"] = len(finger_map)
+    if face_map:
+        report["face_bindings"] = len(face_map)
     # P2-8a (D-015): same conditional tail repair the Inspect & Map operator
     # runs — an agent-driven apply on a garbage-tail imported rig must not
     # leave the evaluated placement broken. Count is reported, never silent.

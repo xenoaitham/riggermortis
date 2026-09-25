@@ -538,6 +538,61 @@ in the same commit where the namespace code (`core fingers.py`) lands.
   level down; the probe showed a flatten-prior enumeration un-curls
   grips — docs/FINGERS.md § Probe answers).
 
+## D-022 The facial parameter namespace is an additive separate map (2026-09-25, S29 — WRITTEN AT THIS LANDING, per the round-3 strike S2 rule)
+
+This entry was RESERVED since the roadmap was written; it is written now,
+in the same commit where the namespace code (`core face.py`) lands.
+
+- **The namespace**: 10 expression params — `brow.raise.L/R`, `blink.L/R`,
+  `jaw.open`, `smile.L/R`, `pout`, `cheek.L/R` — a FIXED set (docs/FACE.md
+  § the published landmark→param table, the page D-022 cites). They live
+  in `face.py` (`FACE_PARAMS` / `is_face_param` / `FACE_BONE_PLAN`);
+  `ALL_ROLES`, `CANONICAL`, `PRIMARY_CHILD`, `CORE_ROLES`, and the D-021
+  finger namespace are untouched; the mapper never assigns face params
+  (they bind via preset `face_bones` mappings only); consumers that
+  ignore faces are byte-identical (pinned by contract test).
+- **Params, not geometry** (the structural insight, docs/FACE.md): every
+  param is a dimensionless landmark ratio (IOD- or aspect-normalized) —
+  the payload carries SOLVED PARAMS + ledgers (the D-009 pattern), never
+  landmark geometry. `CanonicalPose.face` (default None) — `to_dict`
+  omits the key when None so face-free poses serialize byte-identically
+  to pre-P8-4 output; `from_dict` tolerates absence; `mirrored()` swaps
+  `.L`/`.R` values (geometry-free).
+- **Honesty rules** (the finger rules one level up): the face solves
+  only when the IOD anchor's four corner kps clear `FACE_CONF_FLOOR`
+  0.55 (the CONVENTIONS bar reused — an absent face reads as clean); a
+  param whose consumed kps fall below the floor is SKIPPED + LEDGERED,
+  never guessed; a solved value below `FACE_ACT_FLOOR` 0.08 is LEDGERED
+  as below-threshold, never interpolated. **Gaze is NOT a param**: the
+  pinned DWPose has no iris kps; gaze enters only if a detector variant
+  supplies them (conditional-OUT — the roadmap's pre-declared condition).
+- **The measured side map** (amendment A4, the D-008 loop): the design
+  DECLARED band A = subject-left; the probe MEASURED band A at image-left
+  = the subject's RIGHT on 18/18 real faces — the `.L` constants read
+  band B. Three neutral-geometry priors were redeclared from pooled real
+  measurements (`PRIOR_CORNER_DROP 0.40`, `PRIOR_MOUTH_W 0.83`,
+  `PRIOR_CHEEK 0.72`); EAR/brow priors stood. Declared → measured →
+  redeclared BEFORE the core build.
+- **Apply, two loud classes** (docs/FACE.md § apply): (a) bones via the
+  preset's optional `face_bones` bindings (format 2 unchanged — additive
+  field; `resolve_face`, the fingerprint-gate contract; rotations are the
+  DECLARED `FACE_BONE_PLAN` axis-angle, param × max angle); (b) shape
+  keys by naming convention (key name == param name on meshes deformed
+  by the armature; missing keys report loud). NEITHER present → the
+  loud "no facial targets" line, never silent. Facial bones never
+  double-bind a body/finger bone (the cross-binding class, refused).
+- **Policy coverage (D-019)**: expressions carry no content by
+  themselves — no new policy surface; the existing subject checks apply
+  unchanged; MCP stays SFW with no new tool (the session bridge's
+  `apply_pose` preset path gained the `face_bones` resolution only).
+- **Gate discipline**: per-param monotonicity ≥ 9/10 (violations ≤ 1 of
+  9 steps, states sorted by GT, MONO_TOL 0.05) + reach ≥ 0.5 at the
+  max-GT state (an all-zero sequence is trivially monotone — the probe's
+  A3 amendment) on the 10-expression benchmark; bone apply ≤ the 0.5°
+  family; shape-key applied-vs-intended ≤ 0.1 normalized; refusal
+  branch: a param below its bar after two redesign cycles → REFUSED per
+  param (Annex A.2).
+
 ## NEEDS-HUMAN queue (updated 2026-09-16 S8)
 
 - RETIRED — anime sourcing: set complete at 10/10 (SOURCES.md; Commons CC BY-SA crop provenance).

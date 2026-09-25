@@ -1,13 +1,16 @@
 # NEXT SESSION SHOULD …
 
 0. **THE PLAN OF RECORD IS STATE/ROADMAP.md** ("the Producer", critic-passed
-   9.8/10; Annex A pre-declared bars are LAW): S28 landed P8-3 fingers (the
-   D-021 additive namespace + gated per-finger solve + preset-mapped apply;
-   L2 CLOSED — bench median 0.00°/p90 10.30° vs bars 20°/35°, occlusion
-   100% gated-skip, apply 0.0070°, all prior numbers byte-identical). The
-   session map says **S29 = P8-4 facials** — the published landmark→param
-   table (gaze ONLY with iris kps), bone/shape-key binding classes, loud
-   no-target reporting. NEVER cut (Annex A cut order).
+   9.8/10; Annex A pre-declared bars are LAW): S29 landed P8-4 facials (the
+   D-022 facial parameter namespace + the measured side map + per-param
+   gated solve + the two-class apply; L3 CLOSED — BENCH 0 violations/9 +
+   reach 1.00, bone apply 0.0000°, shape-key delta 0.0000, loud no-target;
+   all prior numbers byte-identical). The session map says **S30 = P8-5
+   reference camera solve (measured)** — GT-set yaw MAE ≤ 7.5° / pitch
+   MAE ≤ 5° / distance MAE ≤ 12%, framing IoU ≥ 0.75, low confidence
+   REFUSES to stage. NEVER cut (Annex A cut order: P8-2 coupling and
+   P8-3 visible fingers; gaze was P8-4's declared first cut and is
+   already conditional-OUT).
 
 1. **Camera re-verify FIRST, one command** (it decides the session shape):
 
@@ -15,91 +18,84 @@
 
    - **Frames land** → flip to **P5-4** (the recorded live demo + the TRUE
      capture→apply measurement; claim or retire the <100 ms mid-laptop gate
-     honestly). Silent 16 straight sessions so far; the box side is READY
+     honestly). Silent 17 straight sessions so far; the box side is READY
      (the DroidCam client just was never running).
-   - **Silent again (17th)** → the P8-4 work order below.
+   - **Silent again (18th)** → the P8-5 work order below.
 
-2. **Then read, in order**: STATE/ROADMAP.md P8-4 + Annex A.1/A.2 (bars are
-   law: per-param monotonicity ≥ 9/10 on the 10-expression benchmark, bone
-   apply ≤ 0.5° family, shape-key delta ≤ 0.1 normalized; per-param
-   refusal branch after two cycles; gaze conditional on iris kps — the
-   pinned DWPose has NO iris kps, so gaze stays out unless a detector
-   variant supplies them), docs/FINGERS.md (P8-3 as-built — the
-   design→probe→core→gate pattern S29 reuses), docs/STYLE.md (shape-key
-   and binding surfaces P8-4 may touch), STATE/TASKS.md (P8-3 DONE with
-   the full S28 entry), STATE/PROGRESS.md (S28 entries),
-   STATE/DECISIONS.md (D-021 now WRITTEN — the additive-namespace
-   precedent; D-018 stays reserved; D-022 is RESERVED for the facial
-   namespace, WRITTEN only when that code lands), STATE/CONVENTIONS.md,
-   STATE/SESSIONS.md, docs/BENCHMARKS.md (FINGERS block), docs/POLICY.md
-   (D-019 across the new facial surface), and the claim-bearing surfaces
-   docs/LAUNCH.md + docs/TUTORIALS.md (one grep sweep together IF a
-   number changes). Register as **Session 29**, claim P8-4 with [S29];
-   PROGRESS stamps via `date -u` read IMMEDIATELY before every append,
-   then verify the stamp.
+2. **Then read, in order**: STATE/ROADMAP.md P8-5 + Annex A.1/A.2 (bars
+   are law: yaw MAE ≤ 7.5°, pitch MAE ≤ 5°, distance MAE ≤ 12% on the GT
+   set; framing IoU ≥ 0.75; low confidence refuses to stage — a wrong
+   silent camera is the trust-killer; REFUSED branch: GT yaw MAE > 15°
+   ends the full solve, camera v0 remains as CLOSED-v0), docs/SCENES.md
+   (P8-1 camera v0's as-built — the APPROXIMATE stager S30 replaces with
+   the measured solve), docs/FACE.md + docs/FINGERS.md (the
+   design→probe→core→gate pattern S30 reuses), STATE/TASKS.md (P8-4 DONE
+   with the full S29 entry), STATE/PROGRESS.md (S29 entries),
+   STATE/DECISIONS.md (D-022 now WRITTEN — the second additive-namespace
+   precedent; D-018 stays reserved), STATE/CONVENTIONS.md,
+   STATE/SESSIONS.md, docs/BENCHMARKS.md (FACE block), docs/POLICY.md
+   (D-019 unchanged across the camera surface), and the claim-bearing
+   surfaces docs/LAUNCH.md + docs/TUTORIALS.md (one grep sweep together
+   IF a number changes). Register as **Session 30**, claim P8-5 with
+   [S30]; PROGRESS stamps via `date -u` read IMMEDIATELY before every
+   append, then verify the stamp.
 
 3. **Baseline**: `cd core && /home/potato/miniconda3/bin/python3 -m
-   pytest tests` (**507 expected** — S28 added 25 finger contract tests)
+   pytest tests` (**532 expected** — S29 added 25 face contract tests)
    + `make lint PY=/home/potato/miniconda3/bin/python3`, and `gh run
-   list --branch main` (the S28 push is the newest; if red: download the
+   list --branch main` (the S29 push is the newest; if red: download the
    log, root-cause, fix the real substance FIRST).
 
-## S29 work order — P8-4 Facials
+## S30 work order — P8-5 Reference camera solve (measured)
 
-Design → probe → build → gate, in that order (NON-NEGOTIABLE). The data
-audit precedent is DONE (docs/FINGERS.md): all 68 face kps + confidences
-already reach the detection payload (face conf mean 0.958 on the P1-9
-photo, 0/68 dropouts) — the drop is at the canonical-solve boundary, so
-P8-4 is a SOLVE+PAYLOAD+APPLY extension exactly like P8-3: no new model,
-no wrapper change, the P6-6 never-list untouched.
+Design → probe → build → gate, in that order (NON-NEGOTIABLE). The
+pattern is proven three times over (coupling, fingers, face): design
+page first, probe with REAL rows, core lift, sibling gate file.
 
-1. **DESIGN-FIRST: open docs/FACE.md** (the FINGERS.md pattern — a
-   sibling design page, never a fork): the additive per-figure `face`
-   payload field (format 3 unchanged, omit-when-empty byte-identity
-   pinned — the `hands` contract), the PUBLISHED landmark→param table
-   (brow raise = brow-kp row height delta; blink = eye aspect ratio vs
-   the subject's open-eye prior; jaw open = lower-lip drop vs face
-   height; smile/pout = mouth-corner elevation + width ratio; cheeks),
-   neutral declared a POPULATION prior (D-008-untuned — single images
-   carry no personal neutral); **D-022 is RESERVED for the facial
-   namespace, WRITTEN at that landing** (never cited before — the
-   strike-S2 rule; fingers took D-021).
-2. **PROBE-FIRST xtask/face_probe.py** (RM_FACE lines, grep-tested both
-   shapes before push): (a) landmark stability on real detections (the
-   audit's 0.958 face-conf band); (b) per-param monotonicity on
-   synthetic GT faces; (c) the no-observation gate (partial faces =
-   skipped + ledgered, never guessed).
-3. **Core**: the param table into the solve path (additive namespace +
-   loud validation + round-trips; the pose payload carries face per
-   figure; skip ledgers per param).
-4. **Apply + gate**: the two binding classes (bones via preset mapping,
-   shape keys by documented naming convention) — NEITHER present → loud
-   "no facial targets" line; RM_FACE gate section (new sibling file per
-   the Mimosa workaround): the 10-expression benchmark (neutral + 9),
-   per-param monotonicity ≥ 9/10, bone apply ≤ 0.5° family, shape-key
-   delta ≤ 0.1 normalized, loud no-target rig.
+1. **DESIGN-FIRST: open docs/CAMERA.md** (the FACE.md sibling pattern):
+   the camera model (yaw/pitch/distance/height from body kps + the
+   solve's depth assumptions — the canonical skeleton's proportions are
+   the known ruler), what the APPROXIMATE v0 stager keeps doing (it
+   stages on the benchmark at IoU 0.8279 today), the confidence floor
+   arithmetic with its refuse-to-stage branch, and the GT-set protocol
+   (KNOWN camera -> render -> re-solve through the pipeline's own
+   deterministic renderer, engine-built per Annex A.3; SYNTHETIC-labeled
+   with the optimism caveat verbatim).
+2. **PROBE-FIRST xtask/camera_probe.py** (RM_CAM lines, grep-tested both
+   shapes before push): (a) GT-set solve error bars (yaw/pitch/distance
+   MAE vs the bars); (b) framing IoU distribution vs the 0.75 floor;
+   (c) the confidence floor — degraded inputs must REFUSE to stage
+   (loud, never a wrong silent camera); (d) REAL rows on the P1-9
+   photos where ground truth does not exist — publish what the solve
+   reports and its confidence, never prose claims.
+3. **Core**: the measured solve into the camera path (additive; the v0
+   stager's refuse-to-stage floor upgraded to the measured confidence;
+   `scene_camera.py` consumers unchanged where the contract holds).
+4. **Gate**: `xtask/camera_gate.py` (sibling file, RM_CAM rows wired
+   into the scene-verify half of the battery): GT-set error bars vs the
+   Annex bars, framing IoU, refuse-to-stage on degraded inputs, twin
+   byte-identical, all prior numbers byte-identical.
 5. **Early-finish option**: the P8-2 pin-suggestion inference (keypoint
    proximity) as desk DATA — measured work only, never auto-enforced.
 
-**S28's contract facts S29 builds on** (do not re-learn):
+**S29's contract facts S30 builds on** (do not re-learn):
 
-- The probe→core lift pattern works twice over (coupling_probe.py and
-  finger_probe.py are the recipes coupling.py/fingers.py lifted).
+- The probe→core lift pattern works three times over (coupling_probe/
+  finger_probe/face_probe are the recipes lifted).
 - The additive-field contract: omit-when-empty byte-identity pinned by
-  test; readers tolerate absence (copy the `hands` precedent for
-  `face`).
+  test; readers tolerate absence.
 - The gate env trap (standing): BLENDER=/home/potato/
   blender-5.1.0-linux-x64/blender, RIGPOSE=/home/potato/miniconda3/bin/
   rigpose, PY=/home/potato/miniconda3/bin/python3 — else they 127 (or
   grab the broken apt 4.0.2).
 - The two-pass fixture-builder rule (create every bone, then wire
-  parents; a missing parent REFUSES) + the S28 lesson that the wrist is
-  a BODY keypoint (index 9) — block ranges do not include the anchor.
+  parents; a missing parent REFUSES); place-update-then-measure
+  (view_layer.update() BEFORE any world-space read).
 - Mimosa (standing): bash writes of .py source blocked — Write/Edit;
   in-place edits to existing gate/probe files can trip path-traversal
-  FPs — a NEW sibling file scans clean (couple_gate.py/finger_gate.py
-  precedent); expect the pagedoc.py import-struct FP at every commit;
-  -F commit-message files for heredoc-sensitive text.
+  FPs — a NEW sibling file scans clean (couple_gate/finger_gate/
+  face_gate precedent); expect the pagedoc.py import-struct FP at every
+  commit; -F commit-message files for heredoc-sensitive text.
 - STATE stamps are REAL UTC, read-then-write-then-verify.
 
 ## Blocked / deferred (parked — do not burn time)

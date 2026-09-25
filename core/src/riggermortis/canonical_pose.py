@@ -56,6 +56,7 @@ from .canonical import (
 )
 
 if TYPE_CHECKING:  # deferred at runtime (fingers imports CanonicalPose)
+    from .face import FacePose
     from .fingers import HandPose
 from .inference.poses import (
     ANKLE_L,
@@ -152,10 +153,12 @@ class CanonicalPose:
     """Solved pose: canonical role positions plus honest solve metadata.
 
     ``hands`` is the P8-3 additive field (D-021 namespace): solved finger
-    chains keyed ``hand.L``/``hand.R``, default EMPTY. It stays OUT of the
-    frozen 22-role ``positions`` map, and ``to_dict`` OMITS the key when
-    empty, so hands-free poses serialize byte-identically to pre-P8-3
-    output (the pins-in-v3 precedent, pinned by contract test).
+    chains keyed ``hand.L``/``hand.R``, default EMPTY. ``face`` is the P8-4
+    additive field (D-022 namespace): solved expression params, default
+    None. Both stay OUT of the frozen 22-role ``positions`` map, and
+    ``to_dict`` OMITS them when empty/None, so hands-free face-free poses
+    serialize byte-identically to pre-P8-3 output (the pins-in-v3
+    precedent, pinned by contract test).
     """
 
     positions: dict[str, Vec3]
@@ -167,6 +170,7 @@ class CanonicalPose:
     notes: list[str] = field(default_factory=list)
     joint_confidence: dict[str, float] = field(default_factory=dict)
     hands: dict[str, HandPose] = field(default_factory=dict)
+    face: FacePose | None = None
 
     def to_dict(self) -> dict[str, object]:
         out: dict[str, object] = {
@@ -183,6 +187,8 @@ class CanonicalPose:
         }
         if self.hands:  # omitted when empty — the byte-identity contract
             out["hands"] = {h: self.hands[h].to_dict() for h in sorted(self.hands)}
+        if self.face is not None:  # omitted when absent — same contract
+            out["face"] = self.face.to_dict()
         return out
 
     @staticmethod
@@ -199,6 +205,12 @@ class CanonicalPose:
             from .fingers import HandPose  # deferred: fingers imports this module
 
             hands = {str(k): HandPose.from_dict(v) for k, v in raw_hands.items()}  # type: ignore[union-attr]
+        face: FacePose | None = None
+        raw_face = d.get("face")
+        if raw_face is not None:
+            from .face import FacePose  # deferred: face imports this module
+
+            face = FacePose.from_dict(raw_face)
         return CanonicalPose(
             positions={
                 str(role): (float(p[0]), float(p[1]), float(p[2]))  # type: ignore[index]
@@ -214,6 +226,7 @@ class CanonicalPose:
                 str(k): float(v) for k, v in d.get("joint_confidence", {}).items()  # type: ignore[union-attr]
             },
             hands=hands,
+            face=face,
         )
 
     def mirrored(self) -> CanonicalPose:
@@ -224,7 +237,9 @@ class CanonicalPose:
         Confidence, notes, and metadata carry over: this is a geometry
         operation, not a re-solve. Finger chains (P8-3) mirror too:
         hand.L <-> hand.R with x-negated joints; the skip ledger transfers
-        verbatim (its reasons are confidence text, side-free).
+        verbatim (its reasons are confidence text, side-free). The face
+        (P8-4) mirrors as a geometry-free param swap: ``.L``/``.R`` param
+        values exchange sides, center params carry.
         """
         mirrored_hands: dict[str, HandPose] = {}
         if self.hands:
@@ -241,6 +256,7 @@ class CanonicalPose:
                     skipped=dict(hand.skipped),
                     wrist_conf=hand.wrist_conf,
                 )
+        mirrored_face = self.face.mirrored() if self.face is not None else None
         return CanonicalPose(
             positions={
                 mirror_role(role): (-p[0], p[1], p[2])
@@ -256,6 +272,7 @@ class CanonicalPose:
                 mirror_role(k): v for k, v in self.joint_confidence.items()
             },
             hands=mirrored_hands,
+            face=mirrored_face,
         )
 
     def toggled(self, flip_key: str) -> CanonicalPose:

@@ -739,3 +739,49 @@ flatten-prior sign enumeration un-curls grips). Design of record:
   the direction bars are measured on engine-built GT; the Annex A.1
   re-validation trigger applies when real hand-labeled fixtures enter
   the workflow.
+
+### Face (P8-4, session 29) — test/gate-pinned
+
+The additive facial parameter namespace (D-022, written at that landing)
++ the expression solve: 10 dimensionless params (brow.raise.L/R,
+blink.L/R, jaw.open, smile.L/R, pout, cheek.L/R) read ONLY from observed
+face landmarks through the published table (docs/FACE.md) — the face
+solves only when the IOD anchor's four corner kps clear the 0.55 floor
+(CONVENTIONS bar reused); a param whose kps fall below the floor is
+SKIPPED + LEDGERED, and a solved value below the 0.08 activation floor
+is LEDGERED as below-threshold, never interpolated. Gaze is
+conditional-OUT (the pinned DWPose has no iris kps). Design of record:
+`docs/FACE.md` § As-built.
+
+- **Annex A.1 bars met**: the 10-expression benchmark (neutral + 9,
+  SYNTHETIC prior-consistent GT) measures per-param monotonicity at
+  **0 violations / 9 steps (bar 1)** with **reach 1.00** (bar 0.5)
+  across all 10 params; apply through the REAL add-on path on
+  engine-built fixtures re-evals facial bones at **0.0000° worst**
+  (bar: the 0.5° FK family, 5/5 bones keyed via the preset
+  `face_bones` contract) and convention shape keys at **0.0000**
+  applied-vs-intended (bar 0.1 normalized, 4/4 keys, mesh displaced);
+  a no-target rig reports the loud capability line verbatim; twin
+  applies byte-identical.
+- **Real-face honesty** (`xtask/face_probe.py`, 7/7 RM_FACE rows,
+  pinned DWPose models on the P1-9 set, n=18 faces / 36 eyes, pooled
+  over both face bands): the MEASURED side map flipped the declared
+  convention — DWPose's band A sits image-left = the subject's RIGHT
+  (18/18 faces, median −51.5 px), so `.L` constants read band B; three
+  neutral-geometry priors were REDECLARED from measurement
+  (corner drop 0.403, mouth width 0.832, cheek distance 0.731) — the
+  declared values had smile/pout firing on every real neutral and
+  cheek structurally unable to fire; EAR (0.283 vs 0.28) and brow gap
+  (0.296 vs 0.30) stood. Band confidences run 0.97–1.00 medians (the
+  audit's 0.958 face band, per-region).
+- **Where**: probe `/home/potato/miniconda3/bin/python3
+  xtask/face_probe.py` (models + photos, RM_FACE PROBE); gate `make
+  pose-verify` (RM_FACE BENCH / GATE-OCCL / BONE-APPLY / SHAPE-APPLY /
+  NOTARGET / TWIN / GATE, grep-pinned); unit contract
+  `core/tests/test_face.py` (25 tests); design of record `docs/FACE.md`
+  + `STATE/DECISIONS.md` D-022. SYNTHETIC-labeled: the monotonicity
+  bars are measured on engine-built GT; the Annex A.1 re-validation
+  trigger applies when real expression-labeled fixtures enter the
+  workflow. The neutral is a POPULATION prior (D-008-untuned): a
+  single image carries no personal neutral, and a resting-low brow
+  reads slightly raised — published, never hidden.

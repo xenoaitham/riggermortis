@@ -1039,5 +1039,18 @@ grep -q "RM_FINGER FINGER-NOTARGET: PASS" "$TMP/finger_gate.log"
 grep -q "RM_FINGER FINGER-TWIN: PASS" "$TMP/finger_gate.log"
 grep -q "RM_FINGER GATE: PASS" "$TMP/finger_gate.log"
 
+# -- P8-4 facials: monotonicity+reach bars, gated-skip, two-class apply, loud no-target ---
+echo "== face gate: 10-expression bars, gated-skip, bone+shape-key apply, loud no-target"
+RM_CORE_SRC="$REPO/core/src" \
+RM_ADDON_DIR="$REPO/addon" \
+  "$BLENDER" -b --python "$REPO/xtask/face_gate.py" 2>&1 | tee "$TMP/face_gate.log"
+grep -q "RM_FACE FACE-BENCH: PASS" "$TMP/face_gate.log"
+grep -q "RM_FACE FACE-GATE-OCCL: PASS" "$TMP/face_gate.log"
+grep -q "RM_FACE FACE-BONE-APPLY: PASS" "$TMP/face_gate.log"
+grep -q "RM_FACE FACE-SHAPE-APPLY: PASS" "$TMP/face_gate.log"
+grep -q "RM_FACE FACE-NOTARGET: PASS" "$TMP/face_gate.log"
+grep -q "RM_FACE FACE-TWIN: PASS" "$TMP/face_gate.log"
+grep -q "RM_FACE GATE: PASS" "$TMP/face_gate.log"
+
 echo ""
 echo "P1-6 BLENDER POSE-APPLY GATE: PASS"

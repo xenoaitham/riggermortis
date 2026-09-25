@@ -73,8 +73,68 @@ def _bone_local_basis(pb: Any, world_axis: Any, world_angle: float) -> Any:
     return rest.inverted() @ world @ rest
 
 
+def resolve_face_shape_keys(obj: Any, pose: Any, core: Any) -> tuple[set[str], list[str]]:
+    """Scan the armature's deformed meshes for P8-4 convention shape keys
+    (key name == face param name, docs/FACE.md § apply class b).
+
+    Returns (resolved key names, loud report lines). Missing keys are
+    reported per solved param — never a silent skip; keys whose param is
+    ledgered-not-solved are reported and stay untouched.
+    """
+    import bpy
+
+    lines: list[str] = []
+    if pose.face is None:
+        return set(), lines
+    available: set[str] = set()
+    for mesh in bpy.data.objects:
+        if mesh.type != "MESH":
+            continue
+        for mod in mesh.modifiers:
+            if mod.type == "ARMATURE" and mod.object == obj:
+                if mesh.data.shape_keys is not None:
+                    available |= {kb.name for kb in mesh.data.shape_keys.key_blocks}
+                break
+    resolved: set[str] = set()
+    for param in sorted(available & set(pose.face.params)):
+        resolved.add(param)
+    for param in sorted(set(pose.face.params) - available):
+        lines.append(f"face: no shape key named {param!r} on any deformed mesh — skipped loud")
+    for param in sorted(available - set(pose.face.params)):
+        lines.append(
+            f"face: param {param!r} not solved (ledgered in the pose) — shape key untouched"
+        )
+    return resolved, lines
+
+
+def apply_face_shape_keys(obj: Any, pose: Any, core: Any, keys: set[str]) -> list[str]:
+    """Set convention shape-key values to the solved params (clamped [0, 1],
+    the shape-key native range). Returns the applied key names."""
+    import bpy
+
+    applied: list[str] = []
+    if pose.face is None or not keys:
+        return applied
+    for mesh in bpy.data.objects:
+        if mesh.type != "MESH":
+            continue
+        targets = False
+        for mod in mesh.modifiers:
+            if mod.type == "ARMATURE" and mod.object == obj:
+                targets = True
+                break
+        if not targets or mesh.data.shape_keys is None:
+            continue
+        for kb in mesh.data.shape_keys.key_blocks:
+            if kb.name in keys:
+                kb.value = max(0.0, min(1.0, float(pose.face.params.get(kb.name, 0.0))))
+                applied.append(kb.name)
+    return sorted(set(applied))
+
+
 def apply_pose_object(
-    obj: Any, pose: Any, core: Any, finger_map: dict[str, str] | None = None
+    obj: Any, pose: Any, core: Any, finger_map: dict[str, str] | None = None,
+    face_bones: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Write a ``CanonicalPose`` (already mirrored/toggled as needed) to pose bones.
 
@@ -83,6 +143,10 @@ def apply_pose_object(
     ``finger_map`` (P8-3): optional finger role -> bone bindings (the preset's
     ``hands`` bindings); None = no finger application — when the pose solved
     hands, the report carries the loud capability line from core.
+    ``face_bones`` (P8-4): optional face param -> bone bindings (the preset's
+    ``face_bones``). The SHAPE-KEY class needs no bindings: convention keys
+    (name == param name) on the armature's deformed meshes are resolved and
+    driven here; missing keys report loud, never silent.
     """
     rig = core.RigData.from_dict(bpy_bridge.rig_data_from_armature(obj))
     mapping = mapping_from_props(obj, core)
@@ -92,7 +156,11 @@ def apply_pose_object(
         mapping_source = "live map_rig"
     core_missing = ", ".join(mapping.core_missing()) if mapping.core_missing() else ""
 
-    application = core.apply_canonical_pose(rig, mapping, pose, finger_map=finger_map)
+    shape_keys, shape_key_lines = resolve_face_shape_keys(obj, pose, core)
+    application = core.apply_canonical_pose(
+        rig, mapping, pose, finger_map=finger_map,
+        face_bones=face_bones, face_shape_keys=shape_keys,
+    )
 
     applied: list[str] = []
     missing: list[str] = []
@@ -108,6 +176,8 @@ def apply_pose_object(
         pb.rotation_axis_angle = (angle, axis.x, axis.y, axis.z)
         applied.append(rot.bone)
 
+    shape_keys_applied = apply_face_shape_keys(obj, pose, core, shape_keys)
+
     errors = core.verify_application(rig, application, pose)
     worst_role, worst_rad = max(errors.items(), key=lambda kv: kv[1]) if errors else ("", 0.0)
     worst_deg = worst_rad * 57.29577951308232
@@ -116,26 +186,30 @@ def apply_pose_object(
         "applied": applied,
         "missing_pose_bones": missing,
         "skipped": list(application.skipped),
-        "notes": list(application.notes),
+        "notes": list(application.notes) + shape_key_lines,
         "mapping_source": mapping_source,
         "core_missing": core_missing,
         "confidence": pose.confidence,
         "reliable": pose.reliable,
         "worst_role": worst_role,
         "worst_deg": worst_deg,
+        "shape_keys_applied": shape_keys_applied,
     }
 
 
 def apply_payload(
     obj: Any, payload: dict[str, Any], mirror: bool = False, core: Any = None,
     figure: str | None = None, finger_map: dict[str, str] | None = None,
+    face_bones: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Apply a ``rigpose pose`` payload to an armature's pose bones.
 
     ``figure``: label of the figure to apply (payload v2 carries several when
     written with ``--all-figures``); None = the payload's selected figure.
     ``finger_map`` (P8-3): optional finger role -> bone bindings, resolved
-    from a preset's ``hands`` bindings by the caller.
+    from a preset's ``hands`` bindings by the caller. ``face_bones`` (P8-4):
+    optional face param -> bone bindings from the preset's ``face_bones``;
+    the shape-key class needs no bindings (the convention scan is automatic).
 
     Returns a structured report: applied/missing bones, per-bone FK angle
     errors vs the payload targets (worst included), skipped roles, and notes.
@@ -162,12 +236,14 @@ def apply_payload(
     if mirror:
         pose = pose.mirrored()
 
-    report = apply_pose_object(obj, pose, core, finger_map=finger_map)
+    report = apply_pose_object(obj, pose, core, finger_map=finger_map, face_bones=face_bones)
     report["mirrored"] = mirror
     applied_label = payload_mod.entry_for_label(payload, figure).get("label", "?")
     report["figure"] = str(applied_label)
     if pose.hands:
         report["hands_solved"] = sum(len(h.fingers) for h in pose.hands.values())
+    if pose.face is not None:
+        report["face_solved"] = len(pose.face.params)
     return report
 
 

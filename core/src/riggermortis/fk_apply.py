@@ -87,6 +87,19 @@ def q_from_to(u: Vec3, v: Vec3) -> Quaternion:
     return q_normalize((1.0 + d, cx, cy, cz))
 
 
+def q_from_axis_angle(axis: Vec3, angle_rad: float) -> Quaternion:
+    """Unit quaternion for a rotation by ``angle_rad`` about ``axis``
+    (normalized here — the declared face-plan axes are unit, but a caller
+    passing scaled axes must not corrupt the result)."""
+    n = math.sqrt(sum(c * c for c in axis))
+    if n <= 1e-12:
+        return q_identity()
+    x, y, z = axis[0] / n, axis[1] / n, axis[2] / n
+    half = angle_rad / 2.0
+    s = math.sin(half)
+    return (math.cos(half), x * s, y * s, z * s)
+
+
 def q_to_axis_angle(q: Quaternion) -> tuple[Vec3, float]:
     w, x, y, z = q_normalize(q)
     sin_half = math.sqrt(x * x + y * y + z * z)
@@ -191,7 +204,12 @@ def _finger_target_direction(pose: CanonicalPose, role: str) -> Vec3 | None:
 
 
 def apply_canonical_pose(
-    rig, mapping, pose: CanonicalPose, finger_map: dict[str, str] | None = None
+    rig,
+    mapping,
+    pose: CanonicalPose,
+    finger_map: dict[str, str] | None = None,
+    face_bones: dict[str, str] | None = None,
+    face_shape_keys: set[str] | None = None,
 ) -> PoseApplication:
     """Compute ordered per-bone rotations applying the pose to a mapped rig.
 
@@ -204,6 +222,15 @@ def apply_canonical_pose(
     per rig in the preset's ``hands`` bindings. ``None``/empty = no finger
     application; when the pose SOLVED hands and no map is given, the report
     carries the loud capability line — never a silent no-op.
+
+    ``face_bones`` (P8-4, optional): face param -> bone name from the
+    preset's ``face_bones`` bindings; bound bones rotate by the DECLARED
+    FACE_BONE_PLAN axis-angle (param value x max angle), joining the same
+    top-down parent-space pass. ``face_shape_keys`` (P8-4, optional): the
+    NAMES of the convention shape keys the caller resolved on the live
+    mesh — core accounting only (the add-on applies the values). When the
+    pose solved face params and NEITHER class is present, the report
+    carries the loud no-facial-targets line — never a silent no-op.
     """
     app = PoseApplication()
     if not pose.reliable:
@@ -270,24 +297,70 @@ def apply_canonical_pose(
             "rig — fingers not applied"
         )
 
-    if not wanted:
+    # Face (additive, P8-4): validate loudly, join the same top-down pass —
+    # bound bones take the DECLARED axis-angle instead of a direction target.
+    face_wanted: dict[str, str] = {}
+    if face_bones:
+        from .face import is_face_param
+
+        for param in sorted(face_bones):
+            if not is_face_param(param):
+                raise ValueError(
+                    f"face binding key {param!r} is not a face param "
+                    "(hint: params look like jaw.open or brow.raise.L "
+                    "— docs/FACE.md, D-022)"
+                )
+        if pose.face is None:
+            app.notes.append(
+                "face bindings present but the pose carries no solved face — "
+                "nothing to apply"
+            )
+        for param in sorted(face_bones):
+            bone = face_bones[param]
+            if bone not in rig.bones:
+                app.skipped.append(f"face: {param}: bound bone {bone!r} missing from rig")
+                continue
+            if bone in wanted.values() or bone in face_wanted.values():
+                app.skipped.append(
+                    f"face: {param}: bound bone {bone!r} already carries a "
+                    "body/finger/face binding — a bone implements ONE target"
+                )
+                continue
+            if pose.face is not None and param not in pose.face.params:
+                app.skipped.append(
+                    f"face: param {param!r} not solved (ledgered in the pose) — "
+                    "bone untouched"
+                )
+                continue
+            face_wanted[param] = bone
+    elif pose.face is not None:
+        if face_shape_keys:
+            app.notes.append(
+                f"face: {len(pose.face.params)} expression param(s) solved; "
+                f"{len(face_shape_keys)} convention shape key(s) resolved "
+                "(values applied by the caller)"
+            )
+        else:
+            app.notes.append(
+                f"face: {len(pose.face.params)} expression param(s) solved; "
+                "no facial targets for this rig — face not applied"
+            )
+
+    if not wanted and not face_wanted:
         app.notes.append("no applicable roles: nothing to rotate")
         return app
 
     # Top-down order: chain depth, then bone name (deterministic).
-    order = sorted(wanted.values(), key=lambda b: (rig.chain_depth(b), b))
+    order = sorted(set(wanted.values()) | set(face_wanted.values()),
+                   key=lambda b: (rig.chain_depth(b), b))
     role_of_bone = {b: r for r, b in wanted.items()}
+    param_of_bone = {b: p for p, b in face_wanted.items()}
     ancestor_rot: dict[str, Quaternion] = {}
+
+    from .face import FACE_BONE_PLAN  # deferred: face is sibling-pure
 
     for bone in order:
         bdef = rig.bones[bone]
-        rest = v_norm(v_sub(bdef.tail, bdef.head))
-        if math.dist(rest, (0.0, 0.0, 0.0)) <= 1e-9:
-            app.skipped.append(f"{role_of_bone[bone]}: zero-length bone {bone!r}")
-            continue
-        target = bone_target_direction(pose, role_of_bone[bone])
-        assert target is not None  # filtered above
-        world = q_from_to(rest, target)
         parent = bdef.parent
         if parent is not None and parent in ancestor_rot:
             anc = ancestor_rot[parent]
@@ -296,10 +369,38 @@ def apply_canonical_pose(
             anc = q_identity()
             app.notes.append(
                 f"ancestor bone {parent!r} is unmapped and stays at rest; "
-                f"{role_of_bone[bone]}'s target assumes it does not move"
+                f"{role_of_bone.get(bone, param_of_bone.get(bone, bone))}'s "
+                "target assumes it does not move"
             )
         else:
             anc = q_identity()
+        if bone in param_of_bone:
+            # Declared face rotation: canonical axis x (param x max angle).
+            param = param_of_bone[bone]
+            axis_plan, max_deg = FACE_BONE_PLAN[param]
+            value = pose.face.params[param] if pose.face is not None else 0.0
+            world = q_from_axis_angle(axis_plan, math.radians(max_deg) * value)
+            local = q_mul(q_conj(anc), world)
+            ancestor_rot[bone] = world
+            axis, angle = q_to_axis_angle(local)
+            app.rotations.append(
+                BoneRotation(
+                    bone=bone,
+                    role=param,
+                    axis=axis,
+                    angle_rad=angle,
+                    depth=rig.chain_depth(bone),
+                )
+            )
+            continue
+        assert bone in role_of_bone  # order is the union of the two maps
+        rest = v_norm(v_sub(bdef.tail, bdef.head))
+        if math.dist(rest, (0.0, 0.0, 0.0)) <= 1e-9:
+            app.skipped.append(f"{role_of_bone[bone]}: zero-length bone {bone!r}")
+            continue
+        target = bone_target_direction(pose, role_of_bone[bone])
+        assert target is not None  # filtered above
+        world = q_from_to(rest, target)
         local = q_mul(q_conj(anc), world)
         ancestor_rot[bone] = world
         axis, angle = q_to_axis_angle(local)

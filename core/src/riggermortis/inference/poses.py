@@ -59,6 +59,57 @@ HAND_R_END = 133  # exclusive
 if FACE_END - FACE_START + HAND_L_END - HAND_L_START + HAND_R_END - HAND_R_START + 23 != KEYPOINT_COUNT:
     raise AssertionError("COCO-WholeBody partition does not sum to 133 keypoints")
 
+# -- COCO-WholeBody face layout (P8-4, docs/FACE.md) -----------------------------
+#: 68 face keypoints at absolute indices FACE_START..FACE_END-1; the
+#: face-relative indices below (0..67) follow the standard 68-point facial
+#: landmark convention as DWPose's wholebody model emits it. Consumers use
+#: :func:`face_kp_index` — never re-typed literals.
+#:
+#: SIDE MAP (MEASURED, S29 probe — docs/FACE.md amendment A4): DWPose's
+#: band A (brow 17..21 / eye 36..41) sits at IMAGE LEFT = the subject's
+#: RIGHT for a camera-facing face (18/18 real faces measured). The ``.L``
+#: params read BAND B; the declared subject-left guess was flipped by
+#: measurement, exactly the one-line-constant fix the design planned.
+FACE_EYE: dict[str, tuple[int, int]] = {"L": (42, 48), "R": (36, 42)}  # 6 pts
+FACE_BROW: dict[str, tuple[int, int]] = {"L": (22, 27), "R": (17, 22)}  # 5 pts
+FACE_EYE_CORNERS: dict[str, tuple[int, int]] = {"L": (42, 45), "R": (36, 39)}  # outer, inner
+FACE_LOWER_LID: dict[str, tuple[int, int]] = {"L": (46, 48), "R": (40, 42)}  # 2 pts
+FACE_WING: dict[str, int] = {"L": 35, "R": 31}  # nose wings
+FACE_CORNER: dict[str, int] = {"L": 54, "R": 48}  # mouth corners
+FACE_MOUTH_UP = 51  # outer upper-lip center
+FACE_MOUTH_LOW = 57  # outer lower-lip center
+FACE_NOSE_BOTTOM = 33
+FACE_IOD_CORNERS = (36, 39, 42, 45)  # outer+inner per eye — the IOD anchor
+
+if FACE_END - FACE_START != 68:
+    raise AssertionError("face partition must hold 68 keypoints")
+
+
+def face_kp_index(side: str, region: str, i: int = 0) -> int:
+    """Absolute keypoint index of one face point (docs/FACE.md layout).
+
+    Loud on unknown names — a typo cannot silently read the wrong keypoint
+    (the :func:`hand_kp_index` precedent).
+    """
+    bands = {"eye": FACE_EYE, "brow": FACE_BROW, "lower_lid": FACE_LOWER_LID}
+    if side not in ("L", "R"):
+        raise ValueError(f"unknown side {side!r} (known: L, R)")
+    if region == "corner":
+        return FACE_START + FACE_CORNER[side]
+    if region == "wing":
+        return FACE_START + FACE_WING[side]
+    if region == "nose_bottom":
+        return FACE_START + FACE_NOSE_BOTTOM
+    if region not in bands:
+        raise ValueError(
+            f"unknown region {region!r} "
+            "(known: eye, brow, lower_lid, corner, wing, nose_bottom)"
+        )
+    lo, hi = bands[region][side]
+    if not 0 <= i < hi - lo:
+        raise ValueError(f"{region}.{side}[{i}] out of range (band {lo}..{hi - 1})")
+    return FACE_START + lo + i
+
 # -- COCO-WholeBody hand layout (P8-3, docs/FINGERS.md) -------------------------
 #: One hand carries 21 keypoints: index 0 = wrist, then 5 fingers x 4 joints
 #: (mcp/pip/dip/tip) in the fixed thumb->pinky order. Consumers use

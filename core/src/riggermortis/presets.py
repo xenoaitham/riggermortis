@@ -198,6 +198,71 @@ def _check_hands_against_mapping(hands: dict[str, str], mapping: dict[str, str])
         )
 
 
+def _face_bones_from_dict(d: dict[str, object]) -> dict[str, str]:
+    """Validate the optional ``face_bones`` bindings (P8-4, additive in
+    format 2, the ``hands`` precedent): D-022 params -> unique bones, no
+    bone double-keyed with the body mapping, the secondary chains, or the
+    hands bindings."""
+    from .face import FACE_PARAMS
+
+    raw = d.get("face_bones")
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise PresetError(
+            f"'face_bones' must be an object of face param -> bone name, got {type(raw).__name__}",
+            hint='example: {"jaw.open": "jaw"} (docs/FACE.md, the D-022 namespace)',
+        )
+    out: dict[str, str] = {}
+    for key in sorted(raw):
+        value = raw[key]
+        if str(key) not in FACE_PARAMS:
+            raise PresetError(
+                f"face_bones key {key!r} is not a face param",
+                hint=f"known params: {', '.join(FACE_PARAMS)} "
+                     "(docs/FACE.md § the published landmark→param table)",
+            )
+        if not isinstance(value, str) or not value:
+            raise PresetError(
+                f"face_bones binding for {key!r} must be a non-empty bone name, got {value!r}",
+                hint="the bone implements exactly one facial param",
+            )
+        if str(key) in out:
+            raise PresetError(
+                f"duplicate face_bones binding for {key!r}",
+                hint="one bone per param, one param per key",
+            )
+        out[str(key)] = value
+    dupes = sorted(b for b in set(out.values()) if list(out.values()).count(b) > 1)
+    if dupes:
+        raise PresetError(
+            f"bone(s) {', '.join(repr(b) for b in dupes)} bound to multiple face params",
+            hint="a bone implements ONE facial param — double-binding lets "
+                 "one overwrite the other's rotation",
+        )
+    return out
+
+
+def _check_face_bones_against_others(
+    face_bones: dict[str, str],
+    mapping: dict[str, str],
+    hands: dict[str, str],
+    secondary_bones: set[str],
+) -> None:
+    """A bone carrying a body role / finger segment / secondary chain must
+    not also implement a face param (the same cross-binding class)."""
+    if not face_bones:
+        return
+    clash = sorted(set(face_bones.values()) & (set(mapping.values()) | set(hands.values()) | secondary_bones))
+    if clash:
+        raise PresetError(
+            f"bone(s) {', '.join(repr(b) for b in clash)} already carry a "
+            "body-role mapping, finger segment, or secondary chain",
+            hint="facial bones implement facial params only — pick the "
+                 "jaw/eye/brow chain's distal bones",
+        )
+
+
 @dataclass
 class Preset:
     format: int
@@ -209,6 +274,7 @@ class Preset:
     manual_overrides: list[str] = field(default_factory=list)
     secondary: list[SecondaryBinding] = field(default_factory=list)
     hands: dict[str, str] = field(default_factory=dict)
+    face_bones: dict[str, str] = field(default_factory=dict)
     created: str = ""
 
     def to_dict(self) -> dict[str, object]:
@@ -225,6 +291,8 @@ class Preset:
         }
         if self.hands:  # omitted when empty — existing preset files stay byte-stable
             out["hands"] = dict(sorted(self.hands.items()))
+        if self.face_bones:  # omitted when empty — the same byte-stability rule
+            out["face_bones"] = dict(sorted(self.face_bones.items()))
         return out
 
     @staticmethod
@@ -240,6 +308,7 @@ class Preset:
                 "secondary chains / hands bindings)",
             )
         hands = _hands_from_dict(d)
+        face_bones = _face_bones_from_dict(d)
         preset = Preset(
             format=fmt,
             rig_name=str(d.get("rig_name", "")),
@@ -250,9 +319,16 @@ class Preset:
             manual_overrides=[str(x) for x in list(d.get("manual_overrides", []))],  # type: ignore[union-attr]
             secondary=_secondary_from_dict(d),
             hands=hands,
+            face_bones=face_bones,
             created=str(d.get("created", "")),
         )
         _check_hands_against_mapping(hands, preset.mapping)
+        _check_face_bones_against_others(
+            face_bones,
+            preset.mapping,
+            hands,
+            {b for binding in preset.secondary for b in binding.bones},
+        )
         return preset
 
 
@@ -262,6 +338,7 @@ def preset_from_mapping(
     manual_overrides: list[str] | None = None,
     secondary: list[SecondaryBinding] | None = None,
     hands: dict[str, str] | None = None,
+    face_bones: dict[str, str] | None = None,
 ) -> Preset:
     from . import __version__  # deferred: presets is package-imported (P6-1a)
 
@@ -273,6 +350,13 @@ def preset_from_mapping(
             f"bone(s) {', '.join(repr(b) for b in dupes)} bound to multiple finger roles",
             hint="a bone implements ONE segment",
         )
+    face_map = dict(face_bones or {})
+    _check_face_bones_against_others(
+        face_map,
+        {r: a.bone for r, a in mapping.assignments.items()},
+        hands,
+        {b for binding in _check_bindings(list(secondary or [])) for b in binding.bones},
+    )
     return Preset(
         format=PRESET_FORMAT,
         rig_name=rig.name,
@@ -283,6 +367,7 @@ def preset_from_mapping(
         manual_overrides=list(manual_overrides or []),
         secondary=_check_bindings(list(secondary or [])),
         hands=hands,
+        face_bones=face_map,
         created=datetime.now(timezone.utc).isoformat(timespec="seconds"),
     )
 
@@ -391,6 +476,26 @@ def resolve_hands(
                 "or pass force=True",
             )
     return dict(preset.hands)
+
+
+def resolve_face(
+    preset: Preset, rig_fingerprint: str, *, force: bool = False
+) -> dict[str, str]:
+    """Fingerprint-gate a preset's face bindings (P8-4) and return them
+    apply-ready — the SAME gate the mapping, secondary chains, and hands
+    ride."""
+    if preset.fingerprint != rig_fingerprint:
+        msg = (
+            f"preset {preset.rig_name!r} does not match this rig "
+            f"(fingerprint {preset.fingerprint} vs {rig_fingerprint})"
+        )
+        if not force:
+            raise PresetError(
+                msg,
+                hint="the rig changed since the preset was saved; re-map it "
+                "or pass force=True",
+            )
+    return dict(preset.face_bones)
 
 
 def default_preset_path(preset_dir: str | Path, rig: RigData) -> Path:

@@ -372,9 +372,61 @@ quadruped) with ≤2 manual corrections each, proven headless.
   - Tests: 25 in test_fingers.py = **507 total** (482 + 25); lint clean
     (probe + gate on the lint list). L2 = CLOSED (visible fingers; the
     per-class refusal branch unused — no class missed its bar).
-- [ ] P8-4 Facials: the published landmark->param table (gaze ONLY with
+- [x] P8-4 Facials: the published landmark->param table (gaze ONLY with
   iris kps), bone/shape-key binding classes, loud no-target reporting.
   Bars: >= 9/10 monotonicity per param on the 10-state benchmark.
+  - CLAIMED [S29] (2026-09-25T20:34Z): camera fork silent a 17th session
+    (ffmpeg exit 124, no packets); P8-4 per the work order. Baseline
+    verified at open: 507 passed, lint clean, CI green through the S28
+    close-out stamp-fix push (run 36155757005 SUCCESS on main).
+  - DONE S29 (2026-09-25T21:51Z): design-first docs/FACE.md (the
+    FINGERS.md sibling; the structural insight — every param is a
+    dimensionless landmark RATIO, so the payload carries solved PARAMS
+    not geometry; four probe-earned amendments A1-A4 recorded before
+    code) -> probe-first xtask/face_probe.py (7/7 RM_FACE PASS with
+    REAL evidence: the MEASURED side map — DWPose band A sits
+    image-left = the subject's RIGHT on 18/18 faces, so .L reads band
+    B, the one-line constant flip the design planned; three
+    neutral-geometry priors REDECLARED from pooled real medians —
+    corner drop 0.403, mouth width 0.832, cheek distance 0.731 — the
+    declared values had smile/pout firing on every real neutral and
+    cheek structurally dead; EAR 0.283 and brow gap 0.296 stood; AND
+    the degenerate-smile-reference finding — the corners' own line
+    rises with a symmetric smile, replaced by the nose-bottom
+    reference) -> core face.py (FACE_PARAMS + solve_face + per-param
+    gates/ledgers + FACE_BONE_PLAN; FACE_CONF_FLOOR 0.55 and
+    FACE_ACT_FLOOR 0.08 both declared untuned) + named face constants
+    + face_kp_index in poses.py + CanonicalPose.face (additive,
+    omit-when-empty byte-identity pinned; mirrored swaps .L/.R) +
+    preset face_bones bindings (format 2 unchanged, resolve_face
+    fingerprint gate, cross-binding guards) + fk_apply face_bones/
+    face_shape_keys params joining the SAME top-down pass with the
+    declared axis-angle + addon shape-key convention class (keys
+    named == param on armature-deformed meshes, missing keys report
+    loud) + CLI solve-by-default + session preset path resolves
+    face_bones (kinds + MCP tables untouched) -> D-022 WRITTEN in the
+    same commit as the namespace code -> gate xtask/face_gate.py (6
+    RM_FACE rows) wired into verify_pose_apply.sh + the Makefile lint
+    list.
+  - GATE (real Blender 5.1.0, engine-built fixtures, the REAL addon
+    apply through the FULL preset contract): FACE-BENCH 0 violations /
+    9 steps (bar 1) + reach 1.00 (bar 0.5) over the 10-expression
+    class [SYNTHETIC, prior-consistent GT]; FACE-GATE-OCCL zero
+    guessed (conf-0 -> no entry; per-param below-floor ledgered;
+    neutral -> 0 params, all ledgered); FACE-BONE-APPLY live
+    world-rotation worst 0.0000deg (bar 0.5) 5/5 facial bones keyed;
+    FACE-SHAPE-APPLY 4/4 convention keys, value delta 0.0000 (bar
+    0.1), mesh displaced; FACE-NOTARGET the capability line verbatim;
+    FACE-TWIN byte-identical (26 bones + keys). ALL prior gate
+    numbers byte-identical (RM_BAKE 0.0242deg x2, RM_FOOT_LOCK
+    0.0371->0.0000, RM_MOTION, RM_SCENE 0.3388/0.8279, RM_COUPLE
+    fracs 0.00016/0.00035, RM_FINGER 0.0070/0.00/10.30); full
+    pose-verify battery 63 PASS / 0 FAIL.
+  - Tests: 25 in test_face.py = **532 total** (507 + 25); lint clean
+    (probe + gate on the lint list). L3 = CLOSED (expressions, not
+    identity; the per-param refusal branch unused — no param missed
+    its bar; gaze conditional-OUT stays the documented limit).
+
 - [ ] P8-5 Reference camera solve (measured): GT-set bars yaw <= 7.5 /
   pitch <= 5 deg / distance <= 12%, framing IoU >= 0.75; low confidence
   refuses; error bars published.
