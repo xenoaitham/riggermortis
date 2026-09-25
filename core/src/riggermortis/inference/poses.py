@@ -59,6 +59,33 @@ HAND_R_END = 133  # exclusive
 if FACE_END - FACE_START + HAND_L_END - HAND_L_START + HAND_R_END - HAND_R_START + 23 != KEYPOINT_COUNT:
     raise AssertionError("COCO-WholeBody partition does not sum to 133 keypoints")
 
+# -- COCO-WholeBody hand layout (P8-3, docs/FINGERS.md) -------------------------
+#: One hand carries 21 keypoints: index 0 = wrist, then 5 fingers x 4 joints
+#: (mcp/pip/dip/tip) in the fixed thumb->pinky order. Consumers use
+#: :func:`hand_kp_index` — never re-typed literals.
+HAND_KP_COUNT = 21
+FINGER_ORDER: tuple[str, ...] = ("thumb", "index", "middle", "ring", "pinky")
+FINGER_JOINTS: tuple[str, ...] = ("mcp", "pip", "dip", "tip")
+
+
+def hand_kp_index(hand: str, finger: str, joint: str) -> int:
+    """Keypoint index of one hand joint (``hand`` is ``hand.L``/``hand.R``).
+
+    Loud on unknown names: the known values are listed in the error, so a
+    typo cannot silently read the wrong keypoint.
+    """
+    if hand == "hand.L":
+        base = HAND_L_START
+    elif hand == "hand.R":
+        base = HAND_R_START
+    else:
+        raise ValueError(f"unknown hand {hand!r} (known: hand.L, hand.R)")
+    if finger not in FINGER_ORDER:
+        raise ValueError(f"unknown finger {finger!r} (known: {', '.join(FINGER_ORDER)})")
+    if joint not in FINGER_JOINTS:
+        raise ValueError(f"unknown joint {joint!r} (known: {', '.join(FINGER_JOINTS)})")
+    return base + 1 + 4 * FINGER_ORDER.index(finger) + FINGER_JOINTS.index(joint)
+
 
 @dataclass
 class Figure:

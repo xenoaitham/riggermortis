@@ -331,6 +331,11 @@ quadruped) with ≤2 manual corrections each, proven headless.
   landing), per-finger confidence gates (occluded = skipped+flagged,
   100% gated-skip on the occlusion fixtures), preset-mapped apply. Bars:
   median <= 20 deg / p90 <= 35 deg visible fingers.
+  - CLAIMED [S28] (2026-09-25): camera fork silent a 16th session; P8-3
+    per the work order. Baseline verified at open: 482 passed, lint
+    clean, main synced through 8afd49f (the S27 push blocker cleared —
+    gh auth works again); CI run 36076363517 on 8afd49f in progress at
+    open, S26 run green.
 - [ ] P8-4 Facials: the published landmark->param table (gaze ONLY with
   iris kps), bone/shape-key binding classes, loud no-target reporting.
   Bars: >= 9/10 monotonicity per param on the 10-state benchmark.

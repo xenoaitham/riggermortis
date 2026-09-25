@@ -145,7 +145,14 @@ class PoseApplication:
 # -- engine -----------------------------------------------------------------------
 
 def bone_target_direction(pose: CanonicalPose, role: str) -> Vec3 | None:
-    """Canonical world direction of the role's bone (toward its chain child)."""
+    """Canonical world direction of the role's bone (toward its chain child).
+
+    Body roles read the frozen PRIMARY_CHILD topology / positions map;
+    finger roles (the D-021 namespace, P8-3) read ``pose.hands`` through
+    the additive FINGER topology — body behavior is untouched.
+    """
+    if role not in PRIMARY_CHILD:
+        return _finger_target_direction(pose, role)
     child = PRIMARY_CHILD.get(role)
     if child is None or role not in pose.positions or child not in pose.positions:
         return None
@@ -156,13 +163,47 @@ def bone_target_direction(pose: CanonicalPose, role: str) -> Vec3 | None:
     return (d[0] / n, d[1] / n, d[2] / n)
 
 
-def apply_canonical_pose(rig, mapping, pose: CanonicalPose) -> PoseApplication:
+def _finger_target_direction(pose: CanonicalPose, role: str) -> Vec3 | None:
+    """Direction of a finger SEGMENT role (mcp/pip/dip — the tip has no
+    segment; it is the dip bone's endpoint data)."""
+    from .fingers import FINGER_JOINTS, is_finger_role
+
+    if not is_finger_role(role):
+        return None
+    parts = role.split(".")
+    hand_key, finger, joint = f"{parts[0]}.{parts[1]}", parts[3], parts[4]
+    idx = FINGER_JOINTS.index(joint)
+    if idx >= len(FINGER_JOINTS) - 1:
+        return None  # .tip: data only, no bone segment to orient
+    hand = pose.hands.get(hand_key)
+    if hand is None:
+        return None
+    chain = hand.fingers.get(finger)
+    if chain is None:
+        return None
+    a = chain.joints[joint]
+    b = chain.joints[FINGER_JOINTS[idx + 1]]
+    d = v_sub(b, a)
+    n = v_dist(b, a)
+    if n <= 1e-9:
+        return None
+    return (d[0] / n, d[1] / n, d[2] / n)
+
+
+def apply_canonical_pose(
+    rig, mapping, pose: CanonicalPose, finger_map: dict[str, str] | None = None
+) -> PoseApplication:
     """Compute ordered per-bone rotations applying the pose to a mapped rig.
 
     ``rig`` is a :class:`riggermortis.types.RigData`, ``mapping`` a
     :class:`riggermortis.mapper.RigMapping` for the same rig. The returned
     rotations are in parent space, ordered by (chain depth, bone name), ready
     for the add-on / CLI / MCP to apply as axis-angle pose rotations.
+
+    ``finger_map`` (P8-3, optional): finger role -> bone name, authored once
+    per rig in the preset's ``hands`` bindings. ``None``/empty = no finger
+    application; when the pose SOLVED hands and no map is given, the report
+    carries the loud capability line — never a silent no-op.
     """
     app = PoseApplication()
     if not pose.reliable:
@@ -185,6 +226,50 @@ def apply_canonical_pose(rig, mapping, pose: CanonicalPose) -> PoseApplication:
             app.notes.append(f"{role}: leaf or chain-child unavailable; follows parent")
             continue
         wanted[role] = bone
+
+    # Fingers (additive): validate loudly, join the same top-down pass.
+    if finger_map:
+        from .fingers import is_finger_role
+
+        for role in sorted(finger_map):
+            if not is_finger_role(role):
+                raise ValueError(
+                    f"finger binding key {role!r} is not a finger role",
+                    hint="finger roles look like hand.L.finger.index.mcp "
+                         "(docs/FINGERS.md, D-021); a .tip role has no segment "
+                         "and cannot bind",
+                )
+            if role.endswith(".tip"):
+                raise ValueError(
+                    f"finger role {role!r} cannot bind (the tip is the dip "
+                    "bone's endpoint, not a segment)",
+                    hint="bind the mcp/pip/dip segment roles only",
+                )
+        if not pose.hands:
+            app.notes.append(
+                "finger bindings present but the pose carries no hands — "
+                "nothing to apply"
+            )
+        for role in sorted(finger_map):
+            bone = finger_map[role]
+            if bone not in rig.bones:
+                app.skipped.append(f"{role}: bound bone {bone!r} missing from rig")
+                continue
+            if bone in wanted.values():
+                app.skipped.append(
+                    f"{role}: bound bone {bone!r} already carries body role "
+                    "mapping — a bone implements ONE segment"
+                )
+                continue
+            if bone_target_direction(pose, role) is None:
+                continue  # hand/finger unsolved in this pose — ledgered in the pose itself
+            wanted[role] = bone
+    elif pose.hands:
+        n = sum(len(h.fingers) for h in pose.hands.values())
+        app.notes.append(
+            f"hands: {n} finger chain(s) solved; no finger bindings for this "
+            "rig — fingers not applied"
+        )
 
     if not wanted:
         app.notes.append("no applicable roles: nothing to rotate")

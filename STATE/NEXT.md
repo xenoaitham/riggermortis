@@ -106,12 +106,9 @@ no new model, no wrapper change, the P6-6 never-list untouched.
 
 ## Blocked / deferred (parked — do not burn time)
 
-- **PUSH BLOCKED (S27, NEEDS-HUMAN)**: the gh token in ~/.config/gh/
-  hosts.yml is EXPIRED (`gh auth status` fails; no credential helper, no
-  ssh key) — commit **3ca848d** ("Session 27 closed - P8-2 DONE") is
-  complete and pushed-pending on local main. LO runs `gh auth login -h
-  github.com` (one command) and the next session pushes FIRST, then
-  verifies `gh run list` green before any work.
+- RESOLVED (S27 close): the push landed after LO re-authorized gh —
+  commits 3ca848d + 8afd49f are on origin/main and CI run 36076363517
+  finished GREEN (30 min). No push debt remains.
 - Live capture device — parked LAST by LO; P5-4 runs when the phone comes
   up (box side READY; the client just never ran).
 - PyPI description + Blender Extensions upload — LO's site-side steps

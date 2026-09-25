@@ -12,6 +12,14 @@ implement it, parent-first. Format 1 files still read (they carry no chains);
 format 2 files read by an older build refuse with the unsupported-format
 hint. The bindings ride the SAME fingerprint gate as the mapping — a changed
 rig must not silently keep pointing at tail bones it no longer has.
+
+P8-3 adds an optional ``hands`` object to format 2 (ADDITIVE, the pins-in-v3
+pattern — the format integer stays 2, older builds ignore the unknown field):
+finger role -> bone name (docs/FINGERS.md, the D-021 namespace), authored
+once per rig. Keys validate as finger segment roles (mcp/pip/dip — a .tip
+has no segment), values must be unique bones that do not already carry a
+body-role mapping. ``resolve_hands`` gates them with the SAME fingerprint
+contract as the mapping and the secondary chains.
 """
 from __future__ import annotations
 
@@ -26,7 +34,8 @@ from .secondary import ChainSpec
 from .types import RigData
 
 PRESET_FORMAT = 2
-#: Formats this build reads: 1 (legacy, mapping-only) and 2 (+ secondary).
+#: Formats this build reads: 1 (legacy, mapping-only) and 2 (+ secondary /
+#: hands bindings — additive fields, loud-validated when present).
 _READ_FORMATS = (1, 2)
 
 
@@ -128,6 +137,66 @@ def _secondary_from_dict(d: dict[str, object]) -> list[SecondaryBinding]:
             hint='each binding: {"chain": {...}, "bones": ["bone", ...]}',
         )
     return _check_bindings([SecondaryBinding.from_dict(entry) for entry in raw])
+
+
+def _hands_from_dict(d: dict[str, object]) -> dict[str, str]:
+    """Validate the optional ``hands`` bindings (P8-3, additive in format 2):
+    finger segment roles -> unique bones, no bone double-keyed with the body
+    mapping or the secondary chains."""
+    from .fk_apply import ALL_ROLES  # noqa: F401  (import guard mirrors above)
+    from .fingers import is_finger_role
+
+    raw = d.get("hands")
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise PresetError(
+            f"'hands' must be an object of finger role -> bone name, got {type(raw).__name__}",
+            hint='example: {"hand.L.finger.index.mcp": "thumb.01.L"} '
+                 "(docs/FINGERS.md, the D-021 namespace)",
+        )
+    out: dict[str, str] = {}
+    for key in sorted(raw):
+        value = raw[key]
+        if not is_finger_role(str(key)) or str(key).endswith(".tip"):
+            raise PresetError(
+                f"hands binding key {key!r} is not a finger segment role",
+                hint="finger roles look like hand.L.finger.index.mcp; a .tip "
+                     "role has no segment and cannot bind",
+            )
+        if not isinstance(value, str) or not value:
+            raise PresetError(
+                f"hands binding for {key!r} must be a non-empty bone name, got {value!r}",
+                hint="the bone implements exactly one finger segment",
+            )
+        if str(key) in out:
+            raise PresetError(
+                f"duplicate hands binding for {key!r}",
+                hint="one bone per role, one role per key",
+            )
+        out[str(key)] = value
+    dupes = sorted(b for b in set(out.values()) if list(out.values()).count(b) > 1)
+    if dupes:
+        raise PresetError(
+            f"bone(s) {', '.join(repr(b) for b in dupes)} bound to multiple finger roles",
+            hint="a bone implements ONE segment — double-binding lets one "
+                 "overwrite the other's rotation",
+        )
+    return out
+
+
+def _check_hands_against_mapping(hands: dict[str, str], mapping: dict[str, str]) -> None:
+    """A bone carrying a body role must not also implement a finger segment
+    (the cross-binding double-key class the secondary guard refuses)."""
+    if not hands:
+        return
+    clash = sorted(set(hands.values()) & set(mapping.values()))
+    if clash:
+        raise PresetError(
+            f"bone(s) {', '.join(repr(b) for b in clash)} already carry a body-role mapping",
+            hint="finger bones implement finger segments only — pick the "
+                 "chain's distal bones",
+        )
 
 
 @dataclass

@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from .canonical import (
     CANONICAL,
@@ -53,6 +54,8 @@ from .canonical import (
     mirror_role,
     rest_skeleton,
 )
+if TYPE_CHECKING:  # deferred at runtime (fingers imports CanonicalPose)
+    from .fingers import HandPose
 from .inference.poses import (
     ANKLE_L,
     ANKLE_R,
@@ -145,7 +148,14 @@ def observations_from_keypoints(
 
 @dataclass
 class CanonicalPose:
-    """Solved pose: canonical role positions plus honest solve metadata."""
+    """Solved pose: canonical role positions plus honest solve metadata.
+
+    ``hands`` is the P8-3 additive field (D-021 namespace): solved finger
+    chains keyed ``hand.L``/``hand.R``, default EMPTY. It stays OUT of the
+    frozen 22-role ``positions`` map, and ``to_dict`` OMITS the key when
+    empty, so hands-free poses serialize byte-identically to pre-P8-3
+    output (the pins-in-v3 precedent, pinned by contract test).
+    """
 
     positions: dict[str, Vec3]
     flips: dict[str, int]  # distal segment sign: -1 forward / +1 backward
@@ -155,9 +165,10 @@ class CanonicalPose:
     anchor: str  # role anchoring the root ("hips" or "neck")
     notes: list[str] = field(default_factory=list)
     joint_confidence: dict[str, float] = field(default_factory=dict)
+    hands: dict[str, "HandPose"] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        out: dict[str, object] = {
             "positions": {r: list(p) for r, p in sorted(self.positions.items())},
             "flips": dict(sorted(self.flips.items())),
             "confidence": round(self.confidence, 4),
@@ -169,10 +180,24 @@ class CanonicalPose:
                 r: round(c, 4) for r, c in sorted(self.joint_confidence.items())
             },
         }
+        if self.hands:  # omitted when empty — the byte-identity contract
+            out["hands"] = {h: self.hands[h].to_dict() for h in sorted(self.hands)}
+        return out
 
     @staticmethod
     def from_dict(d: dict[str, object]) -> CanonicalPose:
         """Rebuild a pose from :meth:`to_dict` output (payload round-trip)."""
+        raw_hands = d.get("hands", {})
+        hands: dict[str, "HandPose"] = {}
+        if raw_hands:
+            if not isinstance(raw_hands, dict):
+                raise ValueError(
+                    "pose 'hands' must be an object keyed hand.L/hand.R "
+                    "(hint: docs/FINGERS.md, the D-021 namespace)"
+                )
+            from .fingers import HandPose  # deferred: fingers imports this module
+
+            hands = {str(k): HandPose.from_dict(v) for k, v in raw_hands.items()}  # type: ignore[union-attr]
         return CanonicalPose(
             positions={
                 str(role): (float(p[0]), float(p[1]), float(p[2]))  # type: ignore[index]
@@ -187,6 +212,7 @@ class CanonicalPose:
             joint_confidence={
                 str(k): float(v) for k, v in d.get("joint_confidence", {}).items()  # type: ignore[union-attr]
             },
+            hands=hands,
         )
 
     def mirrored(self) -> CanonicalPose:
@@ -195,8 +221,25 @@ class CanonicalPose:
         Depth (y) semantics are unchanged — an x-mirror does not flip
         front/back — so flip values move with their side key untouched.
         Confidence, notes, and metadata carry over: this is a geometry
-        operation, not a re-solve.
+        operation, not a re-solve. Finger chains (P8-3) mirror too:
+        hand.L <-> hand.R with x-negated joints; the skip ledger transfers
+        verbatim (its reasons are confidence text, side-free).
         """
+        mirrored_hands: dict[str, "HandPose"] = {}
+        if self.hands:
+            from .fingers import HandPose  # deferred: fingers imports this module
+
+            for key, hand in self.hands.items():
+                swapped = (
+                    mirror_role(key)
+                    if key in ("hand.L", "hand.R")
+                    else key
+                )
+                mirrored_hands[swapped] = HandPose(
+                    fingers={f: c.mirrored() for f, c in hand.fingers.items()},
+                    skipped=dict(hand.skipped),
+                    wrist_conf=hand.wrist_conf,
+                )
         return CanonicalPose(
             positions={
                 mirror_role(role): (-p[0], p[1], p[2])
@@ -211,6 +254,7 @@ class CanonicalPose:
             joint_confidence={
                 mirror_role(k): v for k, v in self.joint_confidence.items()
             },
+            hands=mirrored_hands,
         )
 
     def toggled(self, flip_key: str) -> CanonicalPose:
