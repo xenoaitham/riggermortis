@@ -327,8 +327,8 @@ quadruped) with ≤2 manual corrections each, proven headless.
     option — not reached; the desk-data shape stays declared in
     SCENES.md), P8-3 prep. L1 = CLOSED (within the bar; no CLOSED-
     LIMITED downgrade needed).
-- [ ] P8-3 Fingers: the additive finger namespace (D-021 WRITTEN at this
-  landing), per-finger confidence gates (occluded = skipped+flagged,
+- [x] P8-3 [S28] Fingers: the additive finger namespace (D-021 WRITTEN at
+  this landing), per-finger confidence gates (occluded = skipped+flagged,
   100% gated-skip on the occlusion fixtures), preset-mapped apply. Bars:
   median <= 20 deg / p90 <= 35 deg visible fingers.
   - CLAIMED [S28] (2026-09-25): camera fork silent a 16th session; P8-3
@@ -336,6 +336,42 @@ quadruped) with ≤2 manual corrections each, proven headless.
     clean, main synced through 8afd49f (the S27 push blocker cleared —
     gh auth works again); CI run 36076363517 on 8afd49f in progress at
     open, S26 run green.
+  - DONE S28 (2026-09-25): design-first docs/FINGERS.md extension (the
+    as-built design + two recorded amendments: A1 the payload carries
+    SOLVED chains, not raw kps — the D-009 pattern; A2 the namespace
+    stores 4 joints per finger — the tip must exist for the dip segment's
+    target) -> probe-first xtask/finger_probe.py (8/8 RM_FINGER PASS with
+    REAL evidence: hand frame span median 0.280u over 11 real hands, 0
+    degenerate; 25 fingers solved / 30 gated-skipped on real photos; the
+    hand-behind-head photo gated 5/5; AND the depth-sign finding — a
+    flatten-prior enumeration un-curls grips, replaced by the declared
+    forward-curl sign, the D-008 elbow prior one level down) -> core
+    fingers.py (FingerChain/HandPose loud validation + solve_hands +
+    the D-021 namespace topology; FINGER_CONF_FLOOR 0.55 = the
+    CONVENTIONS bar reused) + named hand constants in poses.py
+    (hand_kp_index, FINGER_ORDER/JOINTS) + CanonicalPose.hands (additive,
+    omit-when-empty byte-identity pinned) + fk_apply additive
+    finger_map branch with the loud capability line on both no-target
+    sides + preset `hands` bindings (format 2 unchanged, resolve_hands
+    fingerprint gate, double-key guards) + CLI solve-by-default +
+    session apply_pose additive preset_path/preset_force (P6-1a
+    pattern; KNOWN_ACTION_KINDS + MCP tool tables untouched) ->
+    D-021 WRITTEN in the same commit as the namespace code -> gate
+    xtask/finger_gate.py (couple_gate's SIBLING, 6 RM_FINGER rows) wired
+    into verify_pose_apply.sh + the Makefile lint list.
+  - GATE (real Blender 5.1.0, engine-built fixtures, the REAL addon
+    apply through the FULL preset contract): FINGER-BENCH median
+    0.00deg / p90 10.30deg (bars 20/35) over 300 segments x the 20-pose
+    class [SYNTHETIC, prior-consistent GT]; FINGER-GATE-OCCL 100%
+    gated-skip both classes, zero guessed; FINGER-APPLY live finger FK
+    worst 0.0070deg (bar 0.5) 15/15 bones keyed; FINGER-MIXAMO
+    (mixamorig naming, 0.01 scale) same 0.0070deg; FINGER-NOTARGET the
+    capability line verbatim; FINGER-TWIN 36 bones byte-identical. ALL
+    prior gate numbers byte-identical; full pose-verify battery PASS
+    with the new section.
+  - Tests: 25 in test_fingers.py = **507 total** (482 + 25); lint clean
+    (probe + gate on the lint list). L2 = CLOSED (visible fingers; the
+    per-class refusal branch unused — no class missed its bar).
 - [ ] P8-4 Facials: the published landmark->param table (gaze ONLY with
   iris kps), bone/shape-key binding classes, loud no-target reporting.
   Bars: >= 9/10 monotonicity per param on the 10-state benchmark.

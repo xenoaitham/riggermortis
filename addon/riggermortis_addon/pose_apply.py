@@ -74,12 +74,15 @@ def _bone_local_basis(pb: Any, world_axis: Any, world_angle: float) -> Any:
 
 
 def apply_pose_object(
-    obj: Any, pose: Any, core: Any
+    obj: Any, pose: Any, core: Any, finger_map: dict[str, str] | None = None
 ) -> dict[str, Any]:
     """Write a ``CanonicalPose`` (already mirrored/toggled as needed) to pose bones.
 
     Shared by payload application and the review flip toggle (P1-11): the FK
     pass, bone-space conversion, and report shape are identical either way.
+    ``finger_map`` (P8-3): optional finger role -> bone bindings (the preset's
+    ``hands`` bindings); None = no finger application — when the pose solved
+    hands, the report carries the loud capability line from core.
     """
     rig = core.RigData.from_dict(bpy_bridge.rig_data_from_armature(obj))
     mapping = mapping_from_props(obj, core)
@@ -89,7 +92,7 @@ def apply_pose_object(
         mapping_source = "live map_rig"
     core_missing = ", ".join(mapping.core_missing()) if mapping.core_missing() else ""
 
-    application = core.apply_canonical_pose(rig, mapping, pose)
+    application = core.apply_canonical_pose(rig, mapping, pose, finger_map=finger_map)
 
     applied: list[str] = []
     missing: list[str] = []
@@ -125,12 +128,14 @@ def apply_pose_object(
 
 def apply_payload(
     obj: Any, payload: dict[str, Any], mirror: bool = False, core: Any = None,
-    figure: str | None = None,
+    figure: str | None = None, finger_map: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Apply a ``rigpose pose`` payload to an armature's pose bones.
 
     ``figure``: label of the figure to apply (payload v2 carries several when
     written with ``--all-figures``); None = the payload's selected figure.
+    ``finger_map`` (P8-3): optional finger role -> bone bindings, resolved
+    from a preset's ``hands`` bindings by the caller.
 
     Returns a structured report: applied/missing bones, per-bone FK angle
     errors vs the payload targets (worst included), skipped roles, and notes.
@@ -157,10 +162,12 @@ def apply_payload(
     if mirror:
         pose = pose.mirrored()
 
-    report = apply_pose_object(obj, pose, core)
+    report = apply_pose_object(obj, pose, core, finger_map=finger_map)
     report["mirrored"] = mirror
     applied_label = payload_mod.entry_for_label(payload, figure).get("label", "?")
     report["figure"] = str(applied_label)
+    if pose.hands:
+        report["hands_solved"] = sum(len(h.fingers) for h in pose.hands.values())
     return report
 
 

@@ -27,6 +27,7 @@ from . import __version__
 from . import payload as payload_mod
 from .canonical_pose import observations_from_keypoints, solve_pose
 from .errors import MappingError, RiggermortisError
+from .fingers import solve_hands
 from .fk_apply import apply_canonical_pose
 from .inference.figures import FigureBoard
 from .io import load_rig
@@ -531,11 +532,15 @@ def _figure_entry(
     }
 
 
-def _solve_and_apply_figure(figure, rig, mapping):
-    """One figure's keypoints -> (pose, application)."""
+def _solve_and_apply_figure(figure, rig, mapping, finger_map=None):
+    """One figure's keypoints -> (pose, application); P8-3 attaches the
+    solved finger chains (gated: fingers appear only when their kps clear
+    the confidence floor — an absent finger reads as clean) and finger
+    bindings ride the preset when authored."""
     observations = observations_from_keypoints(figure.keypoints, figure.confidences)
     pose = solve_pose(observations)
-    application = apply_canonical_pose(rig, mapping, pose)
+    pose.hands = solve_hands(figure.keypoints, figure.confidences, pose)
+    application = apply_canonical_pose(rig, mapping, pose, finger_map=finger_map)
     return pose, application
 
 
@@ -562,10 +567,13 @@ def cmd_pose(args: argparse.Namespace) -> int:
     figure = _select_figure(board, args.figure)
 
     rig = load_rig(args.rig)
-    preset_mapping = load_preset(args.preset).mapping if args.preset else None
-    mapping = map_rig(rig, preset_mapping=preset_mapping)
+    preset = load_preset(args.preset) if args.preset else None
+    mapping = map_rig(rig, preset_mapping=preset.mapping if preset else None)
+    finger_map = dict(preset.hands) if preset and preset.hands else None
 
-    selected_pose, selected_application = _solve_and_apply_figure(figure, rig, mapping)
+    selected_pose, selected_application = _solve_and_apply_figure(
+        figure, rig, mapping, finger_map=finger_map
+    )
     entries = [_figure_entry(
         figure,
         selected_pose,
@@ -578,7 +586,9 @@ def cmd_pose(args: argparse.Namespace) -> int:
         for other in board.figures:
             if other.label == figure.label:
                 continue
-            pose, application = _solve_and_apply_figure(other, rig, mapping)
+            pose, application = _solve_and_apply_figure(
+                other, rig, mapping, finger_map=finger_map
+            )
             entries.append(_figure_entry(
                 other,
                 pose,

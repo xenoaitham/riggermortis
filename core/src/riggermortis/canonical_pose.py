@@ -54,6 +54,7 @@ from .canonical import (
     mirror_role,
     rest_skeleton,
 )
+
 if TYPE_CHECKING:  # deferred at runtime (fingers imports CanonicalPose)
     from .fingers import HandPose
 from .inference.poses import (
@@ -165,7 +166,7 @@ class CanonicalPose:
     anchor: str  # role anchoring the root ("hips" or "neck")
     notes: list[str] = field(default_factory=list)
     joint_confidence: dict[str, float] = field(default_factory=dict)
-    hands: dict[str, "HandPose"] = field(default_factory=dict)
+    hands: dict[str, HandPose] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, object]:
         out: dict[str, object] = {
@@ -188,7 +189,7 @@ class CanonicalPose:
     def from_dict(d: dict[str, object]) -> CanonicalPose:
         """Rebuild a pose from :meth:`to_dict` output (payload round-trip)."""
         raw_hands = d.get("hands", {})
-        hands: dict[str, "HandPose"] = {}
+        hands: dict[str, HandPose] = {}
         if raw_hands:
             if not isinstance(raw_hands, dict):
                 raise ValueError(
@@ -225,7 +226,7 @@ class CanonicalPose:
         hand.L <-> hand.R with x-negated joints; the skip ledger transfers
         verbatim (its reasons are confidence text, side-free).
         """
-        mirrored_hands: dict[str, "HandPose"] = {}
+        mirrored_hands: dict[str, HandPose] = {}
         if self.hands:
             from .fingers import HandPose  # deferred: fingers imports this module
 

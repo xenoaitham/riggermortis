@@ -143,7 +143,6 @@ def _hands_from_dict(d: dict[str, object]) -> dict[str, str]:
     """Validate the optional ``hands`` bindings (P8-3, additive in format 2):
     finger segment roles -> unique bones, no bone double-keyed with the body
     mapping or the secondary chains."""
-    from .fk_apply import ALL_ROLES  # noqa: F401  (import guard mirrors above)
     from .fingers import is_finger_role
 
     raw = d.get("hands")
@@ -209,10 +208,11 @@ class Preset:
     confidences: dict[str, float] = field(default_factory=dict)
     manual_overrides: list[str] = field(default_factory=list)
     secondary: list[SecondaryBinding] = field(default_factory=list)
+    hands: dict[str, str] = field(default_factory=dict)
     created: str = ""
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        out: dict[str, object] = {
             "format": self.format,
             "rig_name": self.rig_name,
             "fingerprint": self.fingerprint,
@@ -223,6 +223,9 @@ class Preset:
             "secondary": [b.to_dict() for b in self.secondary],
             "created": self.created,
         }
+        if self.hands:  # omitted when empty — existing preset files stay byte-stable
+            out["hands"] = dict(sorted(self.hands.items()))
+        return out
 
     @staticmethod
     def from_dict(d: dict[str, object]) -> Preset:
@@ -234,19 +237,23 @@ class Preset:
             raise PresetError(
                 f"unsupported preset format {fmt}",
                 hint="this build reads formats 1-2 (2 = mapping + optional "
-                "secondary chains)",
+                "secondary chains / hands bindings)",
             )
-        return Preset(
+        hands = _hands_from_dict(d)
+        preset = Preset(
             format=fmt,
             rig_name=str(d.get("rig_name", "")),
             fingerprint=str(d.get("fingerprint", "")),
             core_version=str(d.get("core_version", "")),
             mapping={str(k): str(v) for k, v in dict(d.get("mapping", {})).items()},  # type: ignore[arg-type]
             confidences={str(k): float(v) for k, v in dict(d.get("confidences", {})).items()},  # type: ignore[arg-type]
-            manual_overrides=[str(x) for x in list(d.get("manual_overrides", []))],  # type: ignore[arg-type]
+            manual_overrides=[str(x) for x in list(d.get("manual_overrides", []))],  # type: ignore[union-attr]
             secondary=_secondary_from_dict(d),
+            hands=hands,
             created=str(d.get("created", "")),
         )
+        _check_hands_against_mapping(hands, preset.mapping)
+        return preset
 
 
 def preset_from_mapping(
@@ -254,9 +261,18 @@ def preset_from_mapping(
     mapping: RigMapping,
     manual_overrides: list[str] | None = None,
     secondary: list[SecondaryBinding] | None = None,
+    hands: dict[str, str] | None = None,
 ) -> Preset:
     from . import __version__  # deferred: presets is package-imported (P6-1a)
 
+    hands = dict(hands or {})
+    _check_hands_against_mapping(hands, {r: a.bone for r, a in mapping.assignments.items()})
+    dupes = sorted(b for b in set(hands.values()) if list(hands.values()).count(b) > 1)
+    if dupes:
+        raise PresetError(
+            f"bone(s) {', '.join(repr(b) for b in dupes)} bound to multiple finger roles",
+            hint="a bone implements ONE segment",
+        )
     return Preset(
         format=PRESET_FORMAT,
         rig_name=rig.name,
@@ -266,6 +282,7 @@ def preset_from_mapping(
         confidences={role: a.confidence for role, a in sorted(mapping.assignments.items())},
         manual_overrides=list(manual_overrides or []),
         secondary=_check_bindings(list(secondary or [])),
+        hands=hands,
         created=datetime.now(timezone.utc).isoformat(timespec="seconds"),
     )
 
@@ -355,6 +372,25 @@ def resolve_secondary(
                 "or pass force=True",
             )
     return list(preset.secondary)
+
+
+def resolve_hands(
+    preset: Preset, rig_fingerprint: str, *, force: bool = False
+) -> dict[str, str]:
+    """Fingerprint-gate a preset's finger bindings (P8-3) and return them
+    apply-ready — the SAME gate the mapping and secondary chains ride."""
+    if preset.fingerprint != rig_fingerprint:
+        msg = (
+            f"preset {preset.rig_name!r} does not match this rig "
+            f"(fingerprint {preset.fingerprint} vs {rig_fingerprint})"
+        )
+        if not force:
+            raise PresetError(
+                msg,
+                hint="the rig changed since the preset was saved; re-map it "
+                "or pass force=True",
+            )
+    return dict(preset.hands)
 
 
 def default_preset_path(preset_dir: str | Path, rig: RigData) -> Path:

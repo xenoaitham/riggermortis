@@ -333,3 +333,46 @@ declared, never fitted to the fixtures (D-008).
   occlusion-class photo (human_hand_behind_head) gated **all 5 fingers**
   of its hand — the Annex A.1 gated-skip requirement holds on REAL data,
   not just fixtures.
+
+## As-built (S28, 2026-09-25) — the landing
+
+Landed as designed, with the probe's depth-sign amendment (§ The solve,
+item 3) recorded before the core build. The whole stack: named hand
+constants (`poses.py`) → the namespace + solve (`core fingers.py`,
+D-021 written at that landing) → `CanonicalPose.hands` (additive,
+omit-when-empty serialization) → preset `hands` bindings (format 2
+unchanged, `resolve_hands` fingerprint gate) → FK apply (`finger_map`
+param, loud capability line on both no-target sides) → CLI `rigpose
+pose` solves hands by default → session `apply_pose` gains additive
+`preset_path`/`preset_force` params (the P6-1a pattern; action-kinds
+table and MCP tool schemas untouched).
+
+- **CI contract**: 25 tests in `core/tests/test_fingers.py` — the
+  40-role namespace disjoint from the frozen 22-role core, the
+  topology, kp-index tiling + loud refusals, 100% gated-skip on both
+  occlusion classes with verbatim ledger reasons, partial gates,
+  direction bars on prior-consistent GT, twin determinism, the
+  hands-free byte-identity contract (`to_dict` omits `hands`), payload
+  round-trips, the committed pre-P8-3 fixture still reading clean,
+  FK apply within the 0.5° family, both loud no-target notes, `.tip` /
+  non-finger binding refusals, preset validation + fingerprint gate.
+  **507 tests total** (482 + 25); lint clean.
+- **Gate** (`xtask/finger_gate.py` via `make pose-verify`, RM_FINGER
+  lines, Blender 5.1.0, engine-built fixtures, the REAL addon apply
+  path through the FULL preset contract): FINGER-BENCH median **0.00°**
+  (bar 20) / p90 **10.30°** (bar 35) over 300 segments × the 20-pose
+  class; FINGER-GATE-OCCL 100% gated-skip (wrist-below-floor → no hand
+  entry; below-floor → 0 solved, 5/5 ledgered, zero guessed);
+  FINGER-APPLY live finger FK worst **0.0070°** (bar 0.5°) with 15/15
+  finger bones keyed; FINGER-MIXAMO (mixamorig naming + 0.01 object
+  scale) same **0.0070°**; FINGER-NOTARGET the capability line
+  verbatim; FINGER-TWIN 36 bones byte-identical. ALL prior gate
+  numbers byte-identical (RM_BAKE 0.0242° ×2, RM_FOOT_LOCK
+  0.0371→0.0000, RM_TAILS, RM_MOTION, RM_SCENE, RM_COUPLE).
+- **What P8-3 deliberately does not claim**: direction bars are
+  measured on SYNTHETIC prior-consistent GT (the Annex A.1
+  re-validation trigger applies when real hand-labeled fixtures enter
+  the workflow); real-photo behavior is the LOUD gate (25 solved / 30
+  skipped in the probe) — never a guessed finger; hands curling away
+  from canonical forward solve mirrored (the documented single-view
+  miss class, review-fixable in a later session).

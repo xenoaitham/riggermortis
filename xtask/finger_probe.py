@@ -64,7 +64,11 @@ CORE_SRC = Path(
 )
 sys.path.insert(0, str(CORE_SRC))
 
-from riggermortis.canonical_pose import CanonicalPose, observations_from_keypoints, solve_pose  # noqa: E402
+from riggermortis.canonical_pose import (  # noqa: E402
+    CanonicalPose,
+    observations_from_keypoints,
+    solve_pose,
+)
 from riggermortis.inference.poses import (  # noqa: E402
     HAND_L_END,
     HAND_L_START,

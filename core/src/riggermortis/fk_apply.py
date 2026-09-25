@@ -234,16 +234,15 @@ def apply_canonical_pose(
         for role in sorted(finger_map):
             if not is_finger_role(role):
                 raise ValueError(
-                    f"finger binding key {role!r} is not a finger role",
-                    hint="finger roles look like hand.L.finger.index.mcp "
-                         "(docs/FINGERS.md, D-021); a .tip role has no segment "
-                         "and cannot bind",
+                    f"finger binding key {role!r} is not a finger role "
+                    "(hint: finger roles look like hand.L.finger.index.mcp "
+                    "— docs/FINGERS.md, D-021)"
                 )
             if role.endswith(".tip"):
                 raise ValueError(
-                    f"finger role {role!r} cannot bind (the tip is the dip "
-                    "bone's endpoint, not a segment)",
-                    hint="bind the mcp/pip/dip segment roles only",
+                    f"finger role {role!r} cannot bind: the tip is the dip "
+                    "bone's endpoint, not a segment "
+                    "(hint: bind the mcp/pip/dip segment roles only)"
                 )
         if not pose.hands:
             app.notes.append(

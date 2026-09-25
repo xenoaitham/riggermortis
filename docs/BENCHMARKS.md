@@ -698,3 +698,44 @@ apply path consumes coupled poses unchanged.
   placements, enforcement gate, weights, conflict, reach, scale
   invariance, purity, determinism, report shape); design of record
   `docs/SCENES.md` § Contact coupling.
+
+### Fingers (P8-3, session 28) — test/gate-pinned
+
+The additive finger namespace (D-021, written at that landing) + the
+per-hand solve: finger chains solve ONLY from observed keypoints — every
+chain's four kps must clear the 0.55 confidence floor (the CONVENTIONS
+ambiguity bar, reused, untuned), below it the finger is SKIPPED and
+LEDGERED, never guessed. Depth magnitude from declared canonical segment
+lengths (D-008 priors); depth SIGN is the declared forward-curl rule
+(the elbow-forward prior one level down — the probe showed a
+flatten-prior sign enumeration un-curls grips). Design of record:
+`docs/FINGERS.md` § As-built design.
+
+- **Annex A.1 bars met**: the 20-pose hand benchmark class
+  (flat/spread/grip/curl/point/…, SYNTHETIC parametric GT,
+  prior-consistent) measures per-SEGMENT direction error at **median
+  0.00° (bar 20) / p90 10.30° (bar 35)** over 300 segments; the
+  occlusion fixtures gate-skip **100%** (wrist below floor → no hand
+  entry — an absent hand reads as clean; finger kps below floor → 0
+  solved, 5/5 ledgered with verbatim reasons — zero guessed fingers);
+  apply through the REAL add-on path on engine-built metarig-class AND
+  Mixamo-class fixtures (mixamorig naming, 0.01 object scale) re-evals
+  finger bones at **0.0070° worst** (bar: the 0.5° FK family), 15/15
+  bones keyed, twin byte-identical.
+- **Real-photo honesty** (`xtask/finger_probe.py`, 8/8 RM_FINGER rows,
+  pinned DWPose models on the P1-9 set): the canonical wrist→forearm
+  span median is **0.280 u** across 11 poseable hands (0 degenerate —
+  the hand frame's stability surface is solid); **25 fingers solved /
+  30 gated-skipped** at the floor, and the occlusion-class photo
+  (hand behind head) gated all 5 fingers of its hand. Real photos skip
+  loudly roughly half the time — that is the design working (an absent
+  finger reads as clean), not a defect.
+- **Where**: probe `/home/potato/miniconda3/bin/python3
+  xtask/finger_probe.py` (models + photos, RM_FINGER PROBE); gate `make
+  pose-verify` (RM_FINGER BENCH / GATE-OCCL / APPLY / MIXAMO / NOTARGET
+  / TWIN / GATE, grep-pinned); unit contract `pytest
+  core/tests/test_fingers.py` (25 tests); design of record
+  `docs/FINGERS.md` + `STATE/DECISIONS.md` D-021. SYNTHETIC-labeled:
+  the direction bars are measured on engine-built GT; the Annex A.1
+  re-validation trigger applies when real hand-labeled fixtures enter
+  the workflow.

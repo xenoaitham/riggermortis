@@ -1026,5 +1026,18 @@ grep -q "RM_COUPLE COUPLE-CONFLICT: PASS" "$TMP/couple_gate.log"
 grep -q "RM_COUPLE COUPLE-NOENFORCE: PASS" "$TMP/couple_gate.log"
 grep -q "RM_COUPLE GATE: PASS" "$TMP/couple_gate.log"
 
+# -- P8-3 fingers: benchmark bars, occlusion gating, preset-mapped apply ------
+echo "== finger gate: 20-pose bars, gated-skip, apply fidelity, loud no-target"
+RM_CORE_SRC="$REPO/core/src" \
+RM_ADDON_DIR="$REPO/addon" \
+  "$BLENDER" -b --python "$REPO/xtask/finger_gate.py" 2>&1 | tee "$TMP/finger_gate.log"
+grep -q "RM_FINGER FINGER-BENCH: PASS" "$TMP/finger_gate.log"
+grep -q "RM_FINGER FINGER-GATE-OCCL: PASS" "$TMP/finger_gate.log"
+grep -q "RM_FINGER FINGER-APPLY: PASS" "$TMP/finger_gate.log"
+grep -q "RM_FINGER FINGER-MIXAMO: PASS" "$TMP/finger_gate.log"
+grep -q "RM_FINGER FINGER-NOTARGET: PASS" "$TMP/finger_gate.log"
+grep -q "RM_FINGER FINGER-TWIN: PASS" "$TMP/finger_gate.log"
+grep -q "RM_FINGER GATE: PASS" "$TMP/finger_gate.log"
+
 echo ""
 echo "P1-6 BLENDER POSE-APPLY GATE: PASS"

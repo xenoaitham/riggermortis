@@ -501,6 +501,43 @@ Consequence: P6-3 packaging is buildable work (slots to replace, SOURCES
 manifest, media-guard allowlist, the CI detection job) — work order
 material for S26+, no longer a NEEDS-HUMAN blocker.
 
+## D-021 The finger/hand namespace is an additive separate map (2026-09-25, S28 — WRITTEN AT THIS LANDING, per the round-3 strike S2 rule)
+
+This entry was RESERVED since the roadmap was written; it is written now,
+in the same commit where the namespace code (`core fingers.py`) lands.
+
+- **The namespace**: finger roles are `hand.<SIDE>.finger.<name>.<joint>`
+  (e.g. `hand.L.finger.index.pip`) — 2 sides × 5 fingers (thumb→pinky) ×
+  4 joints (mcp/pip/dip/tip) = 40 roles. They live in a SEPARATE additive
+  topology (`fingers.FINGER_PARENT` / `finger_roles()` / `is_finger_role()`).
+  `ALL_ROLES`, `CANONICAL`, `PRIMARY_CHILD`, `CORE_ROLES` are untouched;
+  the mapper never assigns finger roles; consumers that ignore fingers
+  are byte-identical (pinned by contract test).
+- **4 joints, not 3** (amendment A2, recorded in docs/FINGERS.md before
+  code): the roadmap's `hand.L.finger.<name>[0..2]` counted the 3
+  articulated SEGMENTS; the namespace stores the 4 observed joints per
+  finger because the apply path orients a bone toward
+  `child_joint − joint` — the tip must exist as data for the dip segment
+  to have a target. The tip binds no bone (no segment of its own);
+  preset validation refuses `.tip` keys.
+- **Data ride**: `CanonicalPose.hands` (default EMPTY, keyed hand.L/hand.R)
+  — the frozen 22-role `positions` map untouched; `to_dict` omits the key
+  when empty so hands-free poses serialize byte-identically to pre-P8-3
+  output (the pins-in-v3 precedent). Payload format stays 3 (additive
+  per-figure field through the pose dict). Apply is opt-in via the
+  preset's optional `hands` bindings (format 2 unchanged — additive
+  field; fingerprint-gated by `resolve_hands`, the P6-1a contract).
+- **Policy coverage (D-019)**: fingers carry no content by themselves —
+  no new policy surface; the existing subject checks apply unchanged;
+  MCP stays SFW with no new tool (the session bridge's `apply_pose`
+  gains additive `preset_path`/`preset_force` params only).
+- **Gate discipline**: per-finger confidence floor 0.55 (the CONVENTIONS
+  ambiguity bar, reused — the coupling precedent, declared untuned);
+  occluded fingers are skipped + ledgered, never guessed; depth sign is
+  the declared forward-curl rule (the D-008 elbow-forward prior one
+  level down; the probe showed a flatten-prior enumeration un-curls
+  grips — docs/FINGERS.md § Probe answers).
+
 ## NEEDS-HUMAN queue (updated 2026-09-16 S8)
 
 - RETIRED — anime sourcing: set complete at 10/10 (SOURCES.md; Commons CC BY-SA crop provenance).

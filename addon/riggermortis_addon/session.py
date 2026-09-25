@@ -262,18 +262,36 @@ def _import_core():
 
 
 def _exec_apply_pose(params: dict[str, Any]) -> dict[str, Any]:
-    """The REAL payload-apply path (D-009) — same machinery as Apply Pose."""
+    """The REAL payload-apply path (D-009) — same machinery as Apply Pose.
+    P8-3: optional ``preset_path``/``preset_force`` — when the preset carries
+    finger bindings (``hands``), they fingerprint-gate against the LIVE rig
+    and feed the apply (the P6-1a bake_action param pattern; additive)."""
     import bpy
 
     payload = importlib.import_module(__package__)._load_payload(
         str(params.get("payload_path") or "")
     )
     obj = _resolve_armature(params.get("armature_name"))
+    finger_map = None
+    preset_path = str(params.get("preset_path") or "")
+    if preset_path:
+        core = _import_core()
+        preset = core.load_preset(preset_path)
+        if preset.hands:
+            rig = core.RigData.from_dict(
+                bpy_bridge.rig_data_from_armature(obj)
+            )
+            finger_map = core.resolve_hands(
+                preset, rig.fingerprint(), force=bool(params.get("preset_force", False))
+            )
     report = pose_apply.apply_payload(
         obj, payload,
         mirror=bool(params.get("mirror", False)),
         figure=params.get("figure") or None,
+        finger_map=finger_map,
     )
+    if finger_map:
+        report["finger_bindings"] = len(finger_map)
     # P2-8a (D-015): same conditional tail repair the Inspect & Map operator
     # runs — an agent-driven apply on a garbage-tail imported rig must not
     # leave the evaluated placement broken. Count is reported, never silent.
