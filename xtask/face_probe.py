@@ -429,7 +429,9 @@ def benchmark_set() -> dict[str, tuple[tuple[list[tuple[float, float]], list[flo
 
 def _mono_violations(solved_values: list[float]) -> int:
     """Adjacent-step decreases beyond MONO_TOL (states pre-sorted by GT)."""
-    return sum(1 for a, b in zip(solved_values, solved_values[1:]) if a - b > MONO_TOL)
+    return sum(
+        1 for a, b in zip(solved_values, solved_values[1:], strict=False) if a - b > MONO_TOL
+    )
 
 
 # -- probe harness ---------------------------------------------------------------
