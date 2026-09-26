@@ -970,6 +970,7 @@ def main() -> int:
             proc = subprocess.run(
                 [blender, "-b", "--python", str(helper), "--", str(out_dir)],
                 capture_output=True, text=True, timeout=1200, check=False,
+                shell=False,  # argv-list exec, no shell — explicit for audit
             )
             manifest_path = out_dir / "manifest.json"
             if proc.returncode != 0 or not manifest_path.is_file():
