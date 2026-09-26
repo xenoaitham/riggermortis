@@ -432,7 +432,42 @@ The probe contains the DRAFT solve (the coupling/finger/face recipe): core
 - Blender-side cross-check of the composed projection model: the GATE's
   CAM-MODEL row (world_to_camera_view, err ≤ 1e-4).
 
-## As-built
+## As-built (S30, 2026-09-26) — the landing
 
-(appended at the core/gate landing — nothing above is a claim until a
-test, probe line, or gate number cites it)
+Landed as designed, with the eleven probe-earned amendments (§ Amendment
+record) recorded before/during the build. The whole stack: named rulers +
+`solve_camera_figure` + `consensus_camera` + `sensor_fit` (`core
+camera.py`, pure stdlib, deterministic — no payload format change, the
+v3 contract and the hands-free face-free byte-identity pins hold) → 17
+CI tests (`core/tests/test_camera.py`, 549 total) → the addon stager
+(`camera_stage.py`: per-figure solves → consensus → world placement from
+the POSED rigs' measured geometry → BOTH floors → `rm_camera_solve=
+"MEASURED"` + conf + IoU + params; the v0 `scene_camera.py` byte-
+untouched as the declared fallback) → the Casting Desk button wired to
+the measured path → the gate (`xtask/camera_gate.py`, 6 RM_CAM rows,
+wired into `verify_pose_apply.sh`).
+
+- **Annex A.1 bars MET** (tier-1 deterministic GT set, 150 cameras,
+  SYNTHETIC prior-consistent GT, the optimism caveat verbatim in
+  BENCHMARKS): yaw MAE **2.58°** (bar 7.5°), pitch MAE **4.83°** (bar
+  5°), distance MAE **3.42%** (bar 12%), 0 refused; framing IoU median
+  **0.9621**, 99% ≥ 0.75. L4 = **CLOSED** (the 15° REFUSED branch
+  unused).
+- **Gate** (real Blender 5.1.0, the REAL addon staging path):
+  CAM-MODEL **2.32e-07** (bar 1e-4); CAM-GT **2.58 / 4.73 / 3.42**
+  (n=75); CAM-STAGE staged a yaw-20° reference at solved **19.86°**,
+  IoU **0.8082** ≥ 0.75, confidence 1.00, props stamped, scene camera
+  set; CAM-REFUSE loud with NO camera object left; CAM-TWIN
+  byte-identical. ALL prior gate numbers byte-identical; the full
+  battery PASS twice (before + after the desk wiring); **549 tests**;
+  lint clean.
+- **What P8-5 deliberately does not claim**: the tier-2
+  render+REAL-detector evidence is NOT MET — the pinned DWPose person
+  detector is blind to the engine's mannequin fixture class (0/36
+  across three fixture generations, measured, the D-015 decomposition;
+  the A.3 re-validation trigger applies to a future detector-visible
+  fixture path); the pitch SIGN below the regime switch is genuinely
+  unresolvable (the per-row coin lands inside the MAE bar — the
+  declared floors catch systematic flips); the height has no Annex bar
+  (it feeds staging; MAE 0.363 canon published); tier-3 REAL photos
+  publish outputs + refusals, never prose claims.
