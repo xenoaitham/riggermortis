@@ -1052,5 +1052,17 @@ grep -q "RM_FACE FACE-NOTARGET: PASS" "$TMP/face_gate.log"
 grep -q "RM_FACE FACE-TWIN: PASS" "$TMP/face_gate.log"
 grep -q "RM_FACE GATE: PASS" "$TMP/face_gate.log"
 
+# -- P8-5 camera: the measured solve (model, GT bars, real staging, refuse) ---
+echo "== camera gate: measured solve bars + real staging + loud refuse"
+RM_CORE_SRC="$REPO/core/src" \
+RM_ADDON_DIR="$REPO/addon" \
+  "$BLENDER" -b --python "$REPO/xtask/camera_gate.py" 2>&1 | tee "$TMP/camera_gate.log"
+grep -q "RM_CAM CAM-MODEL: PASS" "$TMP/camera_gate.log"
+grep -q "RM_CAM CAM-GT: PASS" "$TMP/camera_gate.log"
+grep -q "RM_CAM CAM-STAGE: PASS" "$TMP/camera_gate.log"
+grep -q "RM_CAM CAM-REFUSE: PASS" "$TMP/camera_gate.log"
+grep -q "RM_CAM CAM-TWIN: PASS" "$TMP/camera_gate.log"
+grep -q "RM_CAM GATE: PASS" "$TMP/camera_gate.log"
+
 echo ""
 echo "P1-6 BLENDER POSE-APPLY GATE: PASS"

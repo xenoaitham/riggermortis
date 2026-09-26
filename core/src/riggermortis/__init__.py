@@ -17,6 +17,12 @@ from .action import (
     load_action,
     stabilize_hips,
 )
+from .camera import (
+    CAMERA_CONF_FLOOR,
+    FigureCamera,
+    consensus_camera,
+    solve_camera_figure,
+)
 from .canonical import ALL_ROLES, CORE_ROLES, side_of
 from .canonical_pose import CanonicalPose
 from .contacts import (
@@ -223,6 +229,10 @@ __all__ = [
     "Placement",
     "couple_scene",
     "movable_joints",
+    "CAMERA_CONF_FLOOR",
+    "FigureCamera",
+    "consensus_camera",
+    "solve_camera_figure",
     "Preset",
     "SecondaryBinding",
     "apply_preset",

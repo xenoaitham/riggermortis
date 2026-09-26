@@ -181,7 +181,15 @@ One N-panel section ("Casting Desk", under the existing pose section):
 **Semantics**: stage a scene camera whose framing of the POSED SUBJECT
 matches the reference's subject framing, from the subject bounding box +
 declared solve priors. APPROXIMATE, labeled everywhere, one button, manual
-keyframing supported from day one (the measured solve is P8-5).
+keyframing supported from day one.
+
+**S30 update**: the measured solve (P8-5, `docs/CAMERA.md`) LANDED — the
+Casting Desk button now stages through
+`camera_stage.stage_scene_camera_measured` (yaw/pitch/distance/height
+fitted from the body keypoints, both floors: solve confidence ≥ 0.55 AND
+framing IoU ≥ 0.75); THIS v0 stager remains byte-untouched as the
+declared fallback path and the RM_SCENE CAMERA-* rows keep exercising
+it unchanged.
 
 **Inputs**: the active payload's figure bboxes (pixel coords + the image
 `width`/`height` already in the payload — normalized to the reference

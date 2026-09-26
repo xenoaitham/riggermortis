@@ -785,3 +785,60 @@ conditional-OUT (the pinned DWPose has no iris kps). Design of record:
   workflow. The neutral is a POPULATION prior (D-008-untuned): a
   single image carries no personal neutral, and a resting-low brow
   reads slightly raised — published, never hidden.
+
+### Measured reference camera (P8-5, session 30) — test/gate-pinned
+
+The measured solve fitting yaw/pitch/distance/height from the body
+keypoints with the canonical skeleton's proportions as the ruler (design
+of record: `docs/CAMERA.md`; the APPROXIMATE v0 stager above stays as the
+fallback path, byte-untouched).
+
+- **Annex A.1 bars MET on the tier-1 deterministic GT set** (150 GT
+  cameras = yaw {−40..40 step 20}° × D {2.6, 4, 6} × elevation
+  {−1..+1} × 2 poses, noiseless projections through the REAL pipeline —
+  observations → solve_pose → camera solve; SYNTHETIC, prior-consistent
+  GT): **yaw MAE 2.58° (bar 7.5), pitch MAE 4.83° (bar 5), distance MAE
+  3.42% (bar 12%), 0 refused, 150/150 solved.** Framing IoU of the
+  solved cameras vs the GT cameras: median **0.9621**, 99% ≥ the 0.75
+  floor (projection space, the declared staging placement). Optimism
+  caveat verbatim: *measured on synthetic prior-consistent ground truth;
+  real-detector noise is not in these numbers; the Annex A.1
+  re-validation trigger applies when real labeled fixtures enter the
+  workflow.*
+- **Gate rows** (`xtask/camera_gate.py` via `make pose-verify`, RM_CAM
+  lines, Blender 5.1.0): **CAM-MODEL** — the composed yaw+pitch
+  projection matches Blender's `world_to_camera_view` at max err
+  **2.32e-07** (bar 1e-4) over 9 yawed+pitched cameras, the camera
+  quaternion built from the model basis (no track_quat ambiguity);
+  **CAM-GT** — the sweep re-run inside Blender, yaw **2.58°** / pitch
+  **4.73°** / distance **3.42%** (n=75, bars 7.5/5/12%); **CAM-STAGE** —
+  the REAL addon path (camera_stage.stage_scene_camera_measured) staged a
+  GT reference (yaw 20°, D 4, elev 0.5) at solved yaw **19.86°**, framing
+  **IoU 0.8082** ≥ 0.75, solve confidence 1.00, `rm_camera_solve=
+  "MEASURED"` + conf + IoU + params stamped, scene camera set;
+  **CAM-REFUSE** — a kp-starved payload refuses LOUD ("no usable figure
+  solves…") and leaves NO camera object; **CAM-TWIN** — twin staging
+  byte-identical (IoU, params, camera location). All prior gate numbers
+  byte-identical (RM_BAKE 0.0242° ×2, RM_FOOT_LOCK 0.0371→0.0000,
+  RM_MOTION, RM_SCENE 0.3388/0.8279, RM_COUPLE 0.00016/0.00035,
+  RM_FINGER 0.0070°/0.00°/10.30°, RM_FACE 6 rows).
+- **Refuse-to-stage classes** (probe, 5/5 loud, zero guessed):
+  kp-starved girdles, torso-degenerate (the sitting/slumped class),
+  crouch fixture (pose-class breach), cropped bbox, profile view
+  (envelope breach). On the P1-9 real photos (tier 3, no GT exists):
+  10 figures, 9 refused with verbatim reasons (honest — cropped/
+  crouched/starved classes), 1 solved and published with its confidence.
+- **Tier-2 (render + REAL detector) NOT MET with evidence** — the D-015
+  decomposition, measured: the pinned DWPose person detector is BLIND to
+  the engine's mannequin fixture class (0 detections / 36 renders across
+  three fixture generations: workbench stick, workbench thick, EEVEE
+  sun-lit). The Annex bars bind on the tier-1 deterministic GT set + the
+  tier-3 real rows; the A.3 re-validation trigger applies to any future
+  detector-visible fixture path. Never relabeled as real.
+- **Where**: probe `/home/potato/miniconda3/bin/python3
+  xtask/camera_probe.py` (8 RM_CAM rows; models + Blender for the render
+  tier), gate `make pose-verify` (RM_CAM MODEL / GT / STAGE / REFUSE /
+  TWIN / GATE, grep-pinned); unit contract `core/tests/test_camera.py`
+  (17 tests); design of record `docs/CAMERA.md` (amendments A1–A11).
+  The solve is pure core (`core camera.py`) — no payload format change
+  (the hands-free face-free byte-identity contracts hold, pinned).

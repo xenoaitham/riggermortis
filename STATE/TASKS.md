@@ -427,9 +427,54 @@ quadruped) with ≤2 manual corrections each, proven headless.
     identity; the per-param refusal branch unused — no param missed
     its bar; gaze conditional-OUT stays the documented limit).
 
-- [ ] P8-5 Reference camera solve (measured): GT-set bars yaw <= 7.5 /
+- [x] P8-5 Reference camera solve (measured): GT-set bars yaw <= 7.5 /
   pitch <= 5 deg / distance <= 12%, framing IoU >= 0.75; low confidence
   refuses; error bars published.
+  - CLAIMED [S30] (2026-09-25T23:39Z): camera fork silent an 18th session
+    (ffmpeg exit 124, no packets); P8-5 per the work order. Baseline
+    verified at open: 532 passed, lint clean, CI green through the S29
+    fix push (run 36197750400 SUCCESS — the B905 zip-strict lint fix
+    following the S29 close; that failure was root-caused and fixed by
+    S29's own close-out, substance first).
+  - DONE S30 (2026-09-26T21:14Z): design-first docs/CAMERA.md (the
+    FACE.md sibling; ELEVEN probe-earned amendments A1–A11 recorded
+    before/during the build — the scale carrier is the payload's own
+    scale field A1; the closed-form yaw from the derived head
+    placement's direction ratio sin Δ = 2.2ρ/(1−ρ²) A3; the corrected
+    ruler R_SHOULDER 0.26 at the upper-arm heads A4; the depth-gradient
+    system g = (hp/H − sh/S)/(0.45·hp/H) = sinθcosθ/D whose sign IS the
+    pitch sign A5; the nose-to-ankle vertical ruler + dual-regime pitch
+    A6/A7; the fixture law — girdle kps are rulers, arms swing about
+    shoulder kps A8; the projection sign convention + general sensor
+    AUTO-fit A10/A11, caught by the gate's CAM-MODEL row against
+    Blender) -> probe-first xtask/camera_probe.py (8/8 RM_CAM rows:
+    SOLVE-GT yaw 2.58° / pitch 4.83° / distance 3.42% over 150 GT
+    cameras — ALL Annex bars met; IOU median 0.9621, 99% >= 0.75; REFUSE
+    5/5 degraded classes loud; RENDER tier-2 NOT MET with evidence — the
+    pinned detector is blind to the engine's mannequin class, 0/36
+    across three fixture generations, D-015 decomposition, never
+    relabeled; REAL rows 10 figures / 9 refused loud; DETERM twins) ->
+    core camera.py (solve_camera_figure + consensus_camera + sensor_fit;
+    pure stdlib, deterministic, no payload format change — the v3
+    contract and the hands-free face-free byte-identity pins hold) + 17
+    CI tests (549 total) -> addon camera_stage.py (the measured stager:
+    per-figure solves -> consensus -> world placement from the POSED
+    rigs' measured geometry -> BOTH floors: confidence 0.55 AND framing
+    IoU 0.75 -> MEASURED props; v0 byte-untouched as the declared
+    fallback) -> the Casting Desk button wired to the measured path ->
+    gate xtask/camera_gate.py (6 RM_CAM rows; CAM-MODEL matches Blender
+    at 2.32e-07; CAM-STAGE stages a yaw-20° reference at solved 19.86°,
+    IoU 0.8082) wired into verify_pose_apply.sh + the Makefile lint
+    list.
+  - GATE (real Blender 5.1.0, engine-built fixtures, the REAL addon
+    staging path): full battery PASS — all prior numbers byte-identical
+    (RM_BAKE 0.0242° x2, RM_FOOT_LOCK 0.0371→0.0000, RM_MOTION,
+    RM_SCENE 0.3388/0.8279, RM_COUPLE 0.00016/0.00035, RM_FINGER
+    0.0070°/0.00°/10.30°, RM_FACE 6 rows) + the new RM_CAM rows green.
+    L4 = CLOSED (the measured solve landed within its Annex bars; the
+    REFUSED branch unused — yaw MAE 2.58° vs the 15° branch trigger).
+  - Tests: 17 in test_camera.py = **549 total** (532 + 17); lint clean
+    (probe + fixture + gate on the lint list).
 - [ ] P8-6 Spine arch + roll: arch solve when head observed; roll
   alignment confidence-gated (straight arms bit-identical).
 - [ ] P8-7 Root motion: the root-motion-aware contact model (design ->

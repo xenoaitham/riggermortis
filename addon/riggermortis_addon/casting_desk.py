@@ -20,7 +20,7 @@ from typing import Any, ClassVar
 import bpy
 from bpy.types import Operator
 
-from . import scene_apply, scene_camera
+from . import camera_stage, scene_apply
 
 
 def desk_read(path: str) -> Any:
@@ -76,22 +76,36 @@ def stage_camera_from_desk(settings: Any) -> tuple[list[str], str]:
     try:
         core = _core()
         payload = desk_read(str(settings.payload_path or ""))
-        report = scene_camera.stage_scene_camera(
+        # P8-5: the MEASURED solve is the desk's staging path; the v0
+        # APPROXIMATE stager (scene_camera.stage_scene_camera) remains as
+        # the declared fallback for payloads the solve refuses.
+        report = camera_stage.stage_scene_camera_measured(
             payload, _desk_assignments(settings), core=core,
         )
     except (ValueError, ImportError, json.JSONDecodeError) as exc:
         return [], str(exc)
     if not report["staged"]:
+        reason = str(report.get("reason", ""))
+        if "confidence floor" in reason and report.get("iou") is not None:
+            return [
+                f"camera MEASURED refused to stage: {reason} "
+                f"(IoU {report['iou']:.3f} < floor {report['floor']:.2f})",
+                "hint: " + str(report.get("hint")),
+            ], "REFUSED"
         return [
-            f"camera v0 REFUSED to stage: {report['reason']} "
-            f"(IoU {report['iou']:.3f} < floor {report['floor']:.2f})",
-            "hint: " + report["hint"],
+            f"camera MEASURED refused to stage: {reason}",
+            "hint: " + str(report.get("hint", "see the figure ledgers in the report")),
         ], "REFUSED"
     cam = report["camera"]
     created = " (created)" if report["created"] else ""
+    params = report.get("params") or {}
     return [
-        f"camera v0 staged: {cam}{created}, lens {report['lens_mm']:.0f} mm, "
-        f"subject-bbox IoU {report['iou']:.3f} (floor {report['floor']:.2f})",
+        f"camera MEASURED staged: {cam}{created}, yaw "
+        f"{float(params.get('yaw_deg', 0.0)):.1f} deg, pitch "
+        f"{float(params.get('pitch_deg', 0.0)):.1f} deg, D "
+        f"{float(params.get('distance', 0.0)):.2f}, conf "
+        f"{report['confidence']:.2f}, framing IoU {report['iou']:.3f} "
+        f"(floor {report['floor']:.2f})",
         report["label"],
     ], ""
 
@@ -142,11 +156,12 @@ class RM_OT_apply_scene(Operator):
 
 
 class RM_OT_stage_scene_camera(Operator):
-    """Stage the APPROXIMATE scene camera from the reference framing (P8-1);
-    refuses to stage below the subject-bbox IoU 0.75 floor"""
+    """Stage the MEASURED scene camera from the body keypoints (P8-5);
+    stages only above the solve-confidence 0.55 AND framing-IoU 0.75
+    floors — a low-confidence camera is refused, never staged"""
 
     bl_idname = "rm.stage_scene_camera"
-    bl_label = "Stage Scene Camera (~APPROXIMATE~)"
+    bl_label = "Stage Scene Camera (MEASURED)"
     bl_options: ClassVar[set[str]] = {"REGISTER", "UNDO"}
 
     @classmethod
