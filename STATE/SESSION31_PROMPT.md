@@ -88,10 +88,9 @@ item and has LANDED.
   AUTO-fit is general (the LONG edge gets 36 mm); `view_layer.update()`
   before any world-space read.
 - **532 → expect ~549+ tests** (S30 added 17 camera contract tests); CI
-  for the S30 pushes was IN FLIGHT at session close (three runs: dada266
-  main + 514b5ed/80396a5 docs+hardening follow-ups) — STEP 0's
-  `gh run list` verifies and root-causes if red (local battery was
-  green ×2, so a red run is a CI-env divergence, substance first). All
+  GREEN through all four S30 pushes (dada266 main + 514b5ed/80396a5/
+  8b87756 STATE+docs+hardening; run 36272564455 et al. SUCCESS —
+  appended in PROGRESS). All
   gate numbers through S30 byte-identical (RM_BAKE 0.0242° ×2,
   RM_FOOT_LOCK 0.0371→0.0000, RM_TAILS, RM_MOTION, RM_SCENE
   0.3388/0.8279, RM_COUPLE 0.00016/0.00035, RM_FINGER
