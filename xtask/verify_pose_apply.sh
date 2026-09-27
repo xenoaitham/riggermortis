@@ -1095,5 +1095,22 @@ grep -qE "RM_ROOT ROOT-XBOT: (PASS|SKIPPED)" "$TMP/root_gate.log"
 grep -q "RM_ROOT ROOT-DETERM: PASS" "$TMP/root_gate.log"
 grep -q "RM_ROOT GATE: PASS" "$TMP/root_gate.log"
 
+# -- P8-8 scene animation: identity + swap alarm + per-frame coupling + bake cost --
+echo "== scene-anim gate: identity bars + per-frame coupling + REAL bake cost"
+RM_CORE_SRC="$REPO/core/src" \
+RM_ADDON_DIR="$REPO/addon" \
+RM_METARIG_BLEND="$METARIG_BLEND" \
+  "$BLENDER" -b --python "$REPO/xtask/scene_anim_gate.py" 2>&1 | tee "$TMP/sanim_gate.log"
+grep -q "RM_SANIM SANIM-FIXTURE: PASS" "$TMP/sanim_gate.log"
+grep -q "RM_SANIM SANIM-IDENTITY: PASS" "$TMP/sanim_gate.log"
+grep -q "RM_SANIM SANIM-ALARM: PASS" "$TMP/sanim_gate.log"
+grep -q "RM_SANIM SANIM-COUPLING: PASS" "$TMP/sanim_gate.log"
+grep -q "RM_SANIM SANIM-BAKE-COST: PASS" "$TMP/sanim_gate.log"
+grep -q "RM_SANIM SANIM-TRACKS: PASS" "$TMP/sanim_gate.log"
+grep -q "RM_SANIM SANIM-REFUSE: PASS" "$TMP/sanim_gate.log"
+grep -q "RM_SANIM SANIM-OVERRIDE: PASS" "$TMP/sanim_gate.log"
+grep -q "RM_SANIM SANIM-DETERM: PASS" "$TMP/sanim_gate.log"
+grep -q "RM_SANIM GATE: PASS" "$TMP/sanim_gate.log"
+
 echo ""
 echo "P1-6 BLENDER POSE-APPLY GATE: PASS"

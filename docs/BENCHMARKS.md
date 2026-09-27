@@ -950,3 +950,66 @@ the claim.
   record `docs/ROOT_MOTION.md` (amendments A1–A3, the A3 corrected
   finding included). The S24 MOTION block's finding text above is
   corrected in place by the dated note — history not rewritten.
+
+### Scene animation (P8-8, session 33) — test/gate-pinned — L8 CLOSED
+
+Identity-stable multi-character video → scene animation (design of
+record: `docs/SCENE_ANIMATION.md`, written BEFORE the build with the
+pre-declared Annex A.1 bars; the ROOT_MOTION.md sibling pattern). The
+identity assignment is the roadmap-committed algorithm made concrete:
+per-frame figure→character cost = mean position distance over common
+roles + `|log(scale ratio)|` (SCALE_WEIGHT 1.0, declared untuned), solved
+by a deterministic Kuhn-Munkres assignment over SORTED keys, an evidence
+swap alarm (no ground truth needed), manual overrides winning over
+everything.
+
+- **Identity swap rate (the Annex bar <= 2%)**: **0.0000** (0/49 solved
+  frames) on the synthetic two-person fixture through BOTH authored
+  label-swap events — the assignment follows pose+scale identity through
+  the detector-class glitches, so walk-through-crossing identity HOLDS.
+  [SYNTHETIC, prior-consistent GT; the optimism caveat verbatim:
+  *measured on synthetic prior-consistent ground truth; real-detector
+  noise is not in these numbers; the Annex A.1 re-validation trigger
+  applies when real labeled fixtures enter the workflow.*]
+- **The declared single-view limit, published separately**: the
+  AMBIGUITY class (identical pose shapes AND identical scales through
+  the window — the duplicated-person class) measures **0.1224** (6/49
+  frames) — unresolvable from single-view keypoints BY CONSTRUCTION,
+  reported separately, never averaged into the primary rate; the manual
+  override is the designed answer (gate row SANIM-OVERRIDE: the authored
+  word moves the character, marks the frame, records the solve-vs-
+  authored disagreement verbatim, and is EXCLUDED from the automatic
+  rate). The A.2 refusal branch (swap > 10% after repair) was not
+  reached — the primary class never left 0.
+- **The swap alarm (the Annex bar >= 90%)**: **caught 2/2 authored
+  events within the 2-frame halo (1.00)**; the cost-jump distributions
+  published: event frames min_abs **0.4463** vs non-event max_abs
+  **0.0000** — ALARM_ABS 0.02 sits in the gap with margin (the
+  strike-S12 derivation pattern; ALARM_REL 0.25 guards the
+  near-zero-cost class). Both constants declared untuned, published
+  here.
+- **Per-frame coupling (the P8-2 bar, per frame)**: the authored
+  hand-holding pin closes on **13/13** contact-window frames at worst
+  **residual_frac 0.000190** (bar 0.02) through the UNTOUCHED
+  `couple_scene` with placements MEASURED per frame from the stream's
+  detector bboxes (in-plane only, depth exactly zero, APPROXIMATE-
+  labeled, apparent-size staging `s = figure_scale / U`); the 25
+  beyond-reach frames report unclosable LOUD (the P8-2 REACH honesty,
+  per frame).
+- **Per-frame scene bake cost (the Annex publication bar — MEASURED,
+  PUBLISHED, mid-laptop baseline)**: the REAL `bake_action` over BOTH
+  characters (two metarig armatures, one scene) measures **0.8–1.0
+  ms/frame-bake = 1.7–1.9 ms per scene-frame across the 2 rigs**
+  (98 frame-bakes in ~0.09 s; worst FK 0.0000°, bar 0.5°) — the
+  certified bake is composed, never forked.
+- **Per-character drift tracks**: S32's `track_from_payload_stream`
+  reused VERBATIM per character — the side swap is IN the track (span
+  1.0000u), depth exactly zero, the APPROXIMATE label travels.
+- **Where**: probe `blender -b --python xtask/scene_anim_probe.py` (10
+  RM_SANIM rows, 10/10 PASS), gate `make pose-verify` (10 RM_SANIM grep
+  rows via `xtask/scene_anim_gate.py`), unit contract
+  `core/tests/test_scene_anim.py` (30 tests, **615 total**); design of
+  record `docs/SCENE_ANIMATION.md`. Fixture law: the two-person stream
+  is engine-built (contract-valid v3 payloads + a real P2-1 job state,
+  generated at gate time, never committed); the pose shapes are
+  clothed-mannequin class (the A.3 SFW fallback).

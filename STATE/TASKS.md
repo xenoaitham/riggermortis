@@ -567,10 +567,43 @@ quadruped) with ≤2 manual corrections each, proven headless.
     dated note, history not rewritten). The track lands as the standing
     instrument for streams WITH drift (video path, true root-motion
     clips, P8-8).
-- [ ] P8-8 Multi-character video -> scene animation: per-frame multi-
-  figure payloads + per-frame coupling; Hungarian identity assignment +
-  swap alarm (bar: swap <= 2% on the fixture, alarm catches >= 90%);
-  per-frame scene bake cost published.
+- [x] P8-8 Multi-character video -> scene animation [S33, DONE
+  2026-09-27 — L8 CLOSED]: design-first docs/SCENE_ANIMATION.md (the
+  ROOT_MOTION.md sibling) -> probe-first xtask/scene_anim_probe.py (10/10
+  RM_SANIM, re-run against the core after the lift — numbers reproduced
+  exactly) -> core scene_anim.py (the deterministic assignment + the swap
+  alarm + the scene-action builder; NOTHING existing modified; NO payload
+  format change) + 30 tests (615 total) -> scene_anim_gate.py (10 RM_SANIM
+  rows) wired into verify_pose_apply.sh + the Makefile lint list.
+  - The committed identity algorithm made concrete: per-frame
+    figure->character cost = mean position distance over common roles +
+    |log(scale ratio)| (declared untuned), solved by a Kuhn-Munkres
+    assignment over SORTED keys (no set iteration); the seed frame is
+    keyed-sorted; the evidence alarm = continuation-vs-chosen cost jump
+    (no GT needed, margins published with both distributions); manual
+    overrides win over everything (marked, disagreement reported,
+    excluded from the automatic rate).
+  - Numbers: swap_rate 0.0000 (0/49, bar <= 0.02) through BOTH authored
+    label-swap events; the AMBIGUITY class (equal pose AND equal scale)
+    0.1224 published separately as the declared single-view limit (the
+    override is the designed answer); alarm caught 2/2 (1.00 >= 0.90)
+    with distributions 0.4463 vs 0.0000; per-frame coupling 13/13 window
+    frames worst_frac 0.000190 (bar 0.02) with placements MEASURED per
+    frame (in-plane, depth exactly zero, beyond-reach frames loud);
+    bake cost 0.8-1.0 ms/frame-bake = 1.7-1.9 ms/scene-frame across 2
+    rigs through the REAL bake, worst FK 0.0000 deg — MEASURED+PUBLISHED
+    (the Annex publication bar); per-character drift tracks = S32
+    verbatim.
+  - Gate-earned corrections (in SCENE_ANIMATION.md A1-A3): the SHARED
+    scene origin (the per-character reference staged both figures on
+    the origin and passed vacuously); the fixture's contact distance
+    must clear anatomy (1.71u shoulders vs ~1.35u reach — fix the
+    FIXTURE, never the solver); a label swap moves the WHOLE data
+    stream (shape AND scale — the chimera test fixture was wrong).
+  - L8 = CLOSED (both Annex bars met with margin; the A.2 refusal
+    branch never reached). NOT landed (declared): the session/MCP
+    scene-animation wiring; real-detector-stream validation (the A.1
+    re-validation trigger).
 - [ ] P8-9 Review UX speedrun (time-to-fix <= 15 s median bar) + P1-8a
   fallback estimator (adoption bar: no-person <= 1/10, latency <= 2x
   DWPose CPU, flip-margin parity).
