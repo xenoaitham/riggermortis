@@ -98,7 +98,7 @@ cost = mean_dist(common observed roles) + SCALE_WEIGHT * |log(s_fig / s_char)|
   observation, exactly.
 
 **Assignment** — a deterministic rectangular assignment (the Hungarian /
-Kuhn-Munkwes method, O(n^3), pure stdlib, implemented here — the core has
+Kuhn-Munkres method, O(n^3), pure stdlib, implemented here — the core has
 zero runtime dependencies, D-003): rows = characters in SORTED order,
 columns = figure labels in SORTED order, so the matrix layout is keyed and
 tie-breaking is deterministic (no set iteration anywhere — CONVENTIONS).
