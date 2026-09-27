@@ -1064,5 +1064,17 @@ grep -q "RM_CAM CAM-REFUSE: PASS" "$TMP/camera_gate.log"
 grep -q "RM_CAM CAM-TWIN: PASS" "$TMP/camera_gate.log"
 grep -q "RM_CAM GATE: PASS" "$TMP/camera_gate.log"
 
+# -- P8-6 spine: arch monotone benchmark, flip accept, roll correction, no-op ---
+echo "== spine gate: arch benchmark + roll fixture + straight-arm no-op"
+RM_CORE_SRC="$REPO/core/src" \
+RM_ADDON_DIR="$REPO/addon" \
+  "$BLENDER" -b --python "$REPO/xtask/spine_gate.py" 2>&1 | tee "$TMP/spine_gate.log"
+grep -q "RM_SPINE SPINE-ARCH: PASS" "$TMP/spine_gate.log"
+grep -q "RM_SPINE SPINE-FLIPS: PASS" "$TMP/spine_gate.log"
+grep -q "RM_SPINE SPINE-ROLL: PASS" "$TMP/spine_gate.log"
+grep -q "RM_SPINE SPINE-STRAIGHT: PASS" "$TMP/spine_gate.log"
+grep -q "RM_SPINE SPINE-TWIN: PASS" "$TMP/spine_gate.log"
+grep -q "RM_SPINE GATE: PASS" "$TMP/spine_gate.log"
+
 echo ""
 echo "P1-6 BLENDER POSE-APPLY GATE: PASS"

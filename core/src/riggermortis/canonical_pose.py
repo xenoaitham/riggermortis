@@ -58,6 +58,7 @@ from .canonical import (
 if TYPE_CHECKING:  # deferred at runtime (fingers imports CanonicalPose)
     from .face import FacePose
     from .fingers import HandPose
+    from .spine import RollEntry
 from .inference.poses import (
     ANKLE_L,
     ANKLE_R,
@@ -155,10 +156,12 @@ class CanonicalPose:
     ``hands`` is the P8-3 additive field (D-021 namespace): solved finger
     chains keyed ``hand.L``/``hand.R``, default EMPTY. ``face`` is the P8-4
     additive field (D-022 namespace): solved expression params, default
-    None. Both stay OUT of the frozen 22-role ``positions`` map, and
-    ``to_dict`` OMITS them when empty/None, so hands-free face-free poses
-    serialize byte-identically to pre-P8-3 output (the pins-in-v3
-    precedent, pinned by contract test).
+    None. ``roll`` is the P8-6 additive field (D-023 namespace): solved
+    forearm roll corrections keyed ``forearm.L``/``forearm.R``, default
+    EMPTY. All stay OUT of the frozen 22-role ``positions`` map, and
+    ``to_dict`` OMITS them when empty/None, so hands-free face-free
+    roll-free poses serialize byte-identically to pre-P8-3 output (the
+    pins-in-v3 precedent, pinned by contract test).
     """
 
     positions: dict[str, Vec3]
@@ -171,6 +174,7 @@ class CanonicalPose:
     joint_confidence: dict[str, float] = field(default_factory=dict)
     hands: dict[str, HandPose] = field(default_factory=dict)
     face: FacePose | None = None
+    roll: dict[str, RollEntry] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, object]:
         out: dict[str, object] = {
@@ -189,6 +193,8 @@ class CanonicalPose:
             out["hands"] = {h: self.hands[h].to_dict() for h in sorted(self.hands)}
         if self.face is not None:  # omitted when absent — same contract
             out["face"] = self.face.to_dict()
+        if self.roll:  # omitted when empty — same contract (D-023)
+            out["roll"] = {r: self.roll[r].to_dict() for r in sorted(self.roll)}
         return out
 
     @staticmethod
@@ -211,6 +217,18 @@ class CanonicalPose:
             from .face import FacePose  # deferred: face imports this module
 
             face = FacePose.from_dict(raw_face)
+        roll: dict[str, RollEntry] = {}
+        raw_roll = d.get("roll", {})
+        if raw_roll:
+            if not isinstance(raw_roll, dict):
+                raise ValueError(
+                    "pose 'roll' must be an object keyed forearm.L/forearm.R "
+                    "(hint: docs/SPINE.md, the D-023 namespace)"
+                )
+            from .spine import RollEntry, validate_roll_map  # deferred import
+
+            roll = {str(k): RollEntry.from_dict(v) for k, v in raw_roll.items()}  # type: ignore[union-attr]
+            validate_roll_map(roll)
         return CanonicalPose(
             positions={
                 str(role): (float(p[0]), float(p[1]), float(p[2]))  # type: ignore[index]
@@ -227,6 +245,7 @@ class CanonicalPose:
             },
             hands=hands,
             face=face,
+            roll=roll,
         )
 
     def mirrored(self) -> CanonicalPose:
@@ -239,7 +258,9 @@ class CanonicalPose:
         hand.L <-> hand.R with x-negated joints; the skip ledger transfers
         verbatim (its reasons are confidence text, side-free). The face
         (P8-4) mirrors as a geometry-free param swap: ``.L``/``.R`` param
-        values exchange sides, center params carry.
+        values exchange sides, center params carry. The roll (P8-6, D-023)
+        mirrors as a key swap with the twist NEGATED — an x-mirror
+        reverses handedness about the mirrored axis.
         """
         mirrored_hands: dict[str, HandPose] = {}
         if self.hands:
@@ -257,6 +278,14 @@ class CanonicalPose:
                     wrist_conf=hand.wrist_conf,
                 )
         mirrored_face = self.face.mirrored() if self.face is not None else None
+        mirrored_roll: dict[str, RollEntry] = {}
+        if self.roll:
+            from .spine import RollEntry  # deferred: spine imports this module
+
+            for key, entry in self.roll.items():
+                mirrored_roll[mirror_role(key)] = RollEntry(
+                    twist_rad=-entry.twist_rad, confidence=entry.confidence
+                )
         return CanonicalPose(
             positions={
                 mirror_role(role): (-p[0], p[1], p[2])
@@ -273,6 +302,7 @@ class CanonicalPose:
             },
             hands=mirrored_hands,
             face=mirrored_face,
+            roll=mirrored_roll,
         )
 
     def toggled(self, flip_key: str) -> CanonicalPose:

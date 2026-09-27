@@ -475,8 +475,67 @@ quadruped) with ≤2 manual corrections each, proven headless.
     REFUSED branch unused — yaw MAE 2.58° vs the 15° branch trigger).
   - Tests: 17 in test_camera.py = **549 total** (532 + 17); lint clean
     (probe + fixture + gate on the lint list).
-- [ ] P8-6 Spine arch + roll: arch solve when head observed; roll
+- [x] P8-6 Spine arch + roll: arch solve when head observed; roll
   alignment confidence-gated (straight arms bit-identical).
+  - CLAIMED [S31] (2026-09-26T22:45:43Z): camera fork silent a 19th
+    session (ffmpeg exit 124, no packets); P8-6 per the work order.
+    Baseline verified at open: 549 passed, lint clean, CI green through
+    the S30 pushes (run 36274189734 SUCCESS; the two SESSION31_PROMPT
+    STATE runs still in flight at claim time — checked again before the
+    S31 push).
+  - DONE S31 (2026-09-27T00:07:17Z): design-first docs/SPINE.md (the
+    CAMERA.md sibling; ONE probe-earned amendment A1 recorded before the
+    core build — the Hermite tangent record: T0 = the chord counter-bowed
+    (h11 <= 0 always), the -phi/+phi splay bows AWAY from the head tip
+    (h10+h11 = t(1-t)(2t-1)), and the DECLARED form is T0 = the chord
+    rotated by gain 2 * phi toward the head side, T1 = the head axis —
+    the physical C-bow reading; a constant-curvature arc is FORCED into
+    the splay family and is documented as the rejected alternative) ->
+    probe-first xtask/spine_probe.py (7/7 RM_SPINE rows: ARCH-BENCH
+    monotone 0.0000 < 0.0076 < 0.0084 canon + signs + declared-family
+    recovery 0.00000 (bar 0.002) + the neutral flat no-op BYTE-IDENTICAL;
+    FK-ARCH 0.0000 deg worst through the REAL apply; FLIPS 18/20 +
+    flips dicts byte-equal through solve -> arch -> roll; ROLL fixture
+    uncorrected 53.64 deg published, corrected 6.9e-15 deg, directions
+    exact; STRAIGHT zero entries on any sub-15-deg bend across the
+    20-pose set; REAL rows 10 figures, arch applied on 5 (+27.6 to
+    -15.8 deg, conf 0.71-0.75), 2 roll entries, refusals honest; DETERM)
+    -> core spine.py (solve_spine_arch + solve_arm_roll + roll_correction
+    + the head-axis half-angle recovery — the CAMERA.md A3 identity
+    reused: theta = 2*atan2(v_x, v_z) recovers the nose direction EXACTLY
+    from the stored derived head placement) + the D-023 additive
+    namespace (CanonicalPose.roll, omit-when-empty byte identity,
+    from_dict loud key validation, mirrored swaps sides + negates the
+    twist — solve-after-mirror == mirror-after-solve pinned) + fk_apply
+    consuming entries as a twist ABOUT the target axis (directions exact;
+    empty roll = the unchanged path) -> D-023 WRITTEN at the landing ->
+    19 CI tests (test_spine.py) = **568 total** -> gate
+    xtask/spine_gate.py (5 RM_SPINE rows through the REAL addon apply:
+    SPINE-ARCH / FLIPS / ROLL / STRAIGHT / TWIN) wired into
+    verify_pose_apply.sh + the Makefile lint list.
+  - GATE (real Blender 5.1.0, engine-built fixtures, the REAL addon
+    apply through pose_apply.apply_payload): SPINE-ARCH monotone +
+    signs + recovery + flat no-op + apply worst 0.0000 deg; SPINE-FLIPS
+    18/20 byte-equal; SPINE-ROLL uncorrected 53.64 deg / Blender-measured
+    applied twist 53.64 deg in magnitude (the sign is a Blender
+    bone-frame convention; the signed twist lives core-side) / direction
+    fidelity 0.0000 deg both paths; SPINE-STRAIGHT no entries + apply
+    rotations byte-identical; SPINE-TWIN byte-identical (19 bone
+    matrices). FULL BATTERY PASS (make gate: lint, 568, media-guard,
+    blender-verify, session-verify; pose-verify with the new RM_SPINE
+    rows green twice). All prior numbers byte-identical. L4 state
+    unchanged; L5 + L6 = CLOSED (the A.2 refusal branch unused — every
+    bar met first pass through the gate).
+  - Gate-earned instrument lessons (recorded in SPINE.md probe answers):
+    the Blender stale-matrix lesson fired again (view_layer.update()
+    before pb.matrix reads); mathutils rich-compare through nested
+    containers is FLAKY in 5.1 (a wrong False AND a segfault — compare
+    plain-float tuples only).
+  - NOT landed (declared): the CLI/addon invocation wiring (the work
+    order's unit boundary is the pure core + the REAL-apply gate; the
+    payload-carrying-roll apply needs no addon change). S32 decision
+    point: wire the passes into the user-facing solve flow before the
+    Scene Test, or declare the integration there.
 - [ ] P8-7 Root motion: the root-motion-aware contact model (design ->
   probe -> measure; never threshold-fitting); regression-framed vs the
   Xbot REAL row; in-place path numbers byte-identical.

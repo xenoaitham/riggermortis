@@ -1,20 +1,20 @@
 # NEXT SESSION SHOULD …
 
 0. **THE PLAN OF RECORD IS STATE/ROADMAP.md** ("the Producer", critic-passed
-   9.8/10; Annex A pre-declared bars are LAW): S30 landed P8-5 reference
-   camera solve (measured) — L4 CLOSED: GT-set yaw MAE 2.58° (bar 7.5°),
-   pitch MAE 4.83° (bar 5°), distance MAE 3.42% (bar 12%), framing IoU
-   0.8082 staged / 0.9621 median, both-floors staging (confidence 0.55 +
-   IoU 0.75), CAM-MODEL vs Blender at 2.32e-07; tier-2 render+detector
-   NOT MET with evidence (the pinned detector is blind to the engine's
-   mannequin class — published, never relabeled). The session map says
-   **S31 = P8-6 spine arch + roll**: the arch solve when the head is
-   observed (distribute hips→shoulders→head misalignment across
-   spine/chest/neck by proportion), the forearm/upper-arm roll alignment
-   from wrist-vs-elbow geometry, confidence-gated; straight arms stay
-   bit-identical (no-op proven). NEVER cut (Annex A cut order: P8-2
-   coupling and P8-3 visible fingers; the P8-5 full solve was the
-   next cut item and has now LANDED).
+   9.8/10; Annex A pre-declared bars are LAW): S31 landed P8-6 spine arch
+   + roll — L5 + L6 CLOSED: the arch benchmark monotone (0.0000 < 0.0076
+   < 0.0084 canon, signs correct, declared-family recovery 0.00000,
+   neutral flat no-op byte-identical), FK bars hold through the REAL apply
+   (0.0000° worst), D-008's flip accept 18/20 unchanged, the roll fixture
+   corrected to bar (uncorrected 53.64° published → corrected, directions
+   exact), straight arms bit-identical; D-023 written at the landing.
+   The session map says **S32 = P8-7 root motion**: the declared
+   coordinated positional upgrade — hips positional track from
+   subject-position/scale drift (labeled approximate); the contact model
+   becomes root-motion-aware BY DESIGN (design-first, probe, then
+   tune-by-measurement with published numbers — never threshold-fitting
+   to force plants, the S24 finding stands as the motivation).
+   NEVER cut (Annex A cut order): P8-2 coupling and P8-3 visible fingers.
 
 1. **Camera re-verify FIRST, one command** (it decides the session shape):
 
@@ -22,97 +22,104 @@
 
    - **Frames land** → flip to **P5-4** (the recorded live demo + the TRUE
      capture→apply measurement; claim or retire the <100 ms mid-laptop gate
-     honestly). Silent 18 straight sessions so far; the box side is READY
+     honestly). Silent 19 straight sessions so far; the box side is READY
      (the DroidCam client just was never running).
-   - **Silent again (19th)** → the P8-6 work order below.
+   - **Silent again (20th)** → the P8-7 work order below.
 
-2. **Then read, in order**: STATE/ROADMAP.md P8-6 + Annex A.1/A.2 (the
-   arch bars: the arch benchmark monotone distribution + the FK bars hold
-   + D-008's 18/20 flip accept unchanged; the roll bar: the roll fixture
-   corrects to bar; straight arms bit-identical; the refusal branch:
-   arch/roll that cannot hold the FK bars → REFUSED, documented as the
-   single-view limit — the D-008 ledger entry updated), docs/CAMERA.md +
-   docs/FACE.md + docs/FINGERS.md (the design→probe→core→gate pattern S31
-   reuses), docs/SCENES.md § Contact coupling (the movable-chain table —
-   P8-6's arch is the separately-gated torso articulation the coupling
-   table deferred), STATE/TASKS.md (P8-5 DONE with the full S30 entry),
-   STATE/PROGRESS.md (S30 entries), STATE/DECISIONS.md (D-021/D-022
-   WRITTEN; D-018 stays reserved), STATE/CONVENTIONS.md,
-   STATE/SESSIONS.md, docs/BENCHMARKS.md (the CAM block), docs/POLICY.md
-   (D-019 unchanged — spine/roll carry no content), and the claim-bearing
-   surfaces docs/LAUNCH.md + docs/TUTORIALS.md (one grep sweep together
-   IF a number changes). Register as **Session 31**, claim P8-6 with
-   [S31]; PROGRESS stamps via `date -u` read IMMEDIATELY before every
-   append, then verify the stamp.
+2. **Then read, in order**: STATE/ROADMAP.md P8-7 + Annex A.1/A.2 (the
+   root-motion bar: the drift track must beat walk-in-place slide on the
+   REAL fixture (Xbot row) by the >= 5x family, else L7 ends REFUSED —
+   walk-in-place stays and the treadmill finding remains the published
+   truth; the in-place path's prior gate numbers byte-identical),
+   docs/SPINE.md + docs/CAMERA.md + docs/SCENES.md § Contact coupling
+   (the design→probe→core→gate pattern S32 reuses; the coupling pass is
+   what becomes root-motion-aware), docs/MOTION_LIBRARY.md (the treadmill
+   finding), STATE/TASKS.md (P8-6 DONE with the full S31 entry),
+   STATE/PROGRESS.md (S31 entries), STATE/DECISIONS.md (D-023 WRITTEN;
+   D-018 stays reserved), STATE/CONVENTIONS.md, STATE/SESSIONS.md,
+   docs/BENCHMARKS.md (the SPINE block + the MOTION block — the Xbot REAL
+   row S32 revisits), docs/POLICY.md (D-019 unchanged — root motion
+   carries no content), and the claim-bearing surfaces docs/LAUNCH.md +
+   docs/TUTORIALS.md (one grep sweep together IF a number changes).
+   Register as **Session 32**, claim P8-7 with [S32]; PROGRESS stamps via
+   `date -u` read IMMEDIATELY before every append, then verify the stamp
+   (S31 caught + corrected a FUTURE-stamped S30 entry — the S25 hazard
+   class is alive).
 
 3. **Baseline**: `cd core && /home/potato/miniconda3/bin/python3 -m
-   pytest tests` (**549 expected** — S30 added 17 camera contract tests)
+   pytest tests` (**568 expected** — S31 added 19 spine contract tests)
    + `make lint PY=/home/potato/miniconda3/bin/python3`, and `gh run
-   list --branch main` (the S30 push is the newest; if red: download the
+   list --branch main` (the S31 push is the newest; if red: download the
    log, root-cause, fix the real substance FIRST).
 
-## S31 work order — P8-6 Spine arch + roll
+## S32 work order — P8-7 Root motion (the treadmill fix)
 
 Design → probe → build → gate, in that order (NON-NEGOTIABLE). The
-pattern is proven five times over (coupling, fingers, face, camera):
-design page first, probe with REAL rows, core lift, sibling gate file.
+pattern is proven six times over (coupling, fingers, face, camera,
+spine-arch, roll): design page first, probe with REAL rows, core lift,
+sibling gate file.
 
-1. **DESIGN-FIRST**: open a new design page (docs/SPINE.md, the
-   CAMERA.md sibling pattern) — the ARCH solve: when the head AND the
-   torso chain are observed, distribute the hips→shoulders→head
-   misalignment across spine/chest/neck by proportion (a new
-   observed-constraint solve; the D-008 priors untouched; the additive
-   payload pattern — NO payload format change, the arch rides the SOLVED
-   positions exactly like the coupling's write-back); the ROLL solve:
-   forearm/upper-arm roll alignment from wrist-vs-elbow landmark
-   geometry (the P1-11 declared follow-up), confidence-gated, straight
-   arms BIT-IDENTICAL (the no-op proven by test). Declare D-008-style:
-   the distribution proportions, the confidence arithmetic, the refuse
-   branch (a pose class the arch cannot represent → the pose stays flat,
-   reported, never guessed), the monotone-distribution benchmark design
-   (neutral/arched/bow L/R), and the FK-fidelity acceptance (the arch
-   must hold the 0.5° family through the REAL apply).
-2. **PROBE-FIRST xtask/spine_probe.py** (RM_SPINE lines, grep-tested
-   both shapes before push): (a) the arch benchmark — monotone
-   distribution across neutral/arched/bow L/R fixtures (GT built
-   engine-style, prior-consistent, SYNTHETIC-labeled); (b) the FK bars
-   through the REAL apply path; (c) D-008's 18/20 flip accept unchanged
-   (the arch solve must not disturb the flip enumeration); (d) the roll
-   fixture corrects to bar; (e) straight arms BIT-IDENTICAL (the no-op
-   proof, byte-level); (f) REAL rows on the P1-9 photos where ground
-   truth does not exist — publish what the solve reports and its
-   confidence, never prose claims; (g) DETERM twins.
-3. **Core**: the arch + roll solves as additive pure-core modules (the
-   camera.py pattern); consumers that ignore them stay byte-identical.
-4. **Gate**: xtask/spine_gate.py (the sibling file per the Mimosa
-   workaround, RM_SPINE rows wired into the battery + the Makefile lint
-   list): the bars above + twin byte-identity + all prior numbers
-   byte-identical.
-5. **Early-finish option**: the P8-2 pin-suggestion inference (keypoint
-   proximity) as desk DATA — measured work only, never auto-enforced.
+1. **DESIGN-FIRST**: open docs/ROOT_MOTION.md (the SPINE.md sibling
+   pattern) — the hips POSITIONAL track from subject-position/scale drift
+   (labeled approximate): how the per-frame subject drift (the P2-1 job's
+   keypoint stream) converts to a canonical-space hips translation track
+   WITHOUT fabricating root motion (D-008's honesty line — the track is
+   MEASURED drift, never authored); how the contact model
+   (`contacts.py`/`lock_feet`, the certified composition) becomes
+   root-motion-aware BY DESIGN (plants detected ON the drifting track —
+   the S24 Xbot finding: hips-anchored treadmill glide 0.022–0.19 u/f
+   exceeded the D-008-untuned enter bar → 0 plants, lock a verified
+   no-op); the regression framing (the >= 5x family vs the status quo);
+   the in-place path byte-identity declaration (no drift signal → the
+   track is zero → the prior path bit-identical); the REFUSE branch (no
+   drift measurable → walk-in-place stays, LOUD).
+2. **PROBE-FIRST xtask/root_motion_probe.py** (RM_ROOT lines, grep-tested
+   both shapes before push): (a) the synthetic drift fixture — an
+   engine-built walking fixture with KNOWN subject drift, the track
+   recovers it within a declared bar; (b) the REAL Xbot row re-visited —
+   plants detected on the new model, lock >= 5x holds, the translation
+   track matches the source drift within measured bars; (c) the in-place
+   path's prior gate numbers byte-identical (RM_FOOT_LOCK 0.0371→0.0000,
+   RM_MOTION 44997x, RM_BAKE 0.0242° x2 untouched); (d) REFUSE classes —
+   no-drift/no-person streams stay loud; (e) DETERM twins.
+3. **Core**: the drift track + the root-motion-aware contact pass as
+   additive pure-core modules (the spine.py pattern); consumers that
+   ignore them stay byte-identical; NO payload format change.
+4. **Gate**: xtask/root_motion_gate.py (the sibling file per the Mimosa
+   workaround, RM_ROOT rows wired into verify_pose_apply.sh + the
+   Makefile lint list): the bars above + twin byte-identity + all prior
+   numbers byte-identical.
+5. **Early-finish option**: the S31 declared-open CLI/addon invocation
+   wiring for the arch/roll passes (measured work only — the passes
+   exist and are gate-exercised; wiring them into `rigpose pose` /
+   the addon apply flow is a user-facing change needing its own
+   byte-identity argument), or the P8-2 pin-suggestion inference as desk
+   DATA.
 
-**S30's contract facts S31 builds on** (do not re-learn):
+**S31's contract facts S32 builds on** (do not re-learn):
 
-- The probe→core lift pattern works four times over (coupling_probe/
-  finger_probe/face_probe/camera_probe are the recipes lifted).
+- The probe→core lift pattern works six times over (coupling_probe/
+  finger_probe/face_probe/camera_probe/spine_probe are the recipes; the
+  SPINE gate lives in verify_pose_apply.sh — grep-tested both shapes).
 - The additive-field contract: omit-when-empty byte-identity pinned by
-  test; readers tolerate absence. NO payload format change landed in S30
-  (the camera solve reads the v3 fields that already exist) — keep it
-  that way for the arch.
+  test (hands/face/roll); readers tolerate absence. NO payload format
+  change landed in S31 either — keep it that way for the drift track
+  (it rides the ACTION, not the pose).
 - The gate env trap (standing): BLENDER=/home/potato/
   blender-5.1.0-linux-x64/blender, RIGPOSE=/home/potato/miniconda3/bin/
   rigpose, PY=/home/potato/miniconda3/bin/python3 — else they 127 (or
   grab the broken apt 4.0.2).
-- The two-pass fixture-builder rule (create every bone, then wire
-  parents; a missing parent REFUSES); place-update-then-measure
-  (view_layer.update() BEFORE any world-space read); cameras: build the
-  quaternion FROM the model basis (no track_quat ambiguity) and set the
-  scene res to the reference aspect (the sensor AUTO-fits the long side).
+- The two-pass fixture-builder rule; place-update-then-measure
+  (view_layer.update() BEFORE any world-space read — it fired AGAIN in
+  S31's gate); mathutils rich-compare through nested containers is FLAKY
+  in 5.1 (a wrong False AND a segfault) — compare plain-float tuples;
+  PROGRESS stamps are REAL UTC (S31 caught a future-stamped entry).
 - Mimosa (standing): bash writes of .py source blocked — Write/Edit;
   in-place edits to existing gate/probe files can trip path-traversal
   FPs — a NEW sibling file scans clean (couple_gate/finger_gate/
-  face_gate/camera_stage precedent); expect the pagedoc.py import-struct
-  FP at every commit; -F commit-message files for heredoc-sensitive text.
+  face_gate/camera_gate/spine_gate precedent); expect the pagedoc.py
+  import-struct FP at every commit; -F commit-message files for
+  heredoc-sensitive text.
 - STATE stamps are REAL UTC, read-then-write-then-verify.
 
 ## Blocked / deferred (parked — do not burn time)

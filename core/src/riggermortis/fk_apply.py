@@ -401,6 +401,12 @@ def apply_canonical_pose(
         target = bone_target_direction(pose, role_of_bone[bone])
         assert target is not None  # filtered above
         world = q_from_to(rest, target)
+        # Roll (P8-6, D-023): the additive twist about the target axis.
+        # Poses without entries take the unchanged path — consumers that
+        # ignore roll are byte-identical (the straight-arm no-op).
+        roll_entry = pose.roll.get(role_of_bone[bone]) if pose.roll else None
+        if roll_entry is not None:
+            world = q_mul(q_from_axis_angle(target, roll_entry.twist_rad), world)
         local = q_mul(q_conj(anc), world)
         ancestor_rot[bone] = world
         axis, angle = q_to_axis_angle(local)

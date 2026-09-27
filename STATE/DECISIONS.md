@@ -593,6 +593,42 @@ in the same commit where the namespace code (`core face.py`) lands.
   branch: a param below its bar after two redesign cycles → REFUSED per
   param (Annex A.2).
 
+## D-023 The roll namespace is an additive separate map (2026-09-26, S31 — WRITTEN AT THIS LANDING, per the round-3 strike S2 rule)
+
+P8-6's arm-roll correction cannot ride positions (twist is an APPLY-time
+quantity), so it lands as the third additive namespace on CanonicalPose,
+written in the same commit where the namespace code (`core spine.py`)
+lands.
+
+- **The namespace**: `CanonicalPose.roll: dict[str, RollEntry]` — keys
+  `forearm.L`/`forearm.R` (v1 writes; `upper_arm.L/R` are RESERVED: no
+  humeral-twist evidence exists in point landmarks, declared not hidden).
+  Each `RollEntry` carries the signed `twist_rad` (about the bone's
+  TARGET axis) + `confidence`. Design of record: docs/SPINE.md
+  (the page D-023 cites). `ALL_ROLES`, `CANONICAL`, `PRIMARY_CHILD`,
+  `CORE_ROLES`, and the D-021/D-022 namespaces are untouched.
+- **Byte identity** (the hands/face contract, pinned by test): `to_dict`
+  OMITS the key when empty; `from_dict` tolerates absence and validates
+  keys loud (the D-021 pattern); poses without entries apply
+  BYTE-IDENTICALLY through `apply_canonical_pose` (the straight-arm
+  no-op is structural — a straight arm produces no entry). `mirrored()`
+  swaps sides and NEGATES the twist (an x-mirror reverses handedness
+  about the mirrored axis); solve-after-mirror == mirror-after-solve is
+  pinned by test.
+- **The honesty rules** (the finger/face rules one pass up): entries
+  exist only when the elbow bend clears `ROLL_BEND_MIN` 15 deg AND the
+  chain confidence (capped at the CONVENTIONS geometry cap 0.75) clears
+  0.55 — below either, the side is SKIPPED + LEDGERED in the report,
+  never guessed. A not-applied roll changes NO bytes (the ledger lives
+  in the returned `RollReport`, not in pose.notes); an applied roll adds
+  one honest note per side. `fk_apply` composes any present entry as a
+  twist ABOUT the target axis — direction fidelity is exact
+  (verify_application errors stay 0).
+- **The arch does NOT need this namespace**: the spine arch rides the
+  SOLVED POSITIONS (the coupling write-back class — docs/SPINE.md),
+  which is why the arch alone carries no DECISIONS entry; only the
+  apply-time roll data is a namespace.
+
 ## NEEDS-HUMAN queue (updated 2026-09-16 S8)
 
 - RETIRED — anime sourcing: set complete at 10/10 (SOURCES.md; Commons CC BY-SA crop provenance).

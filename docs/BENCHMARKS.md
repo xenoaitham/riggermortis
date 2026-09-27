@@ -842,3 +842,56 @@ fallback path, byte-untouched).
   (17 tests); design of record `docs/CAMERA.md` (amendments A1–A11).
   The solve is pure core (`core camera.py`) — no payload format change
   (the hands-free face-free byte-identity contracts hold, pinned).
+
+### Spine arch + arm roll (P8-6, session 31) — test/gate-pinned
+
+The post-solve articulation passes closing L5 (rigid torso line) and L6
+(roll-free rotations): the arch distributes the observed hips→shoulders→
+head misalignment across the spine chain (design of record: `docs/SPINE.md`
+— a cubic Hermite through the pinned endpoints with the probe-earned A1
+tangents); the roll corrects the forearm's frame split to the declared
+frame-continuation convention via the D-023 additive namespace
+(`CanonicalPose.roll`, written at the landing). No payload format change
+(the hands-free face-free byte-identity contracts hold, pinned).
+
+- **Annex bars MET on the declared-family benchmark** (four classes
+  neutral / bow_L +18° / bow_R −18° / arched +30°, engine-built
+  prior-consistent GT torsos at the D-008 fractions; SYNTHETIC):
+  chest deviation from the chord strictly monotone **0.0000 < 0.0076 <
+  0.0084** canon (neutral not applied, byte-identical flat no-op),
+  signs bow_L > 0 > bow_R, declared-family recovery max **0.00000**
+  canon (bar 0.002). Optimism caveat verbatim: *measured on synthetic
+  prior-consistent ground truth; real-detector noise is not in these
+  numbers; the Annex A.1 re-validation trigger applies when real labeled
+  fixtures enter the workflow.*
+- **FK bars hold**: worst per-role direction error **0.0000°** (bar
+  0.5°) through the REAL apply on every benchmark class, both roll paths.
+- **D-008's flip accept unchanged**: **18/20** (bar ≥ 18) through
+  solve → arch → roll; every `flips` dict byte-equal to the plain solve
+  (the passes touch no distal segment).
+- **Roll corrects to bar**: the frame-continuity fixture (left arm bent
+  in a non-trivial orientation, right straight) — uncorrected forearm
+  twist **53.64°** (the D-008 artifact, published), corrected **6.9e-15°**
+  core-side / Blender-measured applied twist **53.64° in magnitude**
+  (the solved correction; the sign is a Blender bone-frame convention,
+  the signed twist lives core-side); direction fidelity exact in both
+  paths.
+- **Straight arms BIT-IDENTICAL**: no roll entries on any sub-15° bend
+  across the 20-pose set; the addon apply rotations byte-identical with
+  and without the roll pass (the structural no-op, pinned by test).
+- **REAL rows** (tier 3, the P1-9 photos, no GT exists; the outputs ARE
+  the data): 10 figures, the arch applied on 5 with published
+  misalignments (+27.6° to −15.8°, confidences 0.71–0.75), flat on the
+  rest with verbatim reasons, 2 roll entries.
+- **Where**: probe `/home/potato/miniconda3/bin/python3
+  xtask/spine_probe.py` (7 RM_SPINE rows; models for the REAL tier),
+  gate `make pose-verify` (RM_SPINE SPINE-ARCH / FLIPS / ROLL / STRAIGHT
+  / TWIN / GATE, grep-pinned); unit contract `core/tests/test_spine.py`
+  (19 tests); design of record `docs/SPINE.md` (amendment A1, the
+  probe-earned tangent record). The arch is pure positions-surgery
+  (`core spine.py`, the coupling write-back class); the roll rides the
+  D-023 additive namespace consumed by `fk_apply` — poses without
+  entries apply byte-identically. The CLI/addon invocation wiring is
+  deliberately open (the work order's unit boundary is the pure core +
+  the REAL-apply gate); the payload-carrying-roll apply needs no addon
+  change (poses build through `CanonicalPose.from_dict`).

@@ -163,6 +163,16 @@ from .secondary import (
     SecondaryTrack,
     simulate_secondary,
 )
+from .spine import (
+    ARCH_ENVELOPE_RAD,
+    ARCH_MISALIGN_FLOOR_RAD,
+    ROLL_ROLES,
+    ArchReport,
+    RollEntry,
+    RollReport,
+    solve_arm_roll,
+    solve_spine_arch,
+)
 from .types import BoneData, RigData
 
 __version__ = "0.0.1"
@@ -233,6 +243,14 @@ __all__ = [
     "FigureCamera",
     "consensus_camera",
     "solve_camera_figure",
+    "ARCH_ENVELOPE_RAD",
+    "ARCH_MISALIGN_FLOOR_RAD",
+    "ArchReport",
+    "ROLL_ROLES",
+    "RollEntry",
+    "RollReport",
+    "solve_arm_roll",
+    "solve_spine_arch",
     "Preset",
     "SecondaryBinding",
     "apply_preset",
