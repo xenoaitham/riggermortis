@@ -1076,5 +1076,24 @@ grep -q "RM_SPINE SPINE-STRAIGHT: PASS" "$TMP/spine_gate.log"
 grep -q "RM_SPINE SPINE-TWIN: PASS" "$TMP/spine_gate.log"
 grep -q "RM_SPINE GATE: PASS" "$TMP/spine_gate.log"
 
+# -- P8-7 root motion: drift track + root-aware contacts (the L7 evidence) ----
+echo "== root-motion gate: drift track GT + in-place byte-identity + REAL bake"
+RM_CORE_SRC="$REPO/core/src" \
+RM_ADDON_DIR="$REPO/addon" \
+RM_METARIG_BLEND="$METARIG_BLEND" \
+RM_MOTION_XBOT="$XBOT_GLB" \
+  "$BLENDER" -b --python "$REPO/xtask/root_motion_gate.py" 2>&1 | tee "$TMP/root_gate.log"
+grep -q "RM_ROOT ROOT-TRACK-RECOVERY: PASS" "$TMP/root_gate.log"
+grep -q "RM_ROOT ROOT-TRACK-PLANTS: PASS" "$TMP/root_gate.log"
+grep -q "RM_ROOT ROOT-TRACK-FIX: PASS" "$TMP/root_gate.log"
+grep -q "RM_ROOT ROOT-TRACK-GT: PASS" "$TMP/root_gate.log"
+grep -q "RM_ROOT ROOT-INPLACE: PASS" "$TMP/root_gate.log"
+grep -q "RM_ROOT ROOT-BAKE: PASS" "$TMP/root_gate.log"
+grep -q "RM_ROOT ROOT-REEVAL: PASS" "$TMP/root_gate.log"
+grep -q "RM_ROOT ROOT-REFUSE: PASS" "$TMP/root_gate.log"
+grep -qE "RM_ROOT ROOT-XBOT: (PASS|SKIPPED)" "$TMP/root_gate.log"
+grep -q "RM_ROOT ROOT-DETERM: PASS" "$TMP/root_gate.log"
+grep -q "RM_ROOT GATE: PASS" "$TMP/root_gate.log"
+
 echo ""
 echo "P1-6 BLENDER POSE-APPLY GATE: PASS"

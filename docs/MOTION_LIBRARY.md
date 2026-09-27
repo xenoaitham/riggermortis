@@ -288,10 +288,21 @@ proved. As-built:
   carries root motion; hips-anchored (walk-in-place, D-008) it becomes a
   treadmill whose stance feet glide 0.022–0.19 u/frame — above the
   untuned enter_speed 0.02, so the detector honestly reports 0 plants and
-  the lock is a verified bit-for-bit no-op. Nothing re-tuned to force a
-  pass (D-008); the remedy is the declared coordinated positional/
+  the lock is a bit-for-bit no-op. Nothing re-tuned to force a pass
+  (D-008); the remedy is the declared coordinated positional/
   root-motion upgrade below. In-place/slow clips plant normally (the
   fixture row IS that shape).
+  **CORRECTED 2026-09-27 (S32, docs/ROOT_MOTION.md A3 — the mechanism
+  attribution above was WRONG)**: S32's probe measured ALL SEVEN clips'
+  hips tracks — the glb's imported scene graph carries NO root motion
+  anywhere (walk: hips y constant to the sampler's 1e-6 m; run: track
+  span 0.0000u; the armature object static). The 0.022–0.19 u/f glide is
+  REAL but is the in-place walk cycle's own leg kinematics, which
+  hips-anchoring cannot and should not remove. The drift-track machinery
+  built in S32 (docs/ROOT_MOTION.md) is the standing instrument for
+  streams that DO carry drift; walk-in-place ships (L7 =
+  REFUSED-with-evidence per Annex A.2, with this correction as part of
+  the evidence).
 
 ## Future: an MCP session action for clips (DESIGN sketch — refactor half DONE S25)
 

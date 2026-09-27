@@ -212,11 +212,18 @@ def build_clip(
     scale_ref: float,
     fingerprint: str,
     notes: list[str],
+    hips_track: list[list[float]] | None = None,
 ) -> dict[str, Any]:
-    """The format-1 clip JSON dict (frames sorted, positions rounded —
-    stable bytes; core ``MotionClip.from_dict`` validates the shape)."""
-    return {
-        "format": 1,
+    """The clip-sample JSON dict (frames sorted, positions rounded — stable
+    bytes; core ``MotionClip.from_dict`` validates the shape).
+
+    Default: format 1, byte-identical to the pre-P8-7 output. With
+    ``hips_track`` (the per-frame world hips heads, ``[frame, x, y, z]`` —
+    the P8-7 root-motion carrier), format 2: the same fields PLUS the
+    required ``hips_track`` object (the additive carrier; the preset-schema
+    write-2/read-1+2 precedent)."""
+    clip: dict[str, Any] = {
+        "format": 2 if hips_track is not None else 1,
         "fps": float(fps),
         "scale_ref": round(scale_ref, ROUND_DIGITS),
         "frames": [
@@ -226,6 +233,24 @@ def build_clip(
         "source_fingerprint": fingerprint,
         "notes": list(notes),
     }
+    if hips_track is not None:
+        ref = min(int(s[0]) for s in hips_track)
+        clip["hips_track"] = {"ref_frame": ref, "samples": hips_track}
+    return clip
+
+
+def hips_track_samples(
+    samples: dict[int, dict[str, list[float]]]
+) -> list[list[float]]:
+    """The P8-7 root-track carrier: the posed hips head per sampled frame
+    (source meters, armature space) — the quantity the converter's
+    hips-anchoring would otherwise destroy. Frame indices stay INT (the
+    track never interpolates; the format validator refuses floats).
+    Requires the mapped hips role (``mapped_roles`` already refuses
+    without it)."""
+    return [
+        [int(f), *samples[f]["hips"]] for f in sorted(samples)
+    ]
 
 
 def sample_clip(
@@ -239,12 +264,17 @@ def sample_clip(
     stride: int = 1,
     fps: float | None = None,
     tag: str | None = None,
+    root_track: bool = False,
 ) -> dict[str, Any]:
     """The whole sampler minus argv parsing and exit codes: import -> map ->
     sample (plus a DETERM twin pass that must agree byte-for-byte) -> write
     the clip JSON. Returns the report dict (``lines`` are the exact
     ``RM_MOTION`` lines the gate greps, byte-identical to the pre-refactor
-    script). ``determ=False`` is a FAIL: the caller exits nonzero."""
+    script). ``determ=False`` is a FAIL: the caller exits nonzero.
+
+    ``root_track=True`` (P8-7) writes format 2 with the per-frame world
+    hips track (the additive carrier; default off = format 1, byte-
+    identical output)."""
     if not os.path.isfile(model):
         raise ValueError(f"no such file: {model}")
     tag = tag or os.path.splitext(model)[1].lstrip(".").upper() or "CLIP"
@@ -287,6 +317,7 @@ def sample_clip(
         scale_ref=span,
         fingerprint=fingerprint,
         notes=notes,
+        hips_track=hips_track_samples(samples) if root_track else None,
     )
     out_path = Path(out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -294,11 +325,16 @@ def sample_clip(
         json.dumps(clip, indent=1, sort_keys=True), encoding="utf-8"
     )
     static_warn = " WARN_STATIC" if extent < STATIC_EXTENT_M else ""
+    track_note = (
+        f" root_track=on frames={len(clip['hips_track']['samples'])}"
+        if root_track
+        else ""
+    )
     lines = [
         f"RM_MOTION SAMPLE {tag}: ok=True roles={len(roles)} unmapped_bones={unmapped} "
         f"frames={len(samples)} range={start}..{end} stride={stride} "
         f"fps={fps:g} scale_ref={span:.6f} action={act.name!r} "
-        f"extent={extent:.4f}m{static_warn}",
+        f"extent={extent:.4f}m{static_warn}{track_note}",
         f"RM_MOTION DETERM {tag}: {'PASS' if determ else 'FAIL'} byte_identical={determ}",
         f"RM_MOTION WRITE {tag}: {out_path} ({out_path.stat().st_size} bytes)",
     ]

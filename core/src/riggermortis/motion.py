@@ -20,7 +20,12 @@ Conversion rules (each pinned by a test, see the design page):
 - confidence is 1.0 with a provenance note: measured 3D, no detection
   uncertainty — distinguishable from solved poses, which never claim 1.0;
 - root translation is dropped (walk-in-place, D-008 — same boundary as the
-  video path), and the frame indices are the clip's own.
+  video path), and the frame indices are the clip's own. P8-7 amendment:
+  when the sampler carried the per-frame world hips track (format 2's
+  additive ``hips_track`` field), the converter attaches the MEASURED
+  :class:`~riggermortis.root_motion.DriftTrack` to the action — the root
+  information is rescued at the source instead of reconstructed; the
+  positions themselves stay hips-anchored exactly as before.
 
 Pure stdlib; same input = same output (deterministic, keyed sorts).
 """
@@ -36,6 +41,7 @@ from .action import CanonicalAction, action_from_poses
 from .canonical import ALL_ROLES
 from .canonical_pose import TORSO_SPAN, CanonicalPose
 from .errors import MotionError
+from .root_motion import DriftTrack, track_from_clip_field
 
 #: distal role -> its child role: the measured-flip pairs (a distal segment
 #: whose child sits forward of the joint is flexed forward, -1; else +1).
@@ -78,7 +84,13 @@ class ClipFrame:
 
 @dataclass(frozen=True)
 class MotionClip:
-    """A sampled imported clip: the converter's input contract (format 1)."""
+    """A sampled imported clip: the converter's input contract.
+
+    Formats 1+2 read (the preset-schema pattern): format 1 is the P6-2
+    shape, byte-stable; format 2 adds the REQUIRED ``hips_track`` object
+    (the P8-7 root-motion carrier — ``{"ref_frame": int, "samples":
+    [[frame, x, y, z], ...]}`` in source meters). ``hips_track`` is empty
+    when absent (format 1)."""
 
     fps: float
     scale_ref: float  # source-meter hips->mid-shoulders span of the REST pose
@@ -86,6 +98,7 @@ class MotionClip:
     source: str = "blender-import"
     source_fingerprint: str | None = None
     notes: tuple[str, ...] = ()
+    hips_track: tuple[tuple[int, float, float, float], ...] = ()
 
     @staticmethod
     def from_dict(d: dict[str, Any]) -> MotionClip:
@@ -96,22 +109,38 @@ class MotionClip:
         if not isinstance(d, dict):
             raise MotionError(
                 f"clip sample must be a JSON object, got {type(d).__name__}",
-                hint="the sampler writes {\"format\": 1, ...}; see docs/MOTION_LIBRARY.md",
+                hint='the sampler writes {"format": 1, ...}; see docs/MOTION_LIBRARY.md',
             )
         known = {
             "format", "fps", "scale_ref", "frames", "source",
-            "source_fingerprint", "notes",
+            "source_fingerprint", "notes", "hips_track",
         }
         unknown = sorted(set(d) - known)
         if unknown:
             raise MotionError(
                 f"unknown clip-sample field(s): {unknown}",
-                hint=f"format 1 fields are exactly {sorted(known)}",
+                hint=f"formats 1+2 fields are exactly {sorted(known)}; "
+                     "hips_track requires format 2",
             )
-        if d.get("format") != 1:
+        if d.get("format") not in (1, 2):
             raise MotionError(
                 f"unsupported clip-sample format {d.get('format')!r}",
-                hint="this build reads format 1 only",
+                hint="this build reads formats 1 and 2 "
+                     "(2 = format 1 + the hips_track root-motion carrier)",
+            )
+        fmt = d["format"]
+        hips_track_field = d.get("hips_track")
+        if fmt == 2 and hips_track_field is None:
+            raise MotionError(
+                "format 2 requires the hips_track field",
+                hint="format 2 = format 1 + {\"ref_frame\": int, "
+                     "\"samples\": [[f, x, y, z], ...]} (source meters)",
+            )
+        if fmt == 1 and hips_track_field is not None:
+            raise MotionError(
+                "a format-1 clip sample cannot carry hips_track",
+                hint='write "format": 2 when the sampler runs with '
+                     "--root-track (the P8-7 root-motion carrier)",
             )
         try:
             fps = float(d["fps"])  # type: ignore[arg-type]
@@ -189,6 +218,9 @@ class MotionClip:
             raise MotionError(
                 "notes must be a list of strings", hint="free-form provenance lines"
             )
+        track: tuple[tuple[int, float, float, float], ...] = ()
+        if fmt == 2:
+            track = _parse_hips_track(hips_track_field)
         return MotionClip(
             fps=fps,
             scale_ref=scale_ref,
@@ -196,6 +228,7 @@ class MotionClip:
             source=source,
             source_fingerprint=fingerprint,
             notes=tuple(notes),
+            hips_track=track,
         )
 
     @staticmethod
@@ -218,8 +251,8 @@ class MotionClip:
         return MotionClip.from_dict(d)
 
     def to_dict(self) -> dict[str, object]:
-        return {
-            "format": 1,
+        d: dict[str, object] = {
+            "format": 2 if self.hips_track else 1,
             "fps": self.fps,
             "scale_ref": self.scale_ref,
             "frames": [
@@ -233,6 +266,53 @@ class MotionClip:
             "source_fingerprint": self.source_fingerprint,
             "notes": list(self.notes),
         }
+        if self.hips_track:
+            frames_ = self.hips_track
+            d["hips_track"] = {
+                "ref_frame": frames_[0][0],
+                "samples": [list(s) for s in frames_],
+            }
+        return d
+
+
+def _parse_hips_track(raw: object) -> tuple[tuple[int, float, float, float], ...]:
+    """Format-2 ``hips_track`` shape validation (the semantic checks —
+    strictly increasing frames, the reference rule — live in
+    ``root_motion.track_from_clip_field``, which consumes the parsed
+    value at conversion time and refuses there, loudly)."""
+    if not isinstance(raw, dict) or set(raw) != {"ref_frame", "samples"}:
+        raise MotionError(
+            "hips_track must carry exactly {ref_frame, samples}",
+            hint='format 2: {"ref_frame": int, "samples": [[f, x, y, z], ...]}',
+        )
+    if not isinstance(raw["ref_frame"], int) or isinstance(raw["ref_frame"], bool):
+        raise MotionError(
+            "hips_track.ref_frame must be an integer",
+            hint="the reference frame's entry is the zero vector",
+        )
+    samples = raw["samples"]
+    if not isinstance(samples, list) or not samples:
+        raise MotionError(
+            "hips_track.samples must be a non-empty list",
+            hint="a track with no observations measures nothing — omit it",
+        )
+    out: list[tuple[int, float, float, float]] = []
+    for i, entry in enumerate(samples):
+        if not isinstance(entry, (list, tuple)) or len(entry) != 4:
+            raise MotionError(
+                f"hips_track.samples[{i}]: expected [frame, x, y, z]",
+                hint="each sample carries the frame index and the hips "
+                     "position in source meters",
+            )
+        f, x, y, z = entry
+        if not isinstance(f, int) or isinstance(f, bool):
+            raise MotionError(
+                f"hips_track.samples[{i}].frame must be an integer, got {f!r}",
+                hint="frame indices are exact — the track never interpolates",
+            )
+        pos = _vec3([x, y, z], f"hips_track.samples[{i}]")
+        out.append((f, pos[0], pos[1], pos[2]))
+    return tuple(out)
 
 
 def pose_from_sample(
@@ -282,7 +362,10 @@ def action_from_clip(clip: MotionClip) -> CanonicalAction:
 
     Carries a missing-role ledger (roles the clip's skeleton never
     observed, listed once against the canonical set) and the clip's own
-    provenance in notes. Never mutates the clip.
+    provenance in notes. Never mutates the clip. When the clip carries
+    the P8-7 ``hips_track`` (format 2), the MEASURED drift track rides
+    the action (``root_track``) — the positions stay hips-anchored
+    exactly as before; the track is data, not a behavior change.
     """
     seen: set[str] = set()
     for cf in clip.frames:
@@ -300,8 +383,25 @@ def action_from_clip(clip: MotionClip) -> CanonicalAction:
             f"{len(missing)} canonical role(s) absent from the clip's skeleton: "
             f"{missing} (skipped honestly, never guessed)"
         )
+    root_track: DriftTrack | None = None
+    if clip.hips_track:
+        root_track = track_from_clip_field(
+            {
+                "ref_frame": clip.hips_track[0][0],
+                "samples": [list(s) for s in clip.hips_track],
+            },
+            clip.scale_ref,
+        )
+        notes.append(
+            "root track attached (P8-7): MEASURED per-frame hips drift from "
+            f"the sampler's world heads — path "
+            f"{root_track.path_length():.4f}u, span {root_track.span():.4f}u; "
+            "the positions stay hips-anchored (walk-in-place data; the "
+            "root-motion-aware contact pass consumes the track explicitly)"
+        )
     return action_from_poses(
         pairs,
         notes=notes,
         rig_fingerprint=clip.source_fingerprint,
+        root_track=root_track,
     )

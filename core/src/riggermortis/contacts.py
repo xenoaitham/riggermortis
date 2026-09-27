@@ -275,6 +275,15 @@ class LockReport:
     notes: list[str] = field(default_factory=list)
 
 
+#: The in-place lock's summary-note suffix (a shared symbol, not a copied
+#: string: root_motion.lock_feet_root_aware filters inner summary lines by
+#: this exact suffix before writing its own — if this wording ever changes,
+#: the tracked path follows in the same commit, the D-016 way).
+LOCK_NOTE_SUFFIX = (
+    "(walk-in-place by design; root motion stays unimplemented — D-008)"
+)
+
+
 def _solve_knee(
     h: Vec3, a: Vec3, k0: Vec3, l1: float, l2: float
 ) -> tuple[Vec3, float]:
@@ -436,7 +445,7 @@ def lock_feet(
         f"foot lock: pinned {total_frames} in-contact frame(s) across "
         f"{len(report.intervals)} interval(s); slide "
         f"{lock.slide_before.total:.4f}u -> {lock.slide_after.total:.4f}u "
-        "(walk-in-place by design; root motion stays unimplemented — D-008)"
+        f"{LOCK_NOTE_SUFFIX}"
     )
     for foot in sorted(lock.per_foot_frames):
         notes.append(

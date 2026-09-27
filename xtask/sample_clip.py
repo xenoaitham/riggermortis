@@ -25,16 +25,23 @@ def _parse_args(argv):
     if not argv:
         print(
             "usage: sample_clip.py <model> <out.json> "
-            "[--action NAME] [--rig NAME] [--stride N] [--fps F] [--tag LABEL]",
+            "[--action NAME] [--rig NAME] [--stride N] [--fps F] [--tag LABEL] "
+            "[--root-track]",
             file=sys.stderr,
         )
         raise SystemExit(64)
     model, out = argv[0], argv[1]
-    opts = {"action": None, "rig": None, "stride": 1, "fps": None, "tag": None}
+    opts = {
+        "action": None, "rig": None, "stride": 1, "fps": None, "tag": None,
+        "root-track": False,
+    }
     i = 2
     while i < len(argv):
         arg = argv[i]
-        if arg in ("--action", "--rig", "--tag") and i + 1 < len(argv):
+        if arg == "--root-track":
+            opts["root-track"] = True
+            i += 1
+        elif arg in ("--action", "--rig", "--tag") and i + 1 < len(argv):
             opts[arg[2:]] = argv[i + 1]
             i += 2
         elif arg in ("--stride", "--fps") and i + 1 < len(argv):
@@ -73,6 +80,7 @@ def main():
             model, out, core, bpy_bridge,
             action=opts["action"], rig=opts["rig"],
             stride=int(opts["stride"]), fps=opts["fps"], tag=opts["tag"],
+            root_track=opts["root-track"],
         )
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)

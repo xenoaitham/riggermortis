@@ -60,3 +60,7 @@ class PayloadError(RiggermortisError):
 
 class SceneError(RiggermortisError):
     """A scene (P8-1) is malformed, mis-cast, or references unknown figures."""
+
+
+class RootMotionError(RiggermortisError):
+    """A drift track (P8-7) is malformed, partial, or attached to nothing."""

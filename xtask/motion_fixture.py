@@ -30,7 +30,8 @@ import math
 import sys
 from pathlib import Path
 
-from mathutils import Matrix
+import bpy  # type: ignore[name-defined] — the builder runs inside Blender
+from mathutils import Matrix, Vector
 
 FPS = 24
 N_FRAMES = 49  # two 24-frame cycles + the wrap frame (f49 == f1 pose)
@@ -158,10 +159,28 @@ def leg_angles(frame):
     return l_thigh, l_knee, r_thigh, r_knee
 
 
-def key_walk(obj):
+def key_walk(obj, drift=(0.0, 0.0, 0.0)):
     """Key the sliding walk: per-frame quaternion keys on the 6 leg bones
     (rigid stance arc + flexing swing knee; hands/arms/toes ride their
-    parents). Hips location is a constant channel (explicit no root motion)."""
+    parents). Hips location is a constant channel (explicit no root
+    motion) — unless ``drift`` (world meters per frame, the P8-7 ROOT
+    fixture's authored subject translation) is nonzero, in which case the
+    channel is keyed LINEARLY and the STANCE legs carry a counter-sweep
+    (below) so the planted ankles stay WORLD-STATIONARY while the subject
+    crosses the floor with known speed.
+
+    The counter-sweep (probe-earned amendment A2, docs/ROOT_MOTION.md):
+    the walk keys are JOINT ANGLES about the hip head — a translating hip
+    head DRAGS the stance foot along (the first draft's feet receded in
+    world at hips-speed + arc, and the compensated GT row honestly found
+    no plants: the fixture, not the model, was wrong — the A8 class).
+    The fix tilts the stance thigh back by
+    ``phi(n) = degrees(atan2(d_sag * n, 0.84))`` (n = frames into the
+    stance, 0.84 m = the hip->ankle sagittal radius) so the ankle holds
+    its world spot. This trades C1 smoothness at LIFTOFF (the thigh
+    releases ~2 rad of accumulated tilt in one frame — the detector reads
+    exactly that as the exit) for a physically-planted stance; landing
+    stays C1 (phi starts at 0 each stance)."""
     scene = bpy.context.scene  # type: ignore[name-defined]
     scene.render.fps = FPS
     scene.frame_start, scene.frame_end = 1, N_FRAMES
@@ -178,8 +197,27 @@ def key_walk(obj):
     for pb in (obj.pose.bones["LeftArm"], obj.pose.bones["RightArm"]):
         pb.rotation_quaternion = (1.0, 0.0, 0.0, 0.0)
         pb.keyframe_insert("rotation_quaternion", frame=1)
+    if drift != (0.0, 0.0, 0.0):
+        # world-meters-per-frame -> the root bone's LOCAL location per frame
+        # (local = rest-rotation-conjugated world delta; the fixture's root
+        # bone local Y runs along the bone = world +Z, so the naive axis
+        # mapping would silently translate VERTICALLY — the S24
+        # joint-angles lesson one channel type over)
+        rest_inv = obj.data.bones["Hips"].matrix_local.to_3x3().inverted()
+        local_step = tuple(rest_inv @ Vector(drift))
+    else:
+        local_step = None
+    d_sag = -drift[1]  # sagittal (forward = world -Y) drift magnitude
     for frame in range(1, N_FRAMES + 1):
+        f_cycle = (frame - 1) % (2 * STANCE) + 1
         thigh_l, knee_l, thigh_r, knee_r = leg_angles(frame)
+        if d_sag > 0.0:
+            # counter-sweep on whichever leg is IN STANCE (knee 0 — rigid,
+            # so the tilt is pure and the ankle's world spot holds)
+            if f_cycle <= STANCE:
+                thigh_l += math.degrees(math.atan2(d_sag * (f_cycle - 1), 0.84))
+            else:
+                thigh_r += math.degrees(math.atan2(d_sag * (f_cycle - STANCE - 1), 0.84))
         for side, thigh, knee in (("Left", thigh_l, knee_l), ("Right", thigh_r, knee_r)):
             # keys are JOINT angles (each bone's basis rotates it about its
             # OWN head in the parent-posed frame — measured on the first
@@ -190,6 +228,10 @@ def key_walk(obj):
                 pb = obj.pose.bones[bname]
                 pb.rotation_quaternion = _conj_basis_quat(obj, bname, math.radians(deg))
                 pb.keyframe_insert("rotation_quaternion", frame=frame)
+        if local_step is not None:
+            n = frame - 1
+            hips.location = tuple(local_step[i] * n for i in range(3))
+            hips.keyframe_insert("location", frame=frame)
     scene.frame_set(1)
     bpy.context.view_layer.update()  # type: ignore[name-defined]
 
@@ -215,9 +257,29 @@ def export_fbx(obj, path):
 
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+    drift = (0.0, 0.0, 0.0)
+    if "--drift" in argv:
+        i = argv.index("--drift")
+        if i + 1 >= len(argv):
+            print("error: --drift needs a dx,dy,dz world-meters-per-frame "
+                  "triplet", file=sys.stderr)
+            return 64
+        try:
+            parts = [float(p) for p in argv[i + 1].split(",")]
+        except ValueError:
+            print("error: --drift must be dx,dy,dz numbers",
+                  file=sys.stderr)
+            return 64
+        if len(parts) != 3:
+            print("error: --drift must be dx,dy,dz numbers",
+                  file=sys.stderr)
+            return 64
+        drift = (parts[0], parts[1], parts[2])
+        argv = argv[:i] + argv[i + 2:]
     if len(argv) < 2:
         print(
-            "usage: motion_fixture.py <out.bvh> <out.fbx>",
+            "usage: motion_fixture.py <out.bvh> <out.fbx> "
+            "[--drift dx,dy,dz]",
             file=sys.stderr,
         )
         return 64
@@ -228,20 +290,23 @@ def main():
     # upstream — a fixture scene carries only the armature)
     bpy.ops.wm.read_factory_settings(use_empty=True)  # type: ignore[name-defined]
     obj = build_humanoid("rm_motion_fixture")
-    key_walk(obj)
+    key_walk(obj, drift=drift)
     r1 = export_bvh(obj, bvh_path)
     r2 = export_fbx(obj, fbx_path)
     ok = "FINISHED" in r1 and "FINISHED" in r2 and bvh_path.is_file() and fbx_path.is_file()
+    drift_note = (
+        f" AUTHORED-DRIFT {drift[0]:g},{drift[1]:g},{drift[2]:g} m/frame"
+        if drift != (0.0, 0.0, 0.0)
+        else ""
+    )
     print(
         f"RM_MOTIONFIX BUILD: {'PASS' if ok else 'FAIL'} bones={len(obj.data.bones)} "
         f"frames={N_FRAMES} fps={FPS} bvh={bvh_path} fbx={fbx_path} "
         f"(SYNTHETIC sliding-walk fixture — stance sweep ±{SWEEP_DEG:g} deg, "
-        f"swing knee {KNEE_DEG:g} deg)"
+        f"swing knee {KNEE_DEG:g} deg){drift_note}"
     )
     return 0 if ok else 1
 
 
 if __name__ == "__main__":
-    import bpy  # type: ignore[name-defined]
-
     sys.exit(main())

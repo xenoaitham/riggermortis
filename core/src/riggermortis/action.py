@@ -57,6 +57,7 @@ from .video import STATE_NAME, load_state
 
 if TYPE_CHECKING:  # runtime import lives in contacts.py (one direction only)
     from .contacts import ContactReport  # noqa: F401
+    from .root_motion import DriftTrack  # noqa: F401
 
 
 @dataclass
@@ -69,13 +70,21 @@ class ActionFrame:
 
 @dataclass
 class CanonicalAction:
-    """Rig-free animation: ordered frames + honest failure ledger."""
+    """Rig-free animation: ordered frames + honest failure ledger.
+
+    ``root_track`` (P8-7, additive): the MEASURED per-frame hips drift the
+    subject performed while this action was recorded
+    (:class:`~riggermortis.root_motion.DriftTrack`), or None for the
+    plain walk-in-place action. Consumers that ignore it are
+    byte-identical (the field rides the ACTION; no payload format
+    change — docs/ROOT_MOTION.md)."""
 
     frames: list[ActionFrame] = field(default_factory=list)
     failed: list[int] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
     rig_fingerprint: str | None = None
     contacts: ContactReport | None = None  # attached by contacts.attach_contacts
+    root_track: DriftTrack | None = None  # attached at conversion (P8-7)
 
     @property
     def frame_indices(self) -> list[int]:
@@ -93,14 +102,19 @@ def action_from_poses(
     *,
     notes: list[str] | None = None,
     rig_fingerprint: str | None = None,
+    root_track: DriftTrack | None = None,
 ) -> CanonicalAction:
-    """Build an action from ``(source frame index, pose)`` pairs (sorted)."""
+    """Build an action from ``(source frame index, pose)`` pairs (sorted).
+
+    ``root_track`` (P8-7): the optional measured drift track the caller
+    recovered at the conversion source (None = plain walk-in-place)."""
     ordered = sorted(pairs, key=lambda p: p[0])
     return CanonicalAction(
         frames=[ActionFrame(frame=i, pose=p) for i, p in ordered],
         failed=[],
         notes=list(notes or []),
         rig_fingerprint=rig_fingerprint,
+        root_track=root_track,
     )
 
 
@@ -433,4 +447,5 @@ def condition_action(
         notes=notes,
         rig_fingerprint=action.rig_fingerprint,
         contacts=action.contacts,
+        root_track=action.root_track,
     )

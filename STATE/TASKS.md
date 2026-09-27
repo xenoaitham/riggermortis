@@ -536,9 +536,37 @@ quadruped) with ≤2 manual corrections each, proven headless.
     payload-carrying-roll apply needs no addon change). S32 decision
     point: wire the passes into the user-facing solve flow before the
     Scene Test, or declare the integration there.
-- [ ] P8-7 Root motion: the root-motion-aware contact model (design ->
-  probe -> measure; never threshold-fitting); regression-framed vs the
-  Xbot REAL row; in-place path numbers byte-identical.
+- [x] P8-7 Root motion [S32, DONE 2026-09-27 — L7 = REFUSED-with-evidence]:
+  design-first docs/ROOT_MOTION.md (the SPINE.md sibling, amendments A1-A3)
+  -> probe-first xtask/root_motion_probe.py (7/7 RM_ROOT) -> core
+  root_motion.py (DriftTrack + the root-motion-aware contact pass; the
+  track rides the ACTION, NO payload format change) + clip-sample format 2
+  (--root-track, write-2/read-1+2, default bytes unchanged) + 17 tests
+  (585 total) -> root_motion_gate.py (8 RM_ROOT rows through the REAL
+  bake) wired into verify_pose_apply.sh + the Makefile lint list.
+  - Probe-earned amendments (recorded before the gate finalized): A1 the
+    lock pins WALK-IN-PLACE in stored space (detection on the compensated
+    frames; the world truth stays in the data — stored + track); A2 the
+    drift-fixture counter-sweep (joint angles about a translating hip head
+    drag the stance feet; phi(n) = atan2(d_sag*n, 0.84) keeps them
+    world-planted; landing frames excluded by the enter contract); A3 THE
+    CORRECTED FINDING: the Xbot.glb carries NO root motion on ANY of its
+    7 clips (walk hips y constant to 1e-6 m; run span 0.0000u; object
+    static) — the S24 mechanism attribution was wrong; the published
+    0.022-0.19 u/f glide is the in-place cycle's leg kinematics.
+  - Numbers: TRACK-GT-RECOVERY 0.000000 canon (bar 0.005); TRACK-GT-FIX
+    0.6479u -> 0.0000u = 46351.9x (bar >= 5x, the drift class);
+    ROOT-BAKE 0.0000 deg / ROOT-REEVAL 0.0000 deg through the REAL bake;
+    in-place byte-identity pinned (detect structure + locked positions);
+    all prior gate numbers byte-identical.
+  - The Annex A.1 bar (>= 5x on the Xbot REAL row) is unmeetable BY THE
+    FILE'S CONTENT — no source drift exists to recover, no slide-interval
+    pair for the track to beat, the repair cycle not exercisable. L7 =
+    REFUSED-with-evidence per Annex A.2: walk-in-place ships, the
+    treadmill finding stands (mechanism corrected in MOTION_LIBRARY.md,
+    dated note, history not rewritten). The track lands as the standing
+    instrument for streams WITH drift (video path, true root-motion
+    clips, P8-8).
 - [ ] P8-8 Multi-character video -> scene animation: per-frame multi-
   figure payloads + per-frame coupling; Hungarian identity assignment +
   swap alarm (bar: swap <= 2% on the fixture, alarm catches >= 90%);

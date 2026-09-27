@@ -895,3 +895,58 @@ frame-continuation convention via the D-023 additive namespace
   deliberately open (the work order's unit boundary is the pure core +
   the REAL-apply gate); the payload-carrying-roll apply needs no addon
   change (poses build through `CanonicalPose.from_dict`).
+
+### Root motion (P8-7, session 32) — test/gate-pinned — L7 = REFUSED-with-evidence
+
+The measured hips drift track + the root-motion-aware contact model
+(design of record: `docs/ROOT_MOTION.md`, written BEFORE the build with
+the pre-declared Annex A.1 bar; the sibling design-page pattern). The
+machinery lands as gated additive core; the ledger row ends REFUSED per
+Annex A.2 because the motivating REAL fixture measurably carries no
+drift — the evidence below is the refusal's substance, not a shrink of
+the claim.
+
+- **The corrected finding (the session's decisive measurement)**: the
+  Xbot.glb carries NO root motion on ANY of its seven clips — the walk
+  clip's hips bone y is constant to the sampler's 1e-6 m, the run clip's
+  track span measures **0.0000u**, the armature object never moves. The
+  S24 "carries Mixamo ROOT MOTION" attribution is corrected
+  (docs/MOTION_LIBRARY.md): the published 0.022–0.19 u/f stored glide is
+  the in-place walk cycle's own leg kinematics, which hips-anchoring
+  cannot and should not remove. The >= 5x-on-the-Xbot-row bar is
+  unmeetable BY THE FILE'S CONTENT; walk-in-place ships (the Annex A.2
+  REFUSED branch, verbatim).
+- **Track recovery (SYNTHETIC GT)**: the engine-built drift fixture
+  (authored world-planted walk, 0.03 m/frame hips translation, the A2
+  counter-sweep keeping the stance ankles world-stationary) recovers the
+  authored curve at max_err **0.000000 canon** (bar 0.005) through BVH
+  export → import → sampler → format-2 clip → conversion; the
+  compensated detection lands exactly on the observable stance
+  structure (landing frames excluded by the enter contract). Optimism
+  caveat verbatim: *measured on synthetic prior-consistent ground
+  truth; real-detector noise is not in these numbers; the Annex A.1
+  re-validation trigger applies when real labeled fixtures enter the
+  workflow.*
+- **The >= 5x family demonstrated on the drift class**: the root-aware
+  lock zeroes the stored glide **0.6479u → 0.0000u = 46351.9x** (bar
+  >= 5x) on the same fixture; the in-place reading of the same action
+  finds 5 spurious intervals (the treadmill confusion, reproduced).
+- **The certified path byte-identical**: a zero track reduces detect +
+  lock to the in-place path (structure AND locked positions equal,
+  pinned by test and gate row); the REAL bake of a root-motion-locked
+  action re-evaluates at **0.0000°** (bar 0.5°, 98 checks) — the
+  certified bake is untouched; the certified composition, the sampler
+  default path (format-1 bytes, the 57111-byte fixture sample), and all
+  prior gate numbers re-print byte-identical.
+- **The clip-sample format 2 carrier**: `--root-track` (default OFF)
+  adds the `hips_track` field (the sampler's world hips heads; write 2 /
+  read 1+2, the preset-schema pattern); NO payload format change — the
+  track rides the ACTION (additive `CanonicalAction.root_track`,
+  conditioning carries it).
+- **Where**: probe `blender -b --python xtask/root_motion_probe.py` (7
+  RM_ROOT rows, 7/7 PASS), gate `make pose-verify` (11 RM_ROOT grep
+  rows via `xtask/root_motion_gate.py`), unit contract
+  `core/tests/test_root_motion.py` (17 tests, 585 total); design of
+  record `docs/ROOT_MOTION.md` (amendments A1–A3, the A3 corrected
+  finding included). The S24 MOTION block's finding text above is
+  corrected in place by the dated note — history not rewritten.
