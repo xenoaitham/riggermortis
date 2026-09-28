@@ -14,6 +14,15 @@ below already follows — keep them true if you edit:
   material the pipeline generates today.
 - A draft that needs a number the repo hasn't published states the
   number's absence instead of rounding up.
+- **V1 GATE UPDATE (S35, 2026-09-28)**: these drafts predate Phase 8 and
+  the Scene Test. Any launch copy published from here must ALSO claim the
+  scored reality: the Scene Test scorecard is green (six independent
+  measures vs their pre-declared bars — docs/BENCHMARKS.md § SCENE TEST),
+  multi-figure scenes + contact coupling + fingers + facials + the
+  measured camera + scene animation all shipped with their gates, and the
+  honest-limits ledger is fully CLOSED or REFUSED-with-evidence. The
+  labeled limits above (single-view flips, the anime detector gap, walk-
+  in-place, replay-only live) remain the truth and stay in the copy.
 
 ---
 
@@ -70,8 +79,10 @@ over the whole default-use path and asserts zero socket events
 
 What's NOT done, plainly: single-view solve limits (deep kicks, hands
 behind the back are documented ambiguities); anime/line-art detection is
-the weakest link (3/10 anime benchmark images get no detection at all — a
-fallback estimator is planned, not built); all shipped animation media is
+the weakest link (3/10 anime benchmark images get no detection at all —
+the fallback estimator ended REFUSED-with-evidence: no adoptable
+anime/sketch whole-body estimator exists, evidence in DECISIONS D-024);
+all shipped animation media is
 synthetic-labeled; and the live webcam-puppeteering mode is shipped and
 gate-verified **on replayed frames only** — measured on replayed frames;
 real-camera number pending (the capture device on our dev box has been
@@ -146,7 +157,8 @@ interesting parts.
 review-ready, not zero-review — arm bends often need the one-click flip
 toggle in the overlay (the benchmark literally reads 0/10 under the strict
 "no review" criterion, and I publish that); anime/line-art detection misses
-entirely on 3/10 of the anime test set (planned fix, not built yet); no
+entirely on 3/10 of the anime test set (the fallback estimator verdict is
+REFUSED-with-evidence, D-024 — no adoptable candidate exists); no
 root motion — it's walk-in-place by design because fabricating world
 translation from a single view would be fake data; and the webcam puppet
 mode is shipped and gate-tested on replayed streams — the real-camera
@@ -203,7 +215,8 @@ a 6-page wordless manga rendered by one build script.
 
 **7/** What's not done, on the record: single-view solve has documented
 limits (deep kicks, hands behind back); anime/line-art detection misses
-3/10 of that test set (fallback planned, not built); and live webcam
+3/10 of that test set (fallback estimator REFUSED-with-evidence, D-024);
+and live webcam
 puppeteering is gate-verified on replayed frames only — measured on
 replayed frames; real-camera number pending. ⭐ if honesty is your kink:
 https://github.com/xenoaitham/riggermortis

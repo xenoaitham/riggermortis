@@ -1,114 +1,109 @@
 # NEXT SESSION SHOULD …
 
 0. **THE PLAN OF RECORD IS STATE/ROADMAP.md** ("the Producer", critic-passed
-   9.8/10; Annex A pre-declared bars are LAW): S34 landed P8-9 — **L10 =
-   CLOSED** (median scripted time-to-fix 2.00 s over 54 flagged defects,
-   bar <= 15 s; the four affordances ride the existing namespaces; gate
-   RM_RUX) and **L9 = REFUSED-with-evidence after one candidate** (no
-   adoptable anime/sketch estimator exists — D-024's scan evidence; the
-   dual-estimator INTERFACE ships). **THE LEDGER IS NOW FULLY CLOSED OR
-   REFUSED — every L-row.** The session map says **S35 = P8-10 the Scene
-   Test + V1 launch** (the composite scorecard: pin residuals, per-finger
-   accuracy, per-param expression monotonicity, camera framing IoU,
-   identity swap rate, FK fidelity — each against its pre-declared bar;
-   pass = every measure green AND every residual limitation is a labeled
-   choice; per A.3 the scorecard overrides the calendar). The Scene Test
-   fixtures: engine-rendered couple fixtures (the pipeline's own
-   deterministic renderer, clothed and unclothed mannequins; NO external
-   sourcing; LO-authored references stay LOCAL, never committed; the SFW
-   fallback is the same renderer, clothed).
+   9.8/10; Annex A pre-declared bars are LAW): S35 landed P8-10 — **THE
+   SCENE TEST IS GREEN, V1's launch gate is MET** (the composite scorecard:
+   11/11 RST rows — pin residual frac 0.000174, fingers 0.00°/10.30°, face
+   0 violations/reach 1.00, framing IoU 0.8630, swap 0.0000 + alarm 2/2,
+   FK 0.0000°; every residual limitation a labeled choice; twins
+   byte-identical; docs/BENCHMARKS.md § SCENE TEST + docs/SCENE_TEST.md).
+   **The honest-limits ledger is fully CLOSED/REFUSED — every L-row.**
+   V1's launch ANNOUNCEMENT itself is a session-sized event LO owns; the
+   repo ships the scored surfaces (README/LAUNCH/TUTORIALS already claim
+   exactly the scored reality). Per the session map **S36 = Phase 9 opens:
+   P9-1 proportion auto-sculpt — the MECHANISM PROBE** (lattice vs
+   shape-key binding vs scale-correctives; SELECTION BAR: 5% on metarig +
+   Mixamo-class, fewest rig-side artifacts, name-ascending tie-break;
+   ALL candidates missing the bar on either rig ends Phase 9
+   REFUSED-with-evidence — the proportion REPORT still ships as data).
+   The honest physics first: keypoints give SKELETON, not VOLUME —
+   volume is P9-2's separate third-model decision, never a P9-1 claim.
 
 1. **Camera re-verify FIRST, one command** (it decides the session shape):
 
    `timeout 12 ffmpeg -hide_banner -loglevel error -f v4l2 -video_size 640x480 -i /dev/video0 -frames:v 1 out/live_probe/cam_test.png`
 
    - **Frames land** → flip to **P5-4** (the recorded live demo + the TRUE
-     capture→apply measurement). Silent 22 straight sessions so far.
-   - **Silent again (23rd)** → the P8-10 work order below.
+     capture→apply measurement). Silent 23 straight sessions through S35.
+   - **Silent again (24th)** → the P9-1 work order below.
 
-2. **Then read, in order**: STATE/ROADMAP.md (the Scene Test section +
-   Annex A.1/A.3 — the scorecard's bars and precedence), docs/REVIEW_UX.md
-   (the S34 as-built + the gate-earned corrections), docs/SCENE_ANIMATION.md
-   + docs/SCENES.md (the surfaces the Scene Test composes), STATE/NEXT.md,
-   STATE/TASKS.md (claim P8-10 with [S35]), STATE/PROGRESS.md (S34
-   entries), STATE/DECISIONS.md (D-024 — the ledger is closed/refused;
-   D-018 stays reserved), STATE/CONVENTIONS.md, STATE/SESSIONS.md,
-   docs/BENCHMARKS.md (every block the scorecard composes: COUPLING,
-   FINGERS, FACE, CAMERA, SCENE, SCENE ANIMATION, REVIEW-UX), docs/POLICY.md
-   (D-019 — the Scene Test fixtures are engine-rendered; MCP stays SFW),
-   and docs/LAUNCH.md + docs/TUTORIALS.md + README (the launch surfaces —
-   they MUST claim exactly the scored reality after the scorecard; one
-   grep sweep together when a number changes). Register as **Session 35**,
-   claim P8-10 with [S35]; PROGRESS stamps via `date -u` read IMMEDIATELY
-   before every append, then verify the stamp.
+2. **Then read, in order**: STATE/ROADMAP.md (Phase 9 — the honest
+   physics, the P9-1 selection bar, P9-2's third-model decision, Annex
+   A), docs/SCENE_TEST.md (the V1 gate's design of record + amendments
+   A1–A3 — the newest sibling), docs/FACE.md (the shape-key binding
+   precedent P9-1's candidate (b) generalizes), docs/SPINE.md +
+   core/spine.py (the positions-surgery class candidate (c) rides),
+   STATE/TASKS.md (claim P9-1 with [S36]), STATE/PROGRESS.md (S35
+   entries), STATE/DECISIONS.md (D-018 stays reserved; D-025 is the next
+   free number), STATE/CONVENTIONS.md, STATE/SESSIONS.md,
+   docs/BENCHMARKS.md (the SCENE TEST block — the scorecard must stay
+   green), docs/POLICY.md (D-019), and the claim-bearing surfaces README
+   + docs/LAUNCH.md + docs/TUTORIALS.md (one grep sweep together IF a
+   number changes). Register as **Session 36**, claim P9-1 with [S36];
+   PROGRESS stamps via `date -u` read IMMEDIATELY before every append,
+   then verify the stamp.
 
 3. **Baseline**: `cd core && /home/potato/miniconda3/bin/python3 -m
-   pytest tests` (**634 expected** — S34 added 19 review-UX contract
-   tests) + `make lint PY=/home/potato/miniconda3/bin/python3`, and `gh
-   run list --branch main` (the S34 push is the newest; if red: download
-   the log, root-cause, fix the real substance FIRST).
+   pytest tests` (**634 expected** — S35 added no core tests; the
+   Scene Test is probe/gate-side) + `make lint
+   PY=/home/potato/miniconda3/bin/python3`, and `gh run list --branch
+   main` (the S35 push is the newest; if red: download the log,
+   root-cause, fix the real substance FIRST).
 
-## S35 work order — P8-10 the Scene Test + V1 launch
+## S36 work order — P9-1 proportion auto-sculpt (the mechanism probe)
 
-The composite scorecard (ROADMAP § The Scene Test — non-circular): one
-E2E scenario per the A.3 fixture law, INDEPENDENT measures per stage, each
-against its pre-declared Annex A.1 bar, assembled into ONE table shipped
-in docs/BENCHMARKS.md:
-
-1. **DESIGN-FIRST**: docs/SCENE_TEST.md (the REVIEW_UX.md sibling): the
-   fixture plan (engine-rendered couple scenes, clothed + the SFW
-   fallback; deterministic renders; nothing external committed), the
-   scorecard's measures + bars verbatim from Annex A.1 (pin residuals <
-   2% torso span; per-finger direction median <= 20 deg / p90 <= 35 deg
-   visible; per-param expression monotonicity >= 9/10; camera framing
-   IoU >= 0.75; identity swap rate <= 2% with the alarm >= 90%; FK
-   fidelity <= 0.5 deg family), and the labeled-choices section (every
-   residual limitation must be a labeled choice: skips, unclosable pins,
-   camera error bars, the AMBIGUITY class, walk-in-place, the estimator
-   refusal).
-2. **PROBE/BUILD xtask/scene_test_probe.py**: run the E2E chain on the
-   fixture set — reference -> detect -> solve -> scene + pins + fingers +
-   face + camera + (video) identity assignment -> apply/couple/bake —
-   MEASURING each scorecard row independently; RST rows, grep-tested both
-   shapes before push.
-3. **The scorecard table** lands in docs/BENCHMARKS.md SCENE TEST block:
-   every measure with its number, bar, and PASS/FAIL; the labeled
-   choices; the optimism caveat verbatim on synthetic-derived claims.
-4. **Pass = every measure green AND every residual limitation labeled**
-   -> V1: the launch surfaces (README/LAUNCH/TUTORIALS) refreshed to
-   claim exactly the scored reality (one grep sweep together), the
-   ledger cited as fully CLOSED/REFUSED. Miss = the A.3 precedence (the
-   scorecard overrides the calendar; a parked row keeps its refusal).
+1. **DESIGN-FIRST**: docs/AUTO_SCULPT.md (the SCENE_TEST.md sibling): the
+   honest physics verbatim; the three candidate mechanisms + their
+   declared deformation instruments; the SELECTION BAR verbatim; the
+   REFUSED branch; NO payload format change (any new pose field is
+   additive, its DECISIONS entry WRITTEN at the landing — D-025 next).
+2. **PROBE-FIRST xtask/auto_sculpt_probe.py** (RM_ASCULPT rows,
+   grep-tested both shapes): all THREE candidates as probe-local pure
+   functions; the proportions benchmark fixture set (heavy/slender/tall
+   vs one base rig, prior-consistent GT, SYNTHETIC-labeled); MEASURE
+   post-sculpt joint positions vs intent per mechanism per rig;
+   fewest-artifact count; tie-break; DETERM twins.
+3. **Core + apply**: ONLY the selected mechanism lands as core; rigs
+   without a viable target report loudly (the P8-4 capability pattern);
+   the proportion REPORT ships as data regardless.
+4. **Gate**: xtask/auto_sculpt_gate.py (the sibling file) wired into
+   verify_pose_apply.sh + the Makefile lint list: the 5% bar on BOTH rig
+   classes + all prior numbers byte-identical (incl. the S35 RST rows).
 5. **If early**: the declared wiring items (scene-animation session/MCP
    wiring; the S31 CLI/addon invocation wiring) — measured work only,
    each needs its own gate rows.
 
-**S34's contract facts S35 builds on** (do not re-learn):
+**S35's contract facts S36 builds on** (do not re-learn):
 
-- The ledger reads CLOSED/REFUSED everywhere — the Scene Test cites it,
-  it does not re-litigate it (L9's refusal carries D-024's evidence; the
-  estimator interface is product surface, not an open claim).
-- The gate-earned operator facts: execute returns {'FINISHED'} (never
-  REGISTER); operators subclass an Operator MIXIN (never (Operator,
-  mixin) — MRO); background Blender raises an operator's ERROR report at
-  the invoking script; Blender masks crashed scripts with exit 0 (grep
-  the FINAL gate row).
-- Mimosa (standing): bash writes of .py source blocked — Write/Edit; the
-  scanner blocks env-sourced file-WRITE shapes in gate scripts (the S27
-  zero-IO gate pattern is the proven shape); expect the pagedoc.py
-  import-struct FP at every commit; heredoc/append FPs when text names
-  source files — Edit tool + -F commit-message files.
+- The Scene Test composes, it does not re-derive: class instruments are
+  imported (ONE fixture copy); reusing one must reproduce its published
+  numbers byte-identically (they did). A canonical-vs-world raw-direction
+  comparison is INVALID (the solve's frame is yawed/scaled by design).
+- The S35 fixture lessons: the staging subject cloud is ALL pose-bone
+  heads (the canonical-class fixture is the honest kp-set match); the
+  scale pairing `dist = consensus × rig_torso/0.45` is LOAD-BEARING; the
+  off-axis KEYSTONE fakes a depth gradient past the vertical-regime
+  switch (the A8 fixture law); two-figure parallax splits the solo pitch
+  solves at yaw ≠ 0; the STATIC scene path carries the arrangement in
+  the ARTIST'S rig placement, never from bboxes.
+- The gate-earned operator facts (S34): execute returns {'FINISHED'};
+  operators subclass an Operator MIXIN; background Blender raises an
+  operator's ERROR report at the invoking script; grep the FINAL gate
+  row (Blender masks crashes with exit 0).
+- Mimosa (standing): bash writes of .py source blocked — Write/Edit;
+  zero-IO gates are the proven shape; expect the pagedoc.py import-struct
+  FP at every commit; heredoc/append FPs when text names source files —
+  Edit tool + -F commit-message files.
 - The gate env trap (standing): BLENDER=/home/potato/
   blender-5.1.0-linux-x64/blender, RIGPOSE=/home/potato/miniconda3/bin/
-  rigpose, PY=/home/potato/miniconda3/bin/python3 — else they 127 (or
-  grab the broken apt 4.0.2).
+  rigpose, PY=/home/potato/miniconda3/bin/python3 — else they 127.
 - STATE stamps are REAL UTC, read-then-write-then-verify (the session
   date is the UTC date; use the echoed `date -u` value).
 
 ## Blocked / deferred (parked — do not burn time)
 
 - Live capture device — parked LAST by LO; P5-4 runs when the phone comes
-  up (box side READY; the client just never ran).
+  up (box side READY; the client just never ran; silent 23 sessions).
 - PyPI description + Blender Extensions upload — LO's site-side steps
   (deferred to his final session by LO).
 - P6-3 public benchmark suite packaging — roadmap-slack work.
@@ -121,3 +116,5 @@ in docs/BENCHMARKS.md:
 - Root-motion BAKE — revisit only when a real root-motion source exists.
 - Scene-animation session/MCP wiring — declared S33 follow-up (needs its
   own gate rows).
+- The anime fallback estimator — REFUSED-with-evidence (D-024); reopened
+  only through the full P1-1 third-model ritual with a real candidate.

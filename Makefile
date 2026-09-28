@@ -10,7 +10,7 @@ test:
 
 lint:
 	$(PY) -m ruff check core/src core/tests addon/riggermortis_addon mcp/riggermortis_mcp.py mcp/session_bridge.py xtask/export_fixture_rigs.py xtask/build_rigify_rigs.py xtask/import_and_extract.py xtask/render_demos.py xtask/benchmark_poses.py xtask/foot_lock_gate.py xtask/hip_stab_gate.py xtask/walk_media.py xtask/assemble_walk.py xtask/walk_docs.py xtask/session_probe.py xtask/walk_job.py xtask/agent_demo_docs.py xtask/agent_demo_blender.py xtask/style_probe.py xtask/page_probe.py xtask/bubble_probe.py xtask/styled_turntable_probe.py xtask/lineart_probe.py xtask/tone_probe.py xtask/animatic_probe.py xtask/manga_build.py xtask/live_probe.py xtask/live_gate.py xtask/motion_probe.py xtask/motion_fixture.py xtask/sample_clip.py xtask/scene_probe.py xtask/scene_gate.py xtask/coupling_probe.py xtask/couple_gate.py xtask/finger_probe.py xtask/finger_gate.py xtask/face_probe.py xtask/face_gate.py xtask/camera_probe.py xtask/camera_render_fixture.py xtask/camera_gate.py xtask/spine_probe.py xtask/spine_gate.py xtask/root_motion_probe.py xtask/root_motion_gate.py xtask/scene_anim_probe.py xtask/scene_anim_gate.py \
- xtask/review_ux_probe.py xtask/review_ux_gate.py
+ xtask/review_ux_probe.py xtask/review_ux_gate.py xtask/scene_test_probe.py
 
 fixtures:
 	$(PY) xtask/export_fixture_rigs.py
@@ -63,6 +63,16 @@ blender-verify:
 # (needs downloaded models: rigpose models download all)
 pose-verify:
 	bash xtask/verify_pose_apply.sh
+
+# P8-10 THE SCENE TEST (the composite scorecard, RST rows): one E2E
+# scenario on engine-rendered couple fixtures, INDEPENDENT measures per
+# stage vs the pre-declared Annex A.1 bars. V1's launch gate. The
+# scenario rigs are engine-built (no local assets); BLENDER comes from
+# the environment (the gate env trap — else the broken apt 4.0.2).
+scene-test:
+	RM_CORE_SRC=$$PWD/core/src RM_ADDON_DIR=$$PWD/addon \
+	RM_METARIG_BLEND=$$PWD/out/real_rigs/metarig.blend \
+	"$${BLENDER:-blender}" -b --python xtask/scene_test_probe.py
 
 # P2-7 export gate: bake → FBX/glTF → re-import round-trip on a real Blender
 # (self-contained: no models, no local assets)

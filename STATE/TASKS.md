@@ -669,9 +669,17 @@ quadruped) with ≤2 manual corrections each, proven headless.
     estimator exists; the scan evidence + the pinned manifest state in
     D-024; the dual-estimator INTERFACE ships). The Scene Test's ledger
     preconditions are now met: every row CLOSED or REFUSED.
-- [ ] P8-10 The Scene Test + V1 launch (S35 target): the composite
-  scorecard (engine-rendered couple fixtures), every ledger row
-  CLOSED/REFUSED, launch surfaces claim exactly the scored reality.
+- [x] P8-10 The Scene Test + V1 launch (S35, DONE): the composite scorecard
+  GREEN — 11/11 RST rows on the engine-rendered couple scenario (design
+  docs/SCENE_TEST.md A1–A3; probe xtask/scene_test_probe.py; gate `make
+  scene-test` + the RST grep rows in pose-verify): pin residual frac
+  0.000174 (bar 0.02), fingers median 0.00°/p90 10.30° (300 segments,
+  the P8-3 class numbers byte-identical), face 0 violations / reach 1.00,
+  framing IoU 0.8630 (bar 0.75), swap 0.0000 + alarm 2/2 (AMBIGUITY
+  0.1224 separate), FK 0.0000° both rigs, 3/3 loud refusals, twins
+  byte-identical; every ledger row CLOSED/REFUSED; launch surfaces
+  (README/LAUNCH/TUTORIALS) claim exactly the scored reality — **V1's
+  scorecard gate is MET** (the launch announcement itself is LO's).
 
 ## Phase 9/10 — post-V1 (V2, target ~S45): auto-sculpt + text
 

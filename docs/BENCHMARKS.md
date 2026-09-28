@@ -1055,3 +1055,88 @@ affordances registered. Reproduce: `python3 xtask/review_ux_probe.py`.
 | **L9 verdict** | **REFUSED-with-evidence after one candidate** (the A.2 terminal); the adoption bars (no-person <= 1/10, latency <= 2x DWPose CPU, flip-margin parity within D-010) are unreachable for lack of any candidate |
 | the INTERFACE | ships regardless: `inference/estimator.py` (protocol + keyed-order fallback on the no-person probe + the additive `estimator` payload field, never written for the default); any future candidate enters ONLY through the P1-1 manifest ritual (license, sha256, CPU budget, DECISIONS entry) |
 | **L10 verdict** | **CLOSED** — median time-to-fix 2.00 s <= 15 s with every fix verified corrective |
+
+## SCENE TEST (P8-10, session 35) — the composite scorecard — ALL MEASURES GREEN
+
+V1's launch gate (design of record: `docs/SCENE_TEST.md`, written BEFORE
+any measurement — the SCENE_ANIMATION.md sibling). ONE E2E scenario on
+engine-rendered couple fixtures (the A.3 fixture law: engine-built
+canonical-class rigs, the pipeline's own deterministic WORKBENCH render,
+the clothed SFW class, generated at probe time, nothing committed),
+INDEPENDENT measures per stage, each against its pre-declared Annex A.1
+bar. The scenario: the arm-in-arm couple — two figures 0.78 u apart,
+elbows pinned at the scene center by ONE AUTHORED pin, hands solved from
+observed kps, seen by a level frontal reference camera (D = 6). The
+detect stage rides the tier-1 deterministic GT instrument (the P8-5
+pattern; the detector-blindness to engine mannequins is labeled choice
+1 below, never relabeled). Gate: `make scene-test` (RST rows, 11 rows +
+the final `RST GATE: PASS` row, grep-tested both shapes inside
+pose-verify). Twin runs byte-identical (the wall-clock bake cost is the
+only run-varying value and is not a bar).
+
+| # | measure (the stage) | number | bar (Annex A.1 verbatim) | verdict | instrument |
+|---|---|---|---|---|---|
+| 1 | pin residuals (coupling) | **residual_frac 0.000174** (worst_fk 0.0000°) | < 2% torso span | **PASS** | the REAL `apply_scene_payload` (placements measured, coupling enforced, coupled re-apply) |
+| 2 | per-finger accuracy (fingers) | **median 0.00° / p90 10.30°** over 300 visible segments; scenario hands: 10 chains solved from observed kps, byte-stable round-trip | median <= 20 deg / p90 <= 35 deg on VISIBLE fingers; occlusion 100% gated-skip | **PASS** | the P8-3 gate's own 20-pose class machinery, re-run verbatim (numbers reproduce byte-identically) |
+| 3 | per-param expression monotonicity (face) | **0 violations / 9 steps, reach 1.00** across 10 params | >= 9/10 per param | **PASS** | the P8-4 gate's own 10-expression class machinery, re-run verbatim |
+| 4 | camera framing IoU (camera) | **IoU 0.8630** (solved yaw −0.00° vs GT 0, dist 5.972 vs 6.0, solve conf 1.00) | >= 0.75 (MEASURED staging, both floors) | **PASS** | the REAL `stage_scene_camera_measured` (per-figure solves → consensus → both floors, MEASURED-stamped) |
+| 5 | identity swap rate + alarm (video path) | **swap 0.0000** (0/49 solved frames); **alarm 2/2** (catch 1.00); AMBIGUITY class **0.1224** published separately | swap <= 2%; alarm >= 90% | **PASS** | `assign_stream` + the evidence alarm on the ONE stream fixture copy (reproduces the S33 numbers exactly) |
+| 6 | FK fidelity (the composed bake) | **worst re-eval 0.0000°** over 98 frame-bakes on BOTH rigs | <= 0.5 deg family | **PASS** | the REAL `bake_action` over the composed two-character scene action |
+| — | bake cost (information, not a bar) | **1.0–1.1 ms/frame-bake = 2.1–2.2 ms/scene-frame** across 2 rigs | published, never claimed | **PUBLISHED** | wall-clock on the mid-laptop baseline |
+| — | the reference render (chain input) | deterministic WORKBENCH 640x960 PNG at probe time | the A.3 fixture law | **PRODUCED** | the pipeline's own renderer; never committed |
+| — | loud refusals (the honesty half) | **3/3**: kp-starved figure refuses the camera (nothing staged); below-floor hand kps → 0 hands solved (zero guessed); beyond-reach pin stays loud | zero silent failures | **PASS** | the chain's refuse classes |
+| — | determinism | twin runs byte-identical (payloads, solves, reports, actions) | keyed determinism law | **PASS** | ST-DETERM |
+
+**VERDICT: every measure green → V1's scorecard gate is MET** (per A.3
+the scorecard overrides the calendar). The ledger is fully CLOSED/REFUSED
+(L1–L6, L8, L10 CLOSED; L7 and L9 REFUSED-with-evidence — see
+STATE/TASKS.md for the row map).
+
+### The labeled choices (every residual limitation — none averaged)
+
+1. **DETECTOR-BLIND (tier-2)** — the pinned DWPose detects no engine
+   mannequin; the detect stage rides the deterministic GT instrument.
+   Real-photo honesty lives in the published P1-9/P8-3/P8-4/P8-5 REAL
+   rows; the A.1 re-validation trigger applies when real labeled fixtures
+   enter the workflow.
+2. **WALK-IN-PLACE (L7 REFUSED-with-evidence)** — no real root-motion
+   source exists; the drift track ships for streams WITH drift.
+3. **ESTIMATOR (L9 REFUSED-with-evidence, D-024)** — no adoptable
+   anime/sketch whole-body estimator; the interface ships; the P1-1
+   ritual is the only door back.
+4. **THE AMBIGUITY CLASS (0.1224 on the stream fixture)** — duplicated
+   pose+scale frames are unresolvable from single views BY CONSTRUCTION;
+   the manual override is the designed answer; published separately.
+5. **CAMERA error bars are tier-1 numbers** (yaw 2.58° / pitch 4.83° /
+   distance 3.42% MAE, synthetic GT); tier-2 render+detector NOT MET with
+   evidence; framing IoU is projection-space through the CAM-MODEL-verified
+   model (2.32e-07 vs Blender).
+6. **GATED SKIPS, BY DESIGN** — fingers/face below the 0.55 floor skip +
+   ledger; face params below the 0.08 activation floor ledger; gaze
+   conditional-OUT (no iris kps).
+7. **UNCLOSABLE / BEYOND-REACH PINS STAY LOUD** (the P8-2 REACH honesty,
+   re-proven on the scenario).
+8. **D-008 MISS CLASSES** — the two documented flip misses and the
+   population-prior neutral face; carried with confidence + residual.
+9. **IN-PLACE DEPTH** — placements in-plane (dy == 0 exactly,
+   apparent-size staging); depth never guessed from single views.
+10. **BAKE COST is information** — no real-time claim anywhere in V1.
+
+Optimism caveat, verbatim, on every synthetic-derived claim above:
+*measured on synthetic prior-consistent ground truth; real-detector
+noise is not in these numbers; the Annex A.1 re-validation trigger
+applies when real labeled fixtures enter the workflow.*
+
+Gate-earned fixture lessons (details in docs/SCENE_TEST.md A1–A3): the
+staging instrument's subject cloud is ALL pose-bone heads (the
+canonical-class fixture is the honest kp-set match; the scale pairing
+`dist = consensus × torso/0.45` is load-bearing); wide two-figure
+spreads put figures off-axis where the perspective keystone fakes a depth
+gradient past the vertical-regime switch (the A8 fixture law again — the
+fixture was wrong); the static scene path carries the arrangement in the
+ARTIST'S rig placement, never from bboxes.
+
+Where: probe `blender -b --python xtask/scene_test_probe.py` (11 RST rows,
+self-contained beyond the core/addon); gate `make pose-verify` (the RST
+grep rows, both shapes) + `make scene-test`; design of record
+`docs/SCENE_TEST.md` (amendments A1–A3, as-built).

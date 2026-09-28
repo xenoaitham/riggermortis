@@ -184,3 +184,21 @@ working camera on your machine.*
    "breathing" stance slide on the synthetic gate), 1€ jitter smoothing,
    greedy keyframe reduction, foot-contact detect + IK lock
    (BENCHMARKS.md HIPSTAB/FOOTLOCK blocks).
+
+5. **Per-defect fix affordances (P8-9)**: when the review surfaces a
+   flagged defect, the fix is one operator away — `rm.finger_fix` (click
+   a finger, drag the direction), `rm.face_trim` (per-param expression
+   slider), `rm.figure_flip` + `rm.pin_retarget`/`rm.pin_confirm` in the
+   Casting Desk (per-figure flip, pin nudge + confirm). Scripted
+   click-through median time-to-fix: 2.00 s over 54 defects (bar 15 s;
+   BENCHMARKS.md REVIEW-UX).
+
+6. **Multi-figure scenes end to end**: pair figures in the Casting Desk →
+   `apply_scene` poses all rigs in one action → authored pins ENFORCE
+   through the coupling pass (residual < 2% torso span, unclosable stays
+   loud) → the MEASURED camera stages from the reference framing above
+   both floors (IoU 0.75 + confidence 0.55, refuses loud below) → video
+   in, scene animation out with identity-stable assignment (swap 0.0000 on
+   the fixture). The composite proof is the Scene Test scorecard — all six
+   measures green against their pre-declared bars:
+   `BLENDER=… make scene-test` (BENCHMARKS.md § SCENE TEST).

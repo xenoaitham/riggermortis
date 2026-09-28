@@ -1131,5 +1131,27 @@ grep -q "RM_RUX RUX-GATE-DETERM: PASS" "$TMP/rux_gate.log"
 grep -q "RM_RUX RUX-GATE-T2F: PASS" "$TMP/rux_gate.log"
 grep -q "RM_RUX GATE: PASS" "$TMP/rux_gate.log"
 
+# -- P8-10 THE SCENE TEST: the composite scorecard (V1's launch gate) ---------
+echo "== scene test: the composite scorecard (RST rows, Annex A.1 bars)"
+RM_CORE_SRC="$REPO/core/src" \
+RM_ADDON_DIR="$REPO/addon" \
+RM_METARIG_BLEND="$METARIG_BLEND" \
+  "$BLENDER" -b --python "$REPO/xtask/scene_test_probe.py" 2>&1 | tee "$TMP/scene_test.log"
+grep -q "RST ST-FIXTURE: PASS" "$TMP/scene_test.log"
+grep -q "RST ST-CHAIN: PASS" "$TMP/scene_test.log"
+grep -q "RST ST-PIN: PASS" "$TMP/scene_test.log"
+grep -q "RST ST-CAM: PASS" "$TMP/scene_test.log"
+grep -q "RST ST-RENDER: PASS" "$TMP/scene_test.log"
+grep -q "RST ST-FINGER: PASS" "$TMP/scene_test.log"
+grep -q "RST ST-FACE: PASS" "$TMP/scene_test.log"
+grep -q "RST ST-SWAP: PASS" "$TMP/scene_test.log"
+grep -q "RST ST-FK: PASS" "$TMP/scene_test.log"
+grep -q "RST ST-REFUSE: PASS" "$TMP/scene_test.log"
+grep -q "RST ST-DETERM: PASS" "$TMP/scene_test.log"
+grep -q "RST GATE: PASS" "$TMP/scene_test.log"
+if grep -qE "RST .*: FAIL" "$TMP/scene_test.log"; then
+  echo "scene test produced a FAIL row" >&2; exit 1
+fi
+
 echo ""
 echo "P1-6 BLENDER POSE-APPLY GATE: PASS"
