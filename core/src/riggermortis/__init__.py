@@ -90,6 +90,12 @@ from .fk_apply import (
     bone_target_direction,
     verify_application,
 )
+from .inference.estimator import (
+    DEFAULT_ESTIMATOR,
+    Estimator,
+    select_estimator,
+    with_estimator_entry,
+)
 from .inference.poses import face_kp_index
 from .live import (
     DEFAULT_CONF_FLOOR,
@@ -140,10 +146,18 @@ from .presets import (
 )
 from .review import (
     ReviewItem,
+    author_finger,
+    confirm_pin,
+    face_defects,
+    finger_defects,
+    flip_figure,
     joint_points,
     pick_joint,
+    retarget_pin,
     review_items,
+    scene_defects,
     skeleton_segments,
+    trim_face,
 )
 from .root_motion import (
     SOURCE_CLIP,
@@ -331,6 +345,18 @@ __all__ = [
     "skeleton_segments",
     "joint_points",
     "pick_joint",
+    "author_finger",
+    "trim_face",
+    "flip_figure",
+    "retarget_pin",
+    "confirm_pin",
+    "finger_defects",
+    "face_defects",
+    "scene_defects",
+    "DEFAULT_ESTIMATOR",
+    "Estimator",
+    "select_estimator",
+    "with_estimator_entry",
     "MotionClip",
     "ClipFrame",
     "MotionError",

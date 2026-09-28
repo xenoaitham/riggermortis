@@ -51,6 +51,13 @@ from .casting_desk import (
     RM_OT_cast_refresh,
     RM_OT_stage_scene_camera,
 )
+from .review_fix import (
+    RM_OT_face_trim,
+    RM_OT_figure_flip,
+    RM_OT_finger_fix,
+    RM_OT_pin_confirm,
+    RM_OT_pin_retarget,
+)
 
 POLICY_NOTICE = (
     "Default build is SFW. An opt-in adult module (off by default, requires "
@@ -354,7 +361,7 @@ class RM_OT_inspect_and_map(Operator):
         if repaired:
             unit = "tail" if repaired == 1 else "tails"
             self.report({"INFO"}, f"normalized {repaired} imported bone {unit} (D-015)")
-        return {"REGISTER"}
+        return {"FINISHED"}
 
 
 class RM_OT_show_report(Operator):
@@ -462,7 +469,7 @@ class RM_OT_apply_pose(Operator):
             self.report({"WARNING"}, lines[0] + " — see Last Report")
         else:
             self.report({"INFO"}, lines[0] + f", worst {report['worst_deg']:.3f} deg")
-        return {"REGISTER"}
+        return {"FINISHED"}
 
 
 class RM_OT_flip_toggle(Operator):
@@ -523,7 +530,7 @@ class RM_OT_flip_toggle(Operator):
             f"self-check worst {report['worst_deg']:.3f} deg on {report['worst_role']}"
         )
         self.report({"INFO"}, settings.last_report)
-        return {"REGISTER"}
+        return {"FINISHED"}
 
 
 class RM_OT_pick_joint(Operator):
@@ -621,7 +628,7 @@ class RM_OT_flip_reset(Operator):
             return {"CANCELLED"}
         pose_apply.push_undo()
         self.report({"INFO"}, f"solver flips restored ({len(report['applied'])} bones)")
-        return {"REGISTER"}
+        return {"FINISHED"}
 
 
 class RM_OT_clear_pose(Operator):
@@ -641,7 +648,7 @@ class RM_OT_clear_pose(Operator):
         context.scene.rm_settings.manual_flips = ""  # review state is session-only
         pose_apply.push_undo()
         self.report({"INFO"}, message)
-        return {"REGISTER"}
+        return {"FINISHED"}
 
 
 class RM_OT_session_connect(Operator):
@@ -831,6 +838,12 @@ class RM_PT_main_panel(Panel):
         row.operator("rm.apply_pose", icon="PLAY")
         box.operator("rm.clear_pose", icon="X")
 
+        fix = layout.box()
+        fix.label(text="Fix defects (P8-9)", icon="TOOL_SETTINGS")
+        row = fix.row(align=True)
+        row.operator("rm.finger_fix", text="Finger", icon="RESTRICT_SELECT_OFF")
+        row.operator("rm.face_trim", text="Face", icon="HIDE_OFF")
+
         box = layout.box()
         box.label(text="Agent session (MCP)", icon="LINKED")
         wm_session = context.window_manager.rm_session
@@ -944,6 +957,12 @@ class RM_PT_casting_desk(Panel):
         layout.operator("rm.stage_scene_camera", icon="CAMERA_DATA")
         layout.label(text="camera v0 is ~APPROXIMATE~ (front-prior, IoU-gated)",
                      icon="INFO")
+        fix = layout.box()
+        fix.label(text="Fix defects (P8-9)", icon="TOOL_SETTINGS")
+        row = fix.row(align=True)
+        row.operator("rm.figure_flip", text="Flip figure", icon="FLIP")
+        row.operator("rm.pin_confirm", text="Confirm pin", icon="CHECKMARK")
+        fix.operator("rm.pin_retarget", text="Retarget pin", icon="ARROW_LEFTRIGHT")
 
 
 class RM_AddonPreferences(AddonPreferences):
@@ -998,6 +1017,11 @@ _CLASSES = (
     RM_OT_cast_refresh,
     RM_OT_apply_scene,
     RM_OT_stage_scene_camera,
+    RM_OT_finger_fix,
+    RM_OT_face_trim,
+    RM_OT_figure_flip,
+    RM_OT_pin_retarget,
+    RM_OT_pin_confirm,
     RM_OT_session_connect,
     RM_OT_session_disconnect,
     RM_OT_live_start,

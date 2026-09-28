@@ -135,13 +135,32 @@ def build_pose_payload(
     ``pins``: optional scene contact pins (``ContactPin.to_dict`` dicts,
     validated by ``scene.ContactPin.from_dict``) — omitted from the file
     when empty/None, so a pins-free payload differs from v2 output only in
-    the ``format`` integer.
+    the ``format`` integer. An entry may carry ``"estimator": <name>``
+    (P8-9, D-011) — additive provenance, carried ONLY for non-default
+    estimators, so the default-only pipeline writes byte-identical payloads.
     """
     if not entries:
         raise PayloadError("no figure entries to embed", hint="detect figures first")
     selected = next(
         (e for e in entries if e["figure"].get("label") == selected_label), entries[0]
     )
+
+    def entry_out(e: dict[str, object]) -> dict[str, object]:
+        out_e = {
+            "label": e["figure"]["label"],
+            "index": e["figure"]["index"],
+            "score": e["figure"]["score"],
+            "bbox": e["figure"]["bbox"],
+            "pose": e["pose"],
+            "rotations": e["rotations"],
+            "skipped": e["skipped"],
+            "notes": e["notes"],
+        }
+        est = e.get("estimator")
+        if est is not None and est != "dwpose":
+            out_e["estimator"] = est
+        return out_e
+
     out: dict[str, object] = {
         "format": FORMAT,
         "image": {"path": str(image_path), "width": width, "height": height},
@@ -150,19 +169,7 @@ def build_pose_payload(
         "rotations": selected["rotations"],
         "skipped": selected["skipped"],
         "notes": selected["notes"],
-        "figures": [
-            {
-                "label": e["figure"]["label"],
-                "index": e["figure"]["index"],
-                "score": e["figure"]["score"],
-                "bbox": e["figure"]["bbox"],
-                "pose": e["pose"],
-                "rotations": e["rotations"],
-                "skipped": e["skipped"],
-                "notes": e["notes"],
-            }
-            for e in entries
-        ],
+        "figures": [entry_out(e) for e in entries],
         "rig": {"name": rig.name, "fingerprint": rig.fingerprint()},
     }
     if pins:

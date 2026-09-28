@@ -1013,3 +1013,45 @@ everything.
   is engine-built (contract-valid v3 payloads + a real P2-1 job state,
   generated at gate time, never committed); the pose shapes are
   clothed-mannequin class (the A.3 SFW fallback).
+
+## REVIEW-UX (P8-9, session 34) — time-to-fix + the estimator verdicts
+
+Written by the discipline (design of record `docs/REVIEW_UX.md`), measured
+by `xtask/review_ux_probe.py` (RM_RUX rows, 7/7 PASS; re-run against the
+core — numbers reproduced) and gated by `xtask/review_ux_gate.py` inside
+`make pose-verify` (10 RM_RUX grep rows through the REAL operators).
+
+### The time-to-fix instrument (declared BEFORE measurement)
+
+Interaction-cost model (the DECLARED instrument constants, D-008-untuned,
+never claimed as human-timed wall-clock): CLICK 1.0 s (pick a flagged
+item + invoke its operator), DRAG 3.0 s (aim + drag + release),
+SLIDER 2.0 s (panel trim). time-to-fix = Σ interaction costs + the
+measured op wall-clock (published alongside: ~0.0001-0.0002 s median
+core-side, ~7-14 ms per Blender operator).
+
+| defect class | fixture source | n | sequence | median t2f |
+|---|---|---|---|---|
+| flip | the 20-pose class, material flips, wrong-sign injection [INSTRUMENT] | 39 | CLICK+CLICK | 2.00 s |
+| finger | the finger-gate occlusion ledger (the engine's own loud output) | 1 | CLICK+DRAG | 4.00 s |
+| face | the 10-expression class under the declared occlusion rule | 13 | CLICK+SLIDER | 3.00 s |
+| pin | a beyond-reach pin the coupling pass reports unclosable | 1 | CLICK+DRAG | 4.00 s |
+| **ALL** | | **54** | | **2.00 s (bar <= 15 s — PASS)** |
+
+Every corrected apply clears its defect within its family bar (flip sign
+== GT; authored finger at the canonical segment lengths; face param ==
+the authored value; pin residual < 2% torso span after re-coupling);
+twins byte-identical; clean inputs stay byte-identical with the
+affordances registered. Reproduce: `python3 xtask/review_ux_probe.py`.
+
+### The estimator baseline + the ritual verdict (D-024)
+
+| measure | value |
+|---|---|
+| default detector no-person, anime benchmark | **3/10** (matches D-012 exactly) |
+| default detector latency, full p50 | ~550-614 ms (CPU, mid-laptop) |
+| default detector latency, pose-only p50 | ~89-107 ms (CPU, mid-laptop) |
+| candidate scan (one candidate class) | **no adoptable anime/sketch whole-body estimator exists** — HF "anime pose" hits are SD LoRAs (image generators, wrong class); HF "dwpose" hits are re-uploads of the pinned photoreal family; "openpose anime"/"manga pose"/"sketch pose estimation" return zero estimator hits; the official ControlNet annotators carry no anime variant; the imgutils ecosystem has no pose module; the fine-tune route is banned in-repo (D-011 verbatim) |
+| **L9 verdict** | **REFUSED-with-evidence after one candidate** (the A.2 terminal); the adoption bars (no-person <= 1/10, latency <= 2x DWPose CPU, flip-margin parity within D-010) are unreachable for lack of any candidate |
+| the INTERFACE | ships regardless: `inference/estimator.py` (protocol + keyed-order fallback on the no-person probe + the additive `estimator` payload field, never written for the default); any future candidate enters ONLY through the P1-1 manifest ritual (license, sha256, CPU budget, DECISIONS entry) |
+| **L10 verdict** | **CLOSED** — median time-to-fix 2.00 s <= 15 s with every fix verified corrective |

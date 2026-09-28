@@ -638,3 +638,61 @@ lands.
 - REMAINS — PyPI upload: needs LO's PyPI account/token (docs/PUBLISHING.md, one command).
 - REMAINS — Blender Extensions upload: needs LO's blender.org account (docs/PUBLISHING.md).
 - NEW (S8) — P2-8 real walking clip: bounded search exhausted (mmpose demo.mp4 is 1 s @ 5 fps — too short; Commons yields POV city walks / news footage — wrong kind and provenance-hostile). Need: single person, full body, side-ish view, >= 3 s, steady fps, named license (or LO-owned with a provenance statement). Evidence sidecar: out/video_smoke/SOURCES.md. P2-8 proceeds on the synthetic-labeled instruments until then (do NOT relabel them real).
+
+## D-024 P8-9 verdicts: L10 CLOSED at the time-to-fix bar; L9 REFUSED-with-evidence — the dual-estimator INTERFACE ships (2026-09-28, S34 — the second exercised Annex A.2 branch)
+
+P8-9's two ledger rows, closed on measured evidence (docs/REVIEW_UX.md is
+the design page; docs/BENCHMARKS.md REVIEW-UX holds the numbers):
+
+- **L10 (review/fix is workable but slow per-fix) = CLOSED.** The declared
+  scripted click-through instrument (interaction model CLICK 1.0 s /
+  DRAG 3.0 s / SLIDER 2.0 s, D-008-untuned constants declared BEFORE any
+  measurement, op wall-clock published alongside) measures the median
+  time-to-fix at **2.00 s over 54 flagged defects** on the benchmark
+  fixture classes (flip 39 / finger 1 / face 13 / pin 1; per-class medians
+  2.00 / 4.00 / 3.00 / 4.00 s) — the Annex A.1 bar is <= 15 s. Every
+  corrected apply actually clears its defect within its family bar
+  (flip sign == GT; authored finger at the canonical segment lengths,
+  direction verified core-side; face param == the authored value; pin
+  residual < 2% torso span after re-coupling). The four affordances
+  (`author_finger` / `trim_face` / `flip_figure` / `retarget_pin` +
+  `confirm_pin`) are pure, confidence-1.0, provenance-noted, and ride the
+  EXISTING namespaces (D-021/D-022/P8-1) — no new solve, no new namespace,
+  no payload format change; the untouched path is byte-identical (gate
+  RUX-GATE-UNTOUCHED, 159 bones at 9 dp).
+- **L9 (anime detector gap, D-011/D-012) = REFUSED-with-evidence after one
+  candidate — the A.2 branch exercised (the L7 precedent).** The third-
+  model ritual ran and found NOTHING to ritualize: no published anime/
+  sketch whole-body keypoint estimator with adoptable weights exists.
+  Evidence (2026-09-28 scans): HF "anime pose" (3 hits) resolves to
+  Stable-Diffusion LoRAs/segmentation heads — image GENERATORS, not
+  keypoint estimators (wrong product class); HF "dwpose" (37 hits) are
+  re-uploads/repackagings of the SAME photoreal family already pinned
+  (worse provenance, identical failure mode); "openpose anime", "manga
+  pose", "sketch pose estimation", "anime keypoint", "lineart pose" return
+  zero estimator hits; the official ControlNet Annotators repo carries no
+  anime OpenPose variant; the deepghs/imgutils ecosystem (74 repos swept,
+  MIT toolbox) has NO pose module (the one web-search lead was wrong on
+  inspection). D-011's alternative candidate (fine-tune DWPose on licensed
+  line-art) is BANNED by the ritual itself (NO fine-tune in the repo;
+  adopted weights only). The adoption bars (no-person <= 1/10, latency
+  <= 2x DWPose CPU, flip-margin parity within D-010) are therefore
+  unreachable for lack of any candidate — the refusal is the honest
+  terminal, not a threshold excuse. The DEFAULT detector's baseline is
+  re-published for the record: no-person 3/10 on the anime benchmark
+  (matches D-012 exactly), full p50 ~550-614 ms, pose-only p50 ~89-107 ms
+  (CPU, mid-laptop).
+- **The dual-estimator INTERFACE ships regardless** (D-011 planned it; the
+  refusal does not retire it): `inference/estimator.py` — the Estimator
+  protocol (name + the standard 133-kp Detection), `select_estimator`
+  (default first, keyed-order fallback exactly on the no-person probe,
+  honest no-person terminal — nothing fabricated), and the additive
+  per-figure `estimator` payload provenance field (written ONLY for
+  non-default estimators; the default-only pipeline stays byte-identical,
+  pinned by contract test). Any future candidate enters ONLY through the
+  P1-1 manifest ritual: license verbatim, sha256 + bytes, CPU budget
+  measured on the mid-laptop baseline, a DECISIONS entry at the landing.
+- The manifest state is pinned as the ritual's guard: exactly the two
+  DWPose models unless an adoption lands through the full ritual (probe
+  row RUX-EST-RITUAL). D-018 stays RESERVED (the live-camera amendment
+  not exercised).

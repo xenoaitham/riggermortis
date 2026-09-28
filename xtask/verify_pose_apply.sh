@@ -1112,5 +1112,24 @@ grep -q "RM_SANIM SANIM-OVERRIDE: PASS" "$TMP/sanim_gate.log"
 grep -q "RM_SANIM SANIM-DETERM: PASS" "$TMP/sanim_gate.log"
 grep -q "RM_SANIM GATE: PASS" "$TMP/sanim_gate.log"
 
+# -- P8-9 review UX: the fix affordances through the REAL operators -----------
+echo "== review-ux gate: fix affordances through ops + byte-identity + refusals"
+RM_CORE_SRC="$REPO/core/src" \
+RM_ADDON_DIR="$REPO/addon" \
+RM_METARIG_BLEND="$METARIG_BLEND" \
+RM_PAYLOADS="$PAYLOADS" \
+RM_XTASK="$REPO/xtask" \
+  "$BLENDER" -b --python "$REPO/xtask/review_ux_gate.py" 2>&1 | tee "$TMP/rux_gate.log"
+grep -q "RM_RUX RUX-GATE-OPS: PASS" "$TMP/rux_gate.log"
+grep -q "RM_RUX RUX-GATE-FINGER: PASS" "$TMP/rux_gate.log"
+grep -q "RM_RUX RUX-GATE-FACE: PASS" "$TMP/rux_gate.log"
+grep -q "RM_RUX RUX-GATE-FIGURE: PASS" "$TMP/rux_gate.log"
+grep -q "RM_RUX RUX-GATE-PIN: PASS" "$TMP/rux_gate.log"
+grep -q "RM_RUX RUX-GATE-UNTOUCHED: PASS" "$TMP/rux_gate.log"
+grep -q "RM_RUX RUX-GATE-REFUSE: PASS" "$TMP/rux_gate.log"
+grep -q "RM_RUX RUX-GATE-DETERM: PASS" "$TMP/rux_gate.log"
+grep -q "RM_RUX RUX-GATE-T2F: PASS" "$TMP/rux_gate.log"
+grep -q "RM_RUX GATE: PASS" "$TMP/rux_gate.log"
+
 echo ""
 echo "P1-6 BLENDER POSE-APPLY GATE: PASS"
