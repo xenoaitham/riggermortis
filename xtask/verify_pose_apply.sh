@@ -1153,5 +1153,22 @@ if grep -qE "RST .*: FAIL" "$TMP/scene_test.log"; then
   echo "scene test produced a FAIL row" >&2; exit 1
 fi
 
+# -- P9-1 AUTO-SCULPT: the selected mechanism through the REAL addon apply ----
+echo "== auto-sculpt gate: the proportion mechanism (RM_ASCULPT GATE rows)"
+RM_CORE_SRC="$REPO/core/src" \
+RM_ADDON_DIR="$REPO/addon" \
+  "$BLENDER" -b --python "$REPO/xtask/auto_sculpt_gate.py" 2>&1 | tee "$TMP/auto_sculpt_gate.log"
+grep -q "RM_ASCULPT GATE-FIXTURE: PASS" "$TMP/auto_sculpt_gate.log"
+grep -q "RM_ASCULPT GATE-SCALE: PASS" "$TMP/auto_sculpt_gate.log"
+grep -q "RM_ASCULPT GATE-FOLLOW: PASS" "$TMP/auto_sculpt_gate.log"
+grep -q "RM_ASCULPT GATE-COMPOSE: PASS" "$TMP/auto_sculpt_gate.log"
+grep -q "RM_ASCULPT GATE-NOTARGET: PASS" "$TMP/auto_sculpt_gate.log"
+grep -q "RM_ASCULPT GATE-UNTOUCHED: PASS" "$TMP/auto_sculpt_gate.log"
+grep -q "RM_ASCULPT GATE-TWIN: PASS" "$TMP/auto_sculpt_gate.log"
+grep -q "RM_ASCULPT GATE: PASS" "$TMP/auto_sculpt_gate.log"
+if grep -qE "RM_ASCULPT .*: FAIL" "$TMP/auto_sculpt_gate.log"; then
+  echo "auto-sculpt gate produced a FAIL row" >&2; exit 1
+fi
+
 echo ""
 echo "P1-6 BLENDER POSE-APPLY GATE: PASS"

@@ -1140,3 +1140,41 @@ Where: probe `blender -b --python xtask/scene_test_probe.py` (11 RST rows,
 self-contained beyond the core/addon); gate `make pose-verify` (the RST
 grep rows, both shapes) + `make scene-test`; design of record
 `docs/SCENE_TEST.md` (amendments A1–A3, as-built).
+
+## AUTO-SCULPT (P9-1, session 36) — the mechanism probe + the selected
+### mechanism's gate — ALL MEASURES GREEN
+
+Phase 9's opener (design of record `docs/AUTO_SCULPT.md`, written BEFORE
+any measurement — the SCENE_TEST.md sibling). The honest physics: body
+keypoints give SKELETON positions, not VOLUME — P9-1 matches SKELETON
+proportions (ratios to the torso anchor); volume is P9-2's separate
+third-model decision, never a P9-1 claim. Three candidate mechanisms
+measured on engine-built metarig-class AND Mixamo-class skinned fixtures
+(deterministic nearest-bone weights, nothing committed) against the
+pre-declared Annex A.1 bar: **post-sculpt joint positions within 5% of
+the segment's length vs intent**. Selection bar: 5% on BOTH rigs, fewest
+required rig-side artifacts, name-ascending tie-break.
+
+| # | measure | number | bar / rule | verdict | instrument |
+|---|---|---|---|---|---|
+| 1 | lattice capability (candidate a) | armature heads unmoved at 1e-6 under a 20% lattice stretch; parent_set LATTICE adds the modifier to the MESH only, the armature gets plain OBJECT parenting | the joint bar on BOTH rigs | **STRUCTURALLY OUT** (mesh-only deform class — measured, never assumed; the first "heads move" reading was float32 noise at a 1e-9 threshold, corrected) | `bpy.ops.object.parent_set` + evaluated depsgraph heads |
+| 2 | shape-key binding (candidate b) | joints byte-unmoved on every class; worst fracs 0.1875 / 0.1125 / 0.3147 (the full deltas); surface verts move (156–828 per class) | the joint bar; 6 authored convention keys REQUIRED | **STRUCTURALLY OUT** — the skin–skeleton separation made numeric | convention keys authored on the fixture, evaluated mesh + rest heads |
+| 3 | armature scale-correctives (candidate c) | worst frac **0.0000** on BOTH rigs × all 3 classes; the rest-edit delivery REFUTED (follow 0.0000 — skinning re-binds to the new rest, amendment A1); the pose-translation delivery follows 0.76/0.82 | the joint bar; 0 required rig-side artifacts | **SELECTED** (sole bar-holder, fewest artifacts; no tie-break needed) | pose-translation correctives, linear response solve (measured R per bone), absolute-target |
+| 4 | the gate through the REAL addon apply | GATE-SCALE worst **0.0000** everywhere (incl. sequential re-sculpts = idempotence); GATE-COMPOSE FK **0.0000°** (bar 0.5°) + the sculpted girdle width survives the pose (drift 1.5e-06 m); GATE-NOTARGET the capability line verbatim; GATE-UNTOUCHED zero-delta = byte-identical; GATE-TWIN 19 bones byte-identical | the 8 RM_ASCULPT GATE rows in pose-verify | **PASS** | `xtask/auto_sculpt_gate.py` (wired into pose-verify, grep-tested both shapes) |
+| — | the proportion REPORT | ships as data regardless (`ProportionReport`: reference/base/factors/adjusted/capability_lines) | the roadmap's refuse branch keeps its value | **SHIPPED** | core `proportion_report`, round-trip pinned |
+
+**VERDICT: P9-1's mechanism selection is MEASURED and LANDED** —
+`armature_scale_correctives` (pose-translation delivery) as core + add-on;
+the REFUSED branch was never reached (a candidate holds the bar on both
+rigs). The auto-sculpt CLAIM carries the gate's scope exactly: skeleton
+proportions on the six declared rulers, torso anchored, pose applied
+afterwards by the certified FK path. Volume is NOT claimed (P9-2's
+decision). Optimism caveat, verbatim: *measured on synthetic
+prior-consistent ground truth; real-detector noise is not in these
+numbers; the Annex A.1 re-validation trigger applies when real labeled
+fixtures enter the workflow.*
+
+Where: probe `blender -b --python xtask/auto_sculpt_probe.py` (9 RM_ASCULPT
+rows, the selection evidence); gate `make pose-verify` (the 8 RM_ASCULPT
+GATE grep rows); design of record `docs/AUTO_SCULPT.md` (amendments A1/A2,
+as-built).

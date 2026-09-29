@@ -64,3 +64,7 @@ class SceneError(RiggermortisError):
 
 class RootMotionError(RiggermortisError):
     """A drift track (P8-7) is malformed, partial, or attached to nothing."""
+
+
+class AutoSculptError(RiggermortisError):
+    """A proportion sculpt (P9-1) input is degenerate or a ruler collapsed."""

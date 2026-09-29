@@ -683,10 +683,53 @@ quadruped) with ≤2 manual corrections each, proven headless.
 
 ## Phase 9/10 — post-V1 (V2, target ~S45): auto-sculpt + text
 
-- [ ] P9-1 Proportion auto-sculpt: mechanism probe (lattice vs shape-key
+- [x] P9-1 Proportion auto-sculpt: mechanism probe (lattice vs shape-key
   binding vs scale-correctives; selection bar: 5% on metarig + Mixamo-
   class, fewest rig artifacts, name-ascending tie-break); all-fail ends
   REFUSED-with-evidence (proportion report ships as data).
+  - CLAIMED [S36] (2026-09-29T00:08Z): camera fork silent a 24th session
+    (ffmpeg exit 124, no packets); P9-1 per the work order (the mechanism
+    probe: DESIGN-FIRST docs/AUTO_SCULPT.md -> PROBE-FIRST
+    xtask/auto_sculpt_probe.py RM_ASCULPT -> core + gate).
+  - DONE S36 (2026-09-29): design-first docs/AUTO_SCULPT.md (the
+    SCENE_TEST.md sibling, the SELECTION BAR verbatim + the REFUSED
+    branch + the pre-declared selection arithmetic BEFORE measurement;
+    probe-earned amendments A1/A2 recorded before the core build) ->
+    probe-first xtask/auto_sculpt_probe.py (9/9 RM_ASCULPT PASS: candidate
+    (a) lattice STRUCTURALLY OUT — 5.1 parent_set LATTICE adds the
+    modifier to the MESH only, armature heads unmoved at 1e-6 [the first
+    "heads move" reading was float32 noise at 1e-9, corrected]; candidate
+    (b) shape-key binding STRUCTURALLY OUT — joints byte-unmoved, the
+    skin-skeleton separation made numeric, 6 authored keys required;
+    candidate (c) armature scale-correctives SELECTED — worst frac
+    0.0000 on BOTH rig classes x all 3 reference classes, with the
+    REST-edit delivery REFUTED (skinning re-binds to the new rest, the
+    mesh follows 0.0000) and the corrected POSE-translation delivery
+    following 0.76/0.82 through real LBS; the re-run against the core
+    reproduced every number exactly) -> core auto_sculpt.py (rulers,
+    build_proportion_target, validate_sculpt, capability lines,
+    ProportionReport; AutoSculptError; NO payload change, NO new pose
+    field — D-025 stays the next free number) + 11 tests (645 total) ->
+    addon auto_sculpt.py (apply_proportion_sculpt: parent-first keyed
+    pose-translation correctives, measured linear response solve,
+    ABSOLUTE-TARGET solves [the gate's sequential-sculpt class caught
+    the draft's relative solve leaking R*L_old], loud capability
+    refusals) -> gate xtask/auto_sculpt_gate.py (8 RM_ASCULPT GATE rows)
+    wired into verify_pose_apply.sh + the Makefile lint list.
+  - GATE (real Blender 5.1.0, the probe's fixture builders — ONE copy):
+    GATE-SCALE worst 0.0000 everywhere (sequential re-sculpts =
+    idempotence); GATE-FOLLOW 0.76/0.82 at the real threshold;
+    GATE-COMPOSE FK 0.0000 deg (bar 0.5) + the sculpted girdle width
+    survives the payload pose (drift 1.5e-06 m — the product claim "a
+    pose on a proportioned rig stays proportioned"); GATE-NOTARGET the
+    capability line verbatim; GATE-UNTOUCHED zero-delta byte-identical;
+    GATE-TWIN 19 bones byte-identical. FULL battery PASS with every
+    prior gate number byte-identical (RM_BAKE 0.0242 deg, RM_FOOT_LOCK
+    0.0371->0.0000, RM_MOTION 44997x, RM_COUPLE 0.00016/0.00035,
+    RM_FINGER 10.30 deg, RM_FACE/RM_CAM/RM_SPINE/RM_ROOT/RM_SANIM/
+    RM_RUX, the 12 RST rows). Lint clean (probe + gate on the lint
+    list). The REFUSED branch was never reached (a candidate holds the
+    bar on both rigs). NEXT: S37 = P9-2 the volume third-model decision.
 - [ ] P9-2 Volume from silhouette: the THIRD pinned model decision
   (license/checksum/CPU ritual amending the P6-6 never-list; REFUSED path
   declared); IoU >= 0.85 visible-view scoped.
