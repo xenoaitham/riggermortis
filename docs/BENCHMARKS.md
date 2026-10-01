@@ -1178,3 +1178,60 @@ Where: probe `blender -b --python xtask/auto_sculpt_probe.py` (9 RM_ASCULPT
 rows, the selection evidence); gate `make pose-verify` (the 8 RM_ASCULPT
 GATE grep rows); design of record `docs/AUTO_SCULPT.md` (amendments A1/A2,
 as-built).
+
+## VOLUME (P9-2, session 37) — the third-model decision + the selected
+### mechanism's gate — ALL MEASURES GREEN
+
+Phase 9's second rock (design of record `docs/VOLUME.md`, written BEFORE
+any measurement — the AUTO_SCULPT.md sibling). THE DECISION (D-025, written
+before any adoption code): **`u2net.onnx` ADOPTED as the segmentation pass**
+— the P6-6 never-list amends to three. Sole scan candidate clearing all
+four gates: license Apache-2.0 verbatim (upstream xuebinqin/U-2-Net,
+API-verified; the ONNX artifact published by rembg, MIT, release assets
+carry no separate license, rembg issue #837); 175,997,641 bytes, sha256
+`8d10d2f3bb75ae3b6d527c77944fc5e7dcd94b29809d47a739a7a728a912b491` (the P1-1
+manifest flow is the only download path); contract in `input.1`
+1x3x320x320 NCHW f32, out 1x1x320x320 sigmoid; CPU p50 413.2 ms = 0.73x
+the DWPose full-detect reference (inside the declared <= 2x bar). The scan
+evidence (verbatim, the D-024 shape): u2netp 0.7968 IoU (no headroom),
+silueta 0.8909 (provenance caveat), **u2net_human_seg 0.0000 — BLIND to the
+engine mannequin class** (the DWPose tier-2 pattern, caught by the same
+diligence), isnet 1400.6 ms = 2.4x DWPose (budget miss, best raw IoU
+0.9089), MODNet/RVM CC BY-NC weights, PP-HumanSeg/MediaPipe no first-party
+ONNX, YOLO-seg AGPL, BiRefNet unmeasured (dominated on every axis).
+
+| # | measure | number | bar / rule | verdict | instrument |
+|---|---|---|---|---|---|
+| 1 | the blind-guard (the adopted artifact) | min 0.7738 over the reference renders (heavy 0.8639 / slender 0.7738 / thick_thigh 0.7983 / wide_hip 0.9157) | >= 0.75 (the GUARD, NOT the product bar) | **PASS** | u2net vs free alpha GT, engine renders |
+| 2 | the solve | factors track the authored deltas within ~3% (heavy 1.147/1.15, slender 0.882/0.88, wide_hip 1.176/1.20, thick_thigh 1.176/1.20); authored recovery + determinism exact | FP-true recovery, loud clamps | **PASS** | region widths through the adopted model, both sides |
+| 3 | THE A.1 BAR (region-scoped, amendment A5) | worst region IoU **0.9499** over 8 cases; NO-SOLVE counterfactual 0.8907 published; every case improves | >= 0.85 AND > counterfactual, visible-view scoped | **PASS** | sculpt vs reference silhouettes, model-free (the A3 amendment: the model-mediated form is published information, worst 0.8592 — the u2net shape prior compresses silhouette differences: the unsolved base scores 0.8838-0.9744 frame-wide) |
+| 4 | skeleton invariance | all 8 applies: every pose bone byte-identical pre/post | the joints never move (the S36 flip: surface-without-joints is the FEATURE) | **PASS** | joint-bytes through the REAL addon apply, both rig classes |
+| 5 | width delivery | all 16 mid-band ratios exact to 4 decimals (heavy 1.1500/1.15, slender 0.8800/0.88 metarig and mixamo) | within 10% of the factor | **PASS** | owned-group mid-band extents, per-case clean scenes |
+| 6 | the artist exit | zero-value restore drift 1.19e-07 m | <= 1e-04 m (an order above the f32 noise band) | **PASS** | addon `measure_zero_restore` |
+| 7 | the loud refusals | no-mesh: the capability line verbatim, nothing created | zero silent failures | **PASS** | the no-target class |
+| 8 | determinism | 4 keys byte-identical (values + unit-warp data) | keyed determinism law | **PASS** | twin applies |
+| — | the rejected classes | lattice: region IoU 0.0000 (the draft's radial cage shrinks the figure out of the region); armature girdle-widen: joints moved (out by invariance; its record case region IoU 0.9016) | the selection bar | **RECORDED** | the probe's drafts, measured |
+
+The five probe-earned lessons (A1-A5 + the product lessons, full detail in
+docs/VOLUME.md as-built): the fixture class repair (arm bridging + crotch
+fill), the mid-band anchor, the model-mediated bar's compression (the A3
+amendment — the binding form is model-free), the per-box skin ownership
+(nearest-bone starves the hip band), and the region-scoped bar with the
+no-solve counterfactual (whole-frame IoU cannot discriminate). The 5.1
+product lessons: shape-key `slider_min` defaults to 0.0 (negative values —
+the slender direction — silently dead until widened), one unit system or
+the apply is a silent no-op on Mixamo-class rigs, `from_mix=False` at key
+creation, clean scenes per render AND per width case, measurement windows
+over owned groups covering the clamp ceiling.
+
+Where: probe pipeline `xtask/volume_probe.py` (RM_VOL stages) +
+`xtask/volume_measure.py` + `xtask/volume_rows.py` (the model rows print
+SKIPPED honestly when the artifact is absent — `rigpose models download
+u2net`); gate `xtask/volume_gate.py` (7 RM_VOL GATE rows, model-free,
+wired into pose-verify); design of record `docs/VOLUME.md` (amendments
+A1-A5, as-built); the decision STATE/DECISIONS.md D-025.
+
+Optimism caveat, verbatim: *measured on synthetic prior-consistent ground
+truth; real-detector noise is not in these numbers; the Annex A.1
+re-validation trigger applies when real labeled fixtures enter the
+workflow.*

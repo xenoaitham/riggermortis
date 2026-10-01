@@ -448,21 +448,27 @@ def main() -> int:
         print("RM_RUX EST-DEFAULT: SKIPPED (baseline skipped)")
 
     # -- RUX-EST-RITUAL: the manifest state IS the L9 terminal -------------------
+    # (D-025 amendment, S37: the P6-6 never-list amends to THREE through the
+    # full third-model ritual — u2net joins as the P9-2 segmentation pass; the
+    # estimator posture is unchanged: no anime/sketch POSE estimator exists.)
     from riggermortis.inference.models import load_manifest
 
     manifest = load_manifest()
     names = sorted(manifest["models"])
-    ritual_ok = names == ["dwpose-ll-ucoco-384", "dwpose-yolox-l"]
+    ritual_ok = names == ["dwpose-ll-ucoco-384", "dwpose-yolox-l", "u2net"]
     print(
         f"RM_RUX EST-RITUAL: {'PASS' if ritual_ok else 'FAIL'} manifest "
-        f"models={names} — the P6-6 never-list holds; candidate scan "
-        f"(docs/REVIEW_UX.md): no published anime/sketch whole-body estimator "
-        f"with adoptable weights exists (HF: 'anime pose' hits are SD LoRAs, "
-        f"'dwpose' hits are re-uploads of the pinned photoreal family, the "
-        f"imgutils ecosystem has no pose module, the official ControlNet "
-        f"annotators carry no anime variant; D-011's fine-tune route is banned "
-        f"in-repo) -> L9 = REFUSED-with-evidence after one candidate; the "
-        f"dual-estimator INTERFACE ships (DECISIONS entry at the landing)"
+        f"models={names} — the P6-6 never-list as amended by D-025 (u2net = "
+        f"the P9-2 segmentation pass, adopted through the full ritual: "
+        f"license verbatim, sha256 pin, measured CPU budget); the estimator "
+        f"scan (docs/REVIEW_UX.md) stands: no published anime/sketch "
+        f"whole-body POSE estimator with adoptable weights exists (HF: "
+        f"'anime pose' hits are SD LoRAs, 'dwpose' hits are re-uploads of "
+        f"the pinned photoreal family, the imgutils ecosystem has no pose "
+        f"module, the official ControlNet annotators carry no anime "
+        f"variant; D-011's fine-tune route is banned in-repo) -> L9 = "
+        f"REFUSED-with-evidence after one candidate; the dual-estimator "
+        f"INTERFACE ships (DECISIONS entry at the landing)"
     )
 
     print("RM_RUX PROBE:", "OK" if all(OK) else "FAILED", f"({sum(OK)}/{len(OK)})")

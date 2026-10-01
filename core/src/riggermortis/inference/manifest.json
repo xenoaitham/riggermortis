@@ -20,6 +20,16 @@
       "license": "Apache-2.0 (DWPose whole-body estimator; see the DWPose model card)",
       "source": "https://huggingface.co/yzd-v/DWPose",
       "notes": "133-keypoint whole-body pose estimator (COCO-WholeBody), 384px input."
+    },
+    "u2net": {
+      "role": "segmentation",
+      "filename": "u2net.onnx",
+      "url": "https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx",
+      "sha256": "8d10d2f3bb75ae3b6d527c77944fc5e7dcd94b29809d47a739a7a728a912b491",
+      "bytes": 175997641,
+      "license": "Apache-2.0 (upstream U-2-Net weights, xuebinqin/U-2-Net; ONNX artifact published by rembg, MIT — release assets carry no separate license file, rembg issue #837, weights inherit upstream Apache-2.0)",
+      "source": "https://github.com/xuebinqin/U-2-Net",
+      "notes": "P9-2 volume-from-silhouette segmentation pass (D-025: the third-model ritual's adoption — sole scan candidate clearing license + artifact + CPU budget 0.73x DWPose + benchmark-class IoU 0.8699). Input 'input.1' 1x3x320x320 NCHW float32 RGB/255; primary output 1x1x320x320 sigmoid mask."
     }
   }
 }

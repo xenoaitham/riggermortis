@@ -215,6 +215,30 @@ from .spine import (
     solve_spine_arch,
 )
 from .types import BoneData, RigData
+from .volume import (
+    BAND_PARAMS,
+    BAR_IOU,
+    CAPABILITY_NO_MESH,
+    VolumeReport,
+)
+from .volume import (
+    CLAMP_HI as VOL_CLAMP_HI,
+)
+from .volume import (
+    CLAMP_LO as VOL_CLAMP_LO,
+)
+from .volume import (
+    capability_lines as volume_capability_lines,
+)
+from .volume import (
+    clamp_factor as volume_clamp_factor,
+)
+from .volume import (
+    validate_factors as volume_validate_factors,
+)
+from .volume import (
+    value_of_factor as volume_value_of_factor,
+)
 
 __version__ = "0.0.1"
 
@@ -225,7 +249,17 @@ __all__ = [
     "ActionFrame",
     "AutoSculptError",
     "BAR_FRAC",
+    "BAND_PARAMS",
+    "BAR_IOU",
     "BoneData",
+    "CAPABILITY_NO_MESH",
+    "VOL_CLAMP_HI",
+    "VOL_CLAMP_LO",
+    "VolumeReport",
+    "volume_capability_lines",
+    "volume_clamp_factor",
+    "volume_validate_factors",
+    "volume_value_of_factor",
     "BoneRotation",
     "CanonicalAction",
     "CanonicalPose",

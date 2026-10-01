@@ -1170,5 +1170,52 @@ if grep -qE "RM_ASCULPT .*: FAIL" "$TMP/auto_sculpt_gate.log"; then
   echo "auto-sculpt gate produced a FAIL row" >&2; exit 1
 fi
 
+# -- P9-2 VOLUME: the probe pipeline (model rows SKIPPED honestly when the
+#    adopted artifact is absent, the XBOT pattern) + the REAL-apply gate ----
+echo "== volume: the silhouette pipeline (RM_VOL rows)"
+VOL_DIR="$REPO/out/volume_probe"
+mkdir -p "$VOL_DIR"
+RM_CORE_SRC="$REPO/core/src" RM_VOL_STAGE=A \
+  "$BLENDER" -b --python "$REPO/xtask/volume_probe.py" 2>&1 | tee "$VOL_DIR/stageA.log"
+grep -q "RM_VOL STAGE-A: OK" "$VOL_DIR/stageA.log"
+RM_CORE_SRC="$REPO/core/src" "$PY" "$REPO/xtask/volume_measure.py" 2>&1 | tee "$VOL_DIR/measure.log"
+if grep -q "RM_VOL SOLVE_JSON" "$VOL_DIR/measure.log"; then
+  grep "RM_VOL SOLVE_JSON" "$VOL_DIR/measure.log" | sed 's/.*RM_VOL SOLVE_JSON //' > "$VOL_DIR/solve.json"
+  RM_CORE_SRC="$REPO/core/src" RM_VOL_STAGE=B \
+    "$BLENDER" -b --python "$REPO/xtask/volume_probe.py" 2>&1 | tee "$VOL_DIR/stageB.log"
+  grep -q "RM_VOL STAGE-B: OK" "$VOL_DIR/stageB.log"
+  grep "RM_VOL REPORT_JSON" "$VOL_DIR/stageB.log" | sed 's/.*RM_VOL REPORT_JSON //' > "$VOL_DIR/apply_report.json"
+  RM_CORE_SRC="$REPO/core/src" "$PY" "$REPO/xtask/volume_rows.py" 2>&1 | tee "$VOL_DIR/rows.log"
+else
+  echo "volume probe: the adopted artifact is absent; the mask half skips (the honest shape)"
+fi
+# the probe's grep contract: every row must be PASS or SKIPPED, never FAIL
+if grep -qE "RM_VOL .*: FAIL" "$VOL_DIR/measure.log" "$VOL_DIR/rows.log" 2>/dev/null; then
+  echo "volume probe produced a FAIL row" >&2; exit 1
+fi
+for row in FIXTURE MODEL MODEL-GUARD SOLVE; do
+  grep -qE "RM_VOL $row: (PASS|SKIPPED)" "$VOL_DIR/measure.log"
+done
+if [ -f "$VOL_DIR/rows.log" ]; then
+  for row in APPLY-A APPLY-B APPLY-C BAR-A BAR-B BAR-C EDITABLE NOTARGET DETERM SELECT GATE; do
+    grep -qE "RM_VOL $row: (PASS|SKIPPED)" "$VOL_DIR/rows.log"
+  done
+fi
+
+echo "== volume gate: the selected mechanism through the REAL addon apply (RM_VOL GATE rows)"
+RM_CORE_SRC="$REPO/core/src" \
+RM_ADDON_DIR="$REPO/addon" \
+  "$BLENDER" -b --python "$REPO/xtask/volume_gate.py" 2>&1 | tee "$TMP/volume_gate.log"
+grep -q "RM_VOL GATE-FIXTURE: PASS" "$TMP/volume_gate.log"
+grep -q "RM_VOL GATE-APPLY: PASS" "$TMP/volume_gate.log"
+grep -q "RM_VOL GATE-WIDTH: PASS" "$TMP/volume_gate.log"
+grep -q "RM_VOL GATE-EDITABLE: PASS" "$TMP/volume_gate.log"
+grep -q "RM_VOL GATE-NOTARGET: PASS" "$TMP/volume_gate.log"
+grep -q "RM_VOL GATE-TWIN: PASS" "$TMP/volume_gate.log"
+grep -q "RM_VOL GATE: PASS" "$TMP/volume_gate.log"
+if grep -qE "RM_VOL .*: FAIL" "$TMP/volume_gate.log"; then
+  echo "volume gate produced a FAIL row" >&2; exit 1
+fi
+
 echo ""
 echo "P1-6 BLENDER POSE-APPLY GATE: PASS"
