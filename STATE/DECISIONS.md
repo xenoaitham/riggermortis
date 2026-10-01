@@ -696,3 +696,94 @@ the design page; docs/BENCHMARKS.md REVIEW-UX holds the numbers):
   DWPose models unless an adoption lands through the full ritual (probe
   row RUX-EST-RITUAL). D-018 stays RESERVED (the live-camera amendment
   not exercised).
+
+## D-025 P9-2: the P6-6 never-list amends to THREE — `u2net.onnx` adopted as the segmentation pass (2026-09-30, S37 — the third-model ritual exercised to ADOPTION, the first full amendment)
+
+P9-2 (volume from silhouette) needs a segmentation pass = a THIRD pinned
+model, which amends the P6-6 never-list ("no weights beyond the two
+pinned DWPose models"). The ritual order was honored: SCAN-FIRST, THE
+DECISION written before any adoption code. The scan surveyed the
+human-matting / portrait-segmentation / person-segmentation families;
+every measured candidate carries license verbatim, bytes, sha256,
+input/output contract, and a CPU budget measured on THIS box (the
+mid-laptop baseline: Intel i5-10400F, 12 threads, onnxruntime 1.25.1
+CPUExecutionProvider; DWPose full-detect reference p50 550–614 ms,
+D-024's republication; declared budget bar = the D-024 shape, <= 2x
+DWPose CPU). Scan artifacts live under out/p9_2_scan/ (models, contracts,
+IoU sweep, scripts; nothing committed from there but the recorded
+numbers).
+
+- **THE DECISION: ADOPT `u2net.onnx`.** Sole candidate clearing all four
+  adoption gates:
+  - **License (verbatim)**: Apache-2.0 — verified at the upstream repo
+    (xuebinqin/U-2-Net, GitHub API license field + LICENSE file). The
+    ONNX artifact is published by rembg (danielgatis/rembg, MIT); the
+    release assets carry no separate license file (rembg issue #837) —
+    the converted weights inherit upstream Apache-2.0. Caveat recorded
+    verbatim in the manifest notes.
+  - **Artifact**: https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx
+    — 175,997,641 bytes, sha256
+    `8d10d2f3bb75ae3b6d527c77944fc5e7dcd94b29809d47a739a7a728a912b491`
+    (measured on the downloaded artifact; the P1-1 manifest flow is the
+    only download path — checksum-pinned, user-initiated, zero
+    default-use outbound).
+  - **Input/output contract**: input `input.1`, 1x3x320x320 NCHW
+    float32 (RGB/255, the rembg convention); primary output `1959`,
+    1x1x320x320 sigmoid mask (+6 side outputs, ignored).
+  - **CPU budget (measured)**: p50 413.2 ms / p90 421.0 ms (3 warmups,
+    10 timed runs) = **0.73x the DWPose full-detect p50** — inside the
+    declared <= 2x bar with margin.
+  - **Benchmark-class quality (measured)**: silhouette IoU **0.8699**
+    vs the free alpha GT on an engine-rendered mannequin fixture
+    (640x960 WORKBENCH, film-transparent; the A.3 class) — above the
+    A.1 volume bar (0.85) BEFORE the solve's headroom is added, with
+    the sweep's prediction coverage tight (0.0227 vs GT 0.0197).
+- **The scan evidence (verbatim; the D-024 shape — a scan that finds
+  things is still a RESULT)**:
+  - `u2netp.onnx` — same Apache-2.0 chain; 4,574,861 bytes; sha256
+    `309c8469258dda742793dce0ebea8e6dd393174f89934733ecc8b14c76f4ddd8`;
+    p50 222.8 ms; IoU **0.7968** on the benchmark class — NOT selected:
+    no headroom under the 0.85 end-to-end bar.
+  - `silueta.onnx` — 44,173,029 bytes; sha256
+    `75da6c8d2f8096ec743d071951be73b4a8bc7b3e51d9a6625d63644f90ffeedb`;
+    p50 620.9 ms; IoU **0.8909** — the qualified alternate; provenance
+    caveat: a rembg-author-trained compression with no explicit
+    upstream license declaration — not selected over the cleaner chain.
+  - `u2net_human_seg.onnx` — 175,997,641 bytes; sha256
+    `01eb6a29a5c4d8edb30b56adad9bb3a2a0535338e480724a213e0acfd2d1c73c`;
+    p50 399.3 ms; IoU **0.0000 — BLIND to the engine mannequin class**
+    (prediction coverage 0.0000; the DWPose tier-2 pattern, caught by
+    the same diligence) — REFUSED on the benchmark-class measurement.
+  - `isnet-general-use.onnx` — Apache-2.0 (xuebinqin/DIS verified);
+    178,648,008 bytes; sha256
+    `60920e99c45464f2ba57bee2ad08c919a52bbf852739e96947fbb4358c0d964a`;
+    p50 **1400.6 ms = ~2.4x DWPose** — REFUSED on the CPU budget bar
+    (the best raw IoU, 0.9089, does not buy the budget miss).
+  - `MODNet` (portrait matting) — weights CC BY-NC 4.0 (code open,
+    weights non-commercial per the repo README) — NOT ADOPTABLE for an
+    MIT project; not downloaded.
+  - `RobustVideoMatting` — code GPL-3.0, weights CC BY-NC 4.0 — NOT
+    ADOPTABLE; not downloaded.
+  - `PP-HumanSeg` (PaddleSeg, Apache-2.0) — license fine; NO first-party
+    ONNX artifact exists (official weights are Paddle-format on
+    bcebos; every ONNX is a third-party conversion — the D-024
+    provenance shape) — NOT ADOPTABLE as-is.
+  - `MediaPipe selfie segmenter` (Apache-2.0) — official artifact is
+    TFLite-only; ONNX exists only as third-party conversions — the
+    same provenance shape.
+  - `YOLOv8/YOLO11-seg` — AGPL-3.0 — NOT ADOPTABLE.
+  - `BiRefNet` (MIT, code+weights) — ONNX class 224 MB–1 GB;
+    UNMEASURED: larger than the adopted candidate on every axis (bytes,
+    latency class); the scan stops at the first clean pass and records
+    why. Reopens only if the adopted model misses a future bar.
+  - SAM/MobileSAM — promptable matting (wrong product class: needs
+    prompts the pipeline does not have); ViT-class CPU budget out of
+    the declared envelope; not measured.
+- **Scope of this adoption**: `u2net.onnx` is the SEGMENTATION pass
+  (input-side, the D-019 lines apply unchanged — it segments whatever
+  the user's reference contains, it generates nothing). The ADOPTION is
+  not a volume CLAIM — volume claims ride P9-2's own bar (Annex A.1:
+  silhouette IoU >= 0.85 on the benchmark, visible-view scoped) through
+  the design-of-record docs/VOLUME.md and its probe/gate. The manifest
+  gains the third entry in the same landing; the manifest-state pin
+  (RUX-EST-RITUAL) amends with it. D-018 stays RESERVED.

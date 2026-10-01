@@ -29,6 +29,11 @@ Locked decisions and style rules. Changes go through DECISIONS.md.
 - `STATE/` logs are **append-only** (PROGRESS) or top-of-file (NEXT).
 - Claim a task in TASKS.md before working; never silently redo claimed work.
 - Ruff (`E,F,W,I,UP,B`), line-length 100; `make lint test` before commits.
+- Commit messages read like the maintainer's own: no session numbers, no
+  AI/tooling mentions, no em dashes (the STATE/ journal carries the
+  session record; the git surface does not).
+- Each session appends a LOCAL devlog under `out/devlog/` (gitignored,
+  never pushed) with one or two real proof renders of the session's work.
 - Blender add-on identifiers: `RM_` class prefix, `rm.` operator prefix,
   `rm_` custom-property prefix (`rm_role_<role>` on armatures).
 - Demo media is always generated headlessly (`xtask/render_demos.py`); stale

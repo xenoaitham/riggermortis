@@ -730,9 +730,40 @@ quadruped) with ≤2 manual corrections each, proven headless.
     RM_RUX, the 12 RST rows). Lint clean (probe + gate on the lint
     list). The REFUSED branch was never reached (a candidate holds the
     bar on both rigs). NEXT: S37 = P9-2 the volume third-model decision.
-- [ ] P9-2 Volume from silhouette: the THIRD pinned model decision
+- [x] P9-2 Volume from silhouette: the THIRD pinned model decision
   (license/checksum/CPU ritual amending the P6-6 never-list; REFUSED path
   declared); IoU >= 0.85 visible-view scoped.
+  - CLAIMED [S37] (2026-09-30T00:34Z): camera fork silent a 25th session
+    (ffmpeg exit 124, no packets); P9-2 per the work order (the third-model
+    ritual: SCAN-FIRST real segmentation/silhouette candidates — license
+    verbatim, weights size, sha256 + bytes, input/output contract, CPU
+    budget MEASURED on this box — then THE DECISION written either way:
+    adopt = the D-025 P6-6 amendment BEFORE any adoption code; refuse =
+    the D-025 refusal entry with the scan evidence, P9-1 + the refusal
+    ship, Phase 10 does not wait).
+  - DONE S37 (2026-10-01): **ADOPTED** — D-025 written BEFORE any adoption
+    code: `u2net.onnx` (Apache-2.0 chain API-verified; 175,997,641 bytes;
+    sha256 pinned; p50 413.2 ms = 0.73x DWPose; benchmark-class IoU
+    0.8699) — the scan measured 5 artifacts + refused 6 families with
+    evidence (the D-024 shape), incl. the u2net_human_seg BLIND catch
+    (0.0000 on the benchmark class). DESIGN-FIRST docs/VOLUME.md (the
+    AUTO_SCULPT.md sibling) -> the two-world probe pipeline (volume_common
+    / volume_probe / volume_measure / volume_rows; RM_VOL rows; the model
+    rides the P1-1 manifest flow, SKIPPED honestly when absent) ->
+    `shape_key_inflate` SELECTED (worst region IoU 0.9499 vs bar 0.85 over
+    8 cases; every case improves over the published no-solve counterfactual
+    0.8907; the lattice class measured OUT 0.0000; the armature class out
+    by joint invariance) -> core volume.py (clamp law, value law,
+    capability line, VolumeReport) + 9 tests (654 total) -> addon
+    volume.py (apply_volume_sculpt: convention keys, from_mix=False,
+    slider [-1,1], mesh-space units, absolute-target) -> volume_gate.py
+    (7 RM_VOL GATE rows, model-free) wired into pose-verify + Makefile.
+    Probe-earned amendments A1-A5 recorded BEFORE the verdict (the
+    fixture repair, the mid-band anchor, the model-mediated bar's
+    compression -> the binding form is model-free, the per-box skin
+    ownership, the region-scoped bar + counterfactual). FULL battery PASS
+    (pose-verify incl. the new block; every prior number byte-identical;
+    lint clean). NEXT: S38 = P9-3 sculpt + animation wiring.
 - [ ] P9-3 Sculpt + animation wiring: static sculpt at frame one;
   per-frame soft tissue OUT (declared).
 - [ ] P10-1 PoseSpec + the plausibility validator (pure core, model-free;
