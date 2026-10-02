@@ -108,6 +108,9 @@ generated 706 bones: 220 controls / 160 DEF- / 167 MCH- / 159 ORG-):
 - **Review-feed completeness**: every geometry-assigned role appends to
   `mapping.ambiguities[]`, not just low-confidence ones.
 
+- [ ] write up notes
+see also docs
+
 Gate results after v2 (see docs/BENCHMARKS.md): metarig 21 roles, core
 complete, 0 corrections + 1 review-confirm (structural hips); generated 22/22
 roles, core complete, 0 corrections, 0 flags.
