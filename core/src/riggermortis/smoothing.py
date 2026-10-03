@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import math
 
+_FRAME_MAX_ERR_VERBOSE = False
 Point3 = tuple[float, float, float]
 PoseFrame = dict[str, Point3]
 
