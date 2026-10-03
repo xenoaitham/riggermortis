@@ -42,10 +42,30 @@ BANDS: tuple[tuple[str, float, float, tuple[str, ...]], ...] = (
     ("vol.chest_w", 0.45, 0.91, ("chest",)),
 )
 BAND_TENT_T = 0.05  # T-fractions; the linear transition half-width
-ANCHOR_FRACS = {"vol.hip_w": 0.0, "vol.waist_w": 0.25, "vol.chest_w": 0.80}
-THIGH_ANCHOR_FRAC = -0.70  # mid-band (fixture repair A2: at -0.43 the anchor
-# sat 2 px under the pelvis bottom edge and a widened pelvis bled into the
-# thigh rows — the measured wide_hip thigh read 1.16 on an authored 1.0)
+# The measurement constants + pure helpers live in CORE since P9-3 (the
+# one-copy law — docs/WIRING.md A1; the product solve and this pipeline
+# share them). Values byte-identical to the S37-certified set; the volume
+# gate re-run proves the lift. Re-exported for the pipeline scripts
+# (probe/measure/rows read them through this namespace).
+from riggermortis.sculpt import (  # noqa: E402
+    ANCHOR_FRACS as ANCHOR_FRACS,
+)
+from riggermortis.sculpt import (
+    MEDIAN_HALF_BAND as MEDIAN_HALF_BAND,
+)
+from riggermortis.sculpt import (
+    THIGH_ANCHOR_FRAC as THIGH_ANCHOR_FRAC,  # mid-band (fixture repair A2)
+)
+from riggermortis.sculpt import (
+    region_widths as region_widths,
+)
+from riggermortis.sculpt import (
+    runs as runs,
+)
+from riggermortis.sculpt import (
+    solve_factors as solve_factors,
+)
+
 CLAMP_LO, CLAMP_HI = 0.5, 2.0  # declared solve clamp (loud when it fires)
 
 # Person-mesh boxes (declared, meters): (name, x0, x1, y0, y1, z0, z1, band).
@@ -90,7 +110,6 @@ CAM_LENS = 35.0
 COVERAGE_LO, COVERAGE_HI = 0.01, 0.40  # declared sane-band (VOL-FIXTURE)
 GUARD_IOU = 0.75  # the blind-guard (VOL-MODEL), NOT the product bar
 BAR_IOU = 0.85  # THE Annex A.1 volume bar (visible-view scoped)
-MEDIAN_HALF_BAND = 3  # declared k: rows [-3, +3] around the anchor row
 
 # ---------------------------------------------------------------------------
 # The scratch paths — every one a literal join at module level. Scripts
@@ -158,24 +177,9 @@ def check(label: str, ok: bool, detail: str = "") -> None:
     print(f"RM_VOL {label}: {'PASS' if ok else 'FAIL'}{(' ' + detail) if detail else ''}")
 
 
-def runs(xs: list[int], min_len: int = 3) -> list[tuple[int, int]]:
-    """Contiguous index runs of a sorted index list, length >= min_len."""
-    if not xs:
-        return []
-    out: list[tuple[int, int]] = []
-    s = prev = xs[0]
-    for x in xs[1:]:
-        if x - prev > 1:
-            if prev - s + 1 >= min_len:
-                out.append((s, prev))
-            s = x
-        prev = x
-    if prev - s + 1 >= min_len:
-        out.append((s, prev))
-    return out
-
-
 def tent(zt: float, b0: float, b1: float) -> float:
+    """The band weight function (the probe's apply drafts; the addon apply
+    carries its own copy — BAND_TENT_T shared)."""
     t = BAND_TENT_T
     if zt < b0 - t or zt > b1 + t:
         return 0.0
@@ -184,54 +188,6 @@ def tent(zt: float, b0: float, b1: float) -> float:
     if zt > b1 - t:
         return ((b1 + t) - zt) / (2 * t)
     return 1.0
-
-
-def region_widths(mask, anchors_px: dict, torso_px: float) -> dict[str, float]:
-    """The declared mask measurement: torso regions (hip/waist/chest) =
-    the connected horizontal mask run containing the projected TORSO
-    center at the anchor row (median over +-3 rows); the thigh region =
-    the run(s) containing the projected LEG centers (one merged run when
-    the legs read closed — counted once), summing two runs when the legs
-    read separated. All normalized by the projected torso span."""
-    import numpy as np  # noqa: PLC0415 — the mask stage is numpy-class
-
-    out: dict[str, float] = {}
-    for param in list(ANCHOR_FRACS) + ["vol.thigh_w"]:
-        ay = int(round(anchors_px[param][1]))
-        centers = [int(round(anchors_px[param][0]))]
-        if param == "vol.thigh_w":
-            centers = [
-                int(round(anchors_px["vol.thigh.L"][0])),
-                int(round(anchors_px["vol.thigh.R"][0])),
-            ]
-        vals = []
-        for dy in range(-MEDIAN_HALF_BAND, MEDIAN_HALF_BAND + 1):
-            rr = runs(np.flatnonzero(mask[ay + dy]).tolist())
-            hit = {}
-            for cx in centers:
-                for s, e in rr:
-                    if s <= cx <= e:
-                        hit[cx] = (s, e)
-                        break
-            if not hit:
-                w = 0.0
-            elif len(set(hit.values())) == 1:
-                s, e = next(iter(hit.values()))
-                w = float(e - s + 1)
-            else:
-                w = float(sum(e - s + 1 for s, e in hit.values()))
-            vals.append(w)
-        out[param] = sorted(vals)[len(vals) // 2] / torso_px
-    return out
-
-
-def solve_factors(ref_r: dict[str, float], base_r: dict[str, float]) -> dict[str, float]:
-    """The declared solve: per-region factor = ref/base, clamped loud."""
-    out = {}
-    for p, b in base_r.items():
-        f = ref_r[p] / b if b > 1e-9 else CLAMP_HI
-        out[p] = max(CLAMP_LO, min(CLAMP_HI, f))
-    return out
 
 
 def torso_px_of(anchors: dict) -> float:
@@ -261,34 +217,24 @@ def core_model_path() -> str:
 
 
 def u2net_session():
-    """The ADOPTED model's session from the MANAGED path (the P1-1 flow:
-    `rigpose models download u2net`; zero default-use outbound — the
-    caller prints the honest SKIPPED rows when the artifact is absent)."""
-    import onnxruntime as ort  # noqa: PLC0415
+    """The ADOPTED model's session (the core wrapper is the ONE copy —
+    docs/WIRING.md); the pipeline's SKIPPED-honest shape keeps its
+    FileNotFoundError contract, so the InferenceError translates here."""
+    from riggermortis.errors import InferenceError  # noqa: PLC0415
+    from riggermortis.inference import segment  # noqa: PLC0415
 
-    path = core_model_path()
-    if not Path(path).is_file():
-        raise FileNotFoundError(
-            "u2net not downloaded (hint: rigpose models download u2net — the P1-1 manifest flow)"
-        )
-    from riggermortis.inference import models  # noqa: PLC0415
-
-    models.verify_model("u2net")
-    sess = ort.InferenceSession(path, providers=["CPUExecutionProvider"])
-    return sess, sess.get_inputs()[0]
+    try:
+        return segment.u2net_session()
+    except InferenceError as exc:
+        raise FileNotFoundError(str(exc)) from exc
 
 
 def u2net_mask(sess, inp, rgb):
-    """The declared preprocess/postprocess (the D-025 contract): RGB/255,
-    NCHW 320x320, primary sigmoid output > 0.5, NEAREST-upscaled back."""
-    import numpy as np  # noqa: PLC0415
-    from PIL import Image  # noqa: PLC0415
+    """The declared preprocess/postprocess — the core wrapper, ONE copy
+    (docs/WIRING.md); the render size IS this pipeline's rgb shape."""
+    from riggermortis.inference import segment  # noqa: PLC0415
 
-    pil = Image.fromarray(rgb).resize((320, 320), Image.BILINEAR)
-    arr = (np.asarray(pil, dtype=np.float32) / 255.0).transpose(2, 0, 1)[None]
-    out = sess.run(None, {inp.name: arr})[0]
-    m = (out[0, 0] > 0.5).astype(np.uint8) * 255
-    return np.asarray(Image.fromarray(m).resize((RES_X, RES_Y), Image.NEAREST)) > 127
+    return segment.u2net_mask(sess, inp, rgb)
 
 
 def iou(a, b) -> float:

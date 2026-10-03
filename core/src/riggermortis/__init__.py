@@ -197,6 +197,23 @@ from .scene import (
     scene_from_payload,
     validate_casting,
 )
+from .sculpt import (
+    ANCHOR_FRACS,
+    MEDIAN_HALF_BAND,
+    SCULPT_FORMAT,
+    THIGH_ANCHOR_FRAC,
+    SculptSolve,
+    anchor_points_px,
+    clamp_note_params,
+    region_widths,
+    solve_factors,
+)
+from .sculpt import (
+    READ_FORMATS as SCULPT_READ_FORMATS,
+)
+from .sculpt import (
+    runs as mask_runs,
+)
 from .secondary import (
     ChainSpec,
     SecondaryError,
@@ -260,6 +277,17 @@ __all__ = [
     "volume_clamp_factor",
     "volume_validate_factors",
     "volume_value_of_factor",
+    "ANCHOR_FRACS",
+    "MEDIAN_HALF_BAND",
+    "SCULPT_FORMAT",
+    "SCULPT_READ_FORMATS",
+    "THIGH_ANCHOR_FRAC",
+    "SculptSolve",
+    "anchor_points_px",
+    "clamp_note_params",
+    "region_widths",
+    "mask_runs",
+    "solve_factors",
     "BoneRotation",
     "CanonicalAction",
     "CanonicalPose",

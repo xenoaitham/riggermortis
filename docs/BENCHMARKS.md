@@ -1235,3 +1235,54 @@ Optimism caveat, verbatim: *measured on synthetic prior-consistent ground
 truth; real-detector noise is not in these numbers; the Annex A.1
 re-validation trigger applies when real labeled fixtures enter the
 workflow.*
+
+## WIRING (P9-3, session 38) — sculpt + animation wiring: the order proof — ALL MEASURES GREEN
+
+Phase 9's third rock (design of record `docs/WIRING.md`, written BEFORE any
+code — the VOLUME.md sibling). The declared unit-boundary debt comes due:
+P9-1's proportion sculpt + P9-2's volume sculpt wire into the user-facing
+flow — `rigpose solve-sculpt` (the reference-side solve artifact: proportion
+ratios from the payload's solved positions, volume ratios from the D-025
+segmentation pass at the detector-keypoint anchors), the `rm.apply_sculpt`
+operator riding the pose-apply panel, and the `sculpt` session action
+(KNOWN_ACTION_KINDS additive both sides, golden-schema pin extended
+same-commit; the MCP tool table untouched, D-019's SFW pin unchanged — the
+sculpt carries no content by itself). The honest-physics order is the
+claim: the sculpt edits REST-side data ONCE at frame one, BEFORE animation
+drives the rig; the certified FK/apply/bake paths consume the sculpted
+character unchanged (zero apply-path changes — the S36 property). Per-frame
+soft tissue stays OUT (declared; simulation is a different product), made
+STRUCTURAL by the fcurve audit: the baked action carries rotation channels
+only.
+
+| # | measure | number | bar / rule | verdict | instrument |
+|---|---|---|---|---|---|
+| 1 | the staged rest-snapshot measurement | worst relative band deviation **0.0000** on BOTH rig classes (metarig + Mixamo-class) | <= 2e-2 vs the S37 pipeline's own exact-alpha instrument (declared; same instrument, different plumbing) | **PASS** | `sculpt_wire.measure_volume_base_ratios` vs the pipeline render, fresh scene per class |
+| 2 | the solve through the wiring | factors land EXACT at the authored delta on both classes; every pose bone byte-identical through the key warp | FP-exact + the invariance contract | **PASS** | authored ratios = measured base x 1.15 -> `apply_sculpt` |
+| 3 | THE animation-order proof | sculpt survives the animation BYTE-IDENTICALLY (key values + pose locations); frame-one band width drift **0.00e+00** m; bake re-eval **0.0000 deg** AND independent re-eval **0.0000 deg** over 70 checks; fcurves ROTATION-ONLY | drift <= 1e-05 m (the S36 GATE-COMPOSE family); FK <= 0.5 deg (the certified family); per-frame sculpt channels = 0 | **PASS** | sculpt -> REAL 5-frame arm-swing action through the add-on bake, both rig classes |
+| 4 | the re-sculpt (the artist exit) at the sculpt frame | volume values byte-identical; the proportion target re-lands (worst frac 0.000029 metarig / 0.047085 mixamo, bar 0.05); the action stays assigned | the absolute-target law at animation scale | **PASS** | re-apply AFTER the bake at frame one |
+| 5 | the operator + the session action | `bpy.ops.rm.apply_sculpt` and the `sculpt` executor land the direct path's state EXACTLY (key values + pose locations byte-identical); {'FINISHED'} on success | the S34 operator classes; one shared function underneath | **PASS** | the addon enabled the checkbox way; the executor through `execute_action` |
+| 6 | the loud refusals | no-mesh line, no-solve hint line, starved-proportion line — all verbatim, nothing applied | zero silent failures | **PASS** | the no-target classes |
+| 7 | determinism | twin wiring runs byte-identical (factors, values, locations, keys) | keyed determinism law | **PASS** | twin `apply_sculpt` runs |
+
+The gate-earned lesson (recorded before the green, the S37 scene law's
+second earn): the two rig-class fixtures share one world position, and the
+first draft's WIRE-SOLVE read factors 0.9895-1.0127 instead of 1.15 — the
+METARIG fixture had been sculpted first and the mixamo fixture's
+render-based base measurement read the WIDENED UNION. Every render-adjacent
+case now runs in a fresh scene containing exactly its fixture. The re-eval
+frame lesson: the bake's default frame_offset 1 maps source frame f to
+Blender frame f+1 — a re-eval that reads `frame_set(f)` measures exactly
+the 20-deg frame spacing as error (the first draft's 20.0000 deg).
+
+Where: gate `xtask/wiring_gate.py` (11 RM_WIRE grep rows, model-free,
+wired into pose-verify after the volume gate block); the solve artifact
+contract + product anchors in core `riggermortis.sculpt` (the S37
+measurement lifted verbatim — the volume pipeline aliases the core copies
+and its certified numbers re-ran BYTE-IDENTICAL: BAR 0.9499, counterfactual
+0.8907, model-mediated 0.8592); design of record `docs/WIRING.md`.
+
+Optimism caveat, verbatim: *measured on synthetic prior-consistent ground
+truth; real-detector noise is not in these numbers; the Annex A.1
+re-validation trigger applies when real labeled fixtures enter the
+workflow.*

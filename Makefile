@@ -13,7 +13,8 @@ lint:
  xtask/review_ux_probe.py xtask/review_ux_gate.py xtask/scene_test_probe.py \
  xtask/auto_sculpt_probe.py xtask/auto_sculpt_gate.py \
  xtask/volume_common.py xtask/volume_probe.py xtask/volume_measure.py \
- xtask/volume_rows.py xtask/volume_gate.py
+ xtask/volume_rows.py xtask/volume_gate.py \
+ xtask/wiring_gate.py
 
 fixtures:
 	$(PY) xtask/export_fixture_rigs.py

@@ -40,7 +40,7 @@ RECONNECT_MAX = 5.0
 #: Known action kinds — mirrors mcp/session_bridge.KNOWN_ACTION_KINDS v1.
 KNOWN_ACTION_KINDS = (
     "inspect_scene", "apply_pose", "bake_action", "render_turntable",
-    "apply_style", "apply_scene",
+    "apply_style", "apply_scene", "sculpt",
 )
 
 _STATE: dict[str, Any] = {}
@@ -219,6 +219,8 @@ def execute_action(action: dict[str, Any]) -> dict[str, Any]:
             return {"ok": True, "report": _exec_apply_style(params)}
         if kind == "apply_scene":
             return {"ok": True, "report": _exec_apply_scene(params)}
+        if kind == "sculpt":
+            return {"ok": True, "report": _exec_sculpt(params)}
         return {"ok": False, "error": {
             "code": "unknown_action_kind",
             "message": f"unknown action kind: {kind!r}",
@@ -660,6 +662,49 @@ def _exec_apply_scene(params: dict[str, Any]) -> dict[str, Any]:
         mirror=bool(params.get("mirror", False)),
         couple=bool(params.get("couple", True)),  # P8-2: authored pins enforce
     )
+
+
+def _exec_sculpt(params: dict[str, Any]) -> dict[str, Any]:
+    """P9-3: the static sculpt (proportions + volume) as a session action
+    (docs/WIRING.md) — the SAME shared path the Apply Sculpt operator runs.
+    ``payload_path`` feeds the proportion half; ``sculpt_path`` (written by
+    ``rigpose solve-sculpt``) feeds the volume half. Missing inputs are
+    loud capability lines IN the report, never silent skips. The sculpt
+    carries no content by itself — D-019's SFW pin is untouched."""
+    import json
+    from pathlib import Path
+
+    from . import sculpt_wire
+
+    proportions = bool(params.get("proportions", True))
+    volume = bool(params.get("volume", True))
+    payload = None
+    solve = None
+    payload_path = str(params.get("payload_path") or "")
+    if proportions:
+        if not payload_path or not Path(payload_path).is_file():
+            raise ValueError(
+                f"payload_path not found: {payload_path!r} (hint: regenerate "
+                "with: rigpose pose <image> <rig.json> --out payload.json, "
+                "or pass proportions: false)"
+            )
+        payload = importlib.import_module(__package__)._load_payload(payload_path)
+    sculpt_path = str(params.get("sculpt_path") or "")
+    if volume:
+        if not sculpt_path or not Path(sculpt_path).is_file():
+            raise ValueError(
+                f"sculpt_path not found: {sculpt_path!r} (hint: regenerate "
+                "with: rigpose solve-sculpt <image> <payload.json> --out "
+                "sculpt.json, or pass volume: false)"
+            )
+        with open(sculpt_path, encoding="utf-8") as fh:
+            solve = _import_core().SculptSolve.from_dict(json.load(fh))
+    obj = _resolve_armature(params.get("armature_name"))
+    report = sculpt_wire.apply_sculpt(
+        obj, payload=payload, solve=solve, proportions=proportions, volume=volume
+    )
+    report["armature"] = obj.name
+    return report
 
 
 def pump_once() -> int:

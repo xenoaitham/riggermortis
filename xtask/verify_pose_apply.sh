@@ -1217,5 +1217,18 @@ if grep -qE "RM_VOL .*: FAIL" "$TMP/volume_gate.log"; then
   echo "volume gate produced a FAIL row" >&2; exit 1
 fi
 
+echo "== wiring gate: the sculpt+animation order (RM_WIRE rows)"
+RM_CORE_SRC="$REPO/core/src" \
+RM_ADDON_DIR="$REPO/addon" \
+  "$BLENDER" -b --python "$REPO/xtask/wiring_gate.py" 2>&1 | tee "$TMP/wiring_gate.log"
+for row in WIRE-FIXTURE WIRE-MEASURE WIRE-SOLVE WIRE-FLOW WIRE-RESCULPT \
+           WIRE-OPS WIRE-SESSION WIRE-NOTARGET WIRE-DETERM; do
+  grep -q "RM_WIRE $row: PASS" "$TMP/wiring_gate.log"
+done
+grep -q "RM_WIRE GATE: PASS" "$TMP/wiring_gate.log"
+if grep -qE "RM_WIRE .*: FAIL" "$TMP/wiring_gate.log"; then
+  echo "wiring gate produced a FAIL row" >&2; exit 1
+fi
+
 echo ""
 echo "P1-6 BLENDER POSE-APPLY GATE: PASS"

@@ -338,17 +338,63 @@ def test_enqueue_validates_kind_and_params(runtime) -> None:
     assert value["error"]["message"] == "params must be an object"
 
 
-def test_all_five_action_kinds_are_live_at_the_enqueue_layer(runtime) -> None:
-    """P3-7 + S13: bake_action, render_turntable and apply_style are LIVE
-    kinds — the enqueue layer accepts them (execution itself is
-    gate-verified in real Blender: make session-verify)."""
+def test_all_action_kinds_are_live_at_the_enqueue_layer(runtime) -> None:
+    """P3-7 + S13 + S38: the LIVE kinds — the enqueue layer accepts them
+    (execution itself is gate-verified in real Blender: make
+    session-verify; the S38 sculpt kind is docs/WIRING.md's session
+    wiring, additive both sides in the same commit)."""
     for kind in (
         "inspect_scene", "apply_pose", "bake_action", "render_turntable",
-        "apply_style",
+        "apply_style", "apply_scene", "sculpt",
     ):
         value, meta = _call("enqueue_action", {"kind": kind, "params": {}})
         assert meta["isError"] is False, kind
         assert value["status"] == "queued", kind
+
+
+def test_sculpt_kind_matches_on_both_bridge_sides() -> None:
+    """P9-3: the kinds table is mirrored — the add-on side and the server
+    side must agree (a kind one side knows and the other refuses would
+    strand queued actions)."""
+    from conftest import addon_module  # noqa: E402
+
+    expected = (
+        "inspect_scene", "apply_pose", "bake_action", "render_turntable",
+        "apply_style", "apply_scene", "sculpt",
+    )
+    assert bridge.KNOWN_ACTION_KINDS == expected
+    assert addon_module("session").KNOWN_ACTION_KINDS == expected
+
+
+def test_sculpt_executor_validates_inputs_before_blender(tmp_path) -> None:
+    """P9-3: the sculpt executor's missing-input refusals are structured,
+    actionable, and fire BEFORE any bpy access (the CI-testable half; the
+    REAL apply path is gate-verified in the WIRE-SESSION row)."""
+    from conftest import addon_module  # noqa: E402
+
+    addon_session = addon_module("session")
+
+    def _run(params):
+        return addon_session.execute_action({"kind": "sculpt", "params": params})
+
+    result = _run({})
+    assert result["ok"] is False
+    assert result["error"]["code"] == "executor_error"
+    assert "payload_path" in result["error"]["message"]
+    assert "rigpose pose" in result["error"]["message"]
+    missing = tmp_path / "nope.json"
+    result = _run({"payload_path": str(missing)})
+    assert result["ok"] is False
+    assert "payload_path" in result["error"]["message"]
+    result = _run({"payload_path": str(missing), "proportions": False})
+    assert result["ok"] is False
+    assert "sculpt_path" in result["error"]["message"]
+    assert "solve-sculpt" in result["error"]["message"]
+    # an unknown kind stays structured
+    result = addon_session.execute_action({"kind": "sculpt_fake", "params": {}})
+    assert result["ok"] is False
+    assert result["error"]["code"] == "unknown_action_kind"
+    assert "sculpt" in result["error"]["hint"]
 
 
 def test_action_result_validates_the_id(runtime) -> None:

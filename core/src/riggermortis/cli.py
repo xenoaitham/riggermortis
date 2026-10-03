@@ -13,6 +13,9 @@ Subcommands:
                             the add-on / MCP / headless consumers apply
                             (D-009: frontends consume payloads, they never
                             spawn processes)
+    solve-sculpt <image> <payload>  measure the reference's proportion +
+                            volume ratios into a sculpt solve JSON (the
+                            add-on's Apply Sculpt consumes it; P9-3)
 
 Errors print ``error: message (hint: ...)`` and exit 2 — never tracebacks.
 """
@@ -157,6 +160,30 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_pose.add_argument("--json", action="store_true", help="print the payload to stdout instead")
     p_pose.add_argument(
+        "--gpu", action="store_true",
+        help="opt in to the CUDA onnxruntime provider (CPU is the default)",
+    )
+
+    p_solve = sub.add_parser(
+        "solve-sculpt",
+        help="measure a reference's proportion + volume ratios into a "
+             "sculpt solve JSON (the add-on's Apply Sculpt consumes it; "
+             "docs/WIRING.md, P9-3)",
+    )
+    p_solve.add_argument("image", help="path to the reference image the payload was solved from")
+    p_solve.add_argument(
+        "payload",
+        help="the pose payload written by rigpose pose (carries the solved figure)",
+    )
+    p_solve.add_argument(
+        "--figure", default=None,
+        help="payload figure label to solve (default: the payload's selected figure)",
+    )
+    p_solve.add_argument(
+        "--out", metavar="PATH", required=True,
+        help="write the sculpt solve JSON here (consumed by the add-on's Apply Sculpt)",
+    )
+    p_solve.add_argument(
         "--gpu", action="store_true",
         help="opt in to the CUDA onnxruntime provider (CPU is the default)",
     )
@@ -675,6 +702,154 @@ def cmd_pose_video(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def cmd_solve_sculpt(args: argparse.Namespace) -> int:
+    """P9-3: the reference-side sculpt solve (docs/WIRING.md).
+
+    Proportion ratios come from the payload's solved canonical positions
+    (pure core); volume ratios from the ADOPTED segmentation pass
+    (D-025, the P1-1 flow) over the reference image, measured at the
+    detector-keypoint anchors (amendment A1). Writes ONE deterministic
+    ``sculpt.json`` the add-on's Apply Sculpt consumes. Refusals are
+    loud: no person, sub-floor anchor keypoints, a stale payload/figure
+    mismatch, or the u2net artifact absent — nothing is written on a
+    refusal (a partial solve would fabricate a sculpt)."""
+    from .auto_sculpt import measure_proportion_ratios
+    from .inference.poses import HIP_L, HIP_R, SHOULDER_L, SHOULDER_R
+    from .sculpt import SculptSolve, anchor_points_px, region_widths
+
+    image = Path(args.image)
+    if not image.exists():
+        raise RiggermortisError(
+            f"image not found: {image}",
+            hint="pass the SAME reference image the payload was solved from",
+        )
+    payload_path = Path(args.payload)
+    if not payload_path.exists():
+        raise RiggermortisError(
+            f"payload not found: {payload_path}",
+            hint="regenerate with: rigpose pose <image> <rig.json> --out payload.json",
+        )
+    try:
+        payload = json.loads(payload_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise RiggermortisError(
+            f"payload is not valid JSON: {payload_path}: {exc}",
+            hint="regenerate with: rigpose pose <image> <rig.json> --out payload.json",
+        ) from exc
+
+    label = args.figure or None
+    entry = payload_mod.entry_for_label(payload, label)
+    pose_dict = payload_mod.pose_for_figure(payload, label)
+    raw_positions = pose_dict.get("positions")
+    if not isinstance(raw_positions, dict) or not raw_positions:
+        raise RiggermortisError(
+            f"figure {entry.get('label', '?')!r} carries no solved positions",
+            hint="the proportion ratios need the payload's solved skeleton "
+                 "(regenerate with: rigpose pose ...)",
+        )
+    positions = {str(r): (float(p[0]), float(p[1]), float(p[2])) for r, p in raw_positions.items()}
+    ref_ratios = measure_proportion_ratios(positions)
+
+    # The detector pass (lazy import): the volume anchors are the
+    # DETECTOR's own body keypoints (WIRING.md A1 — the payload carries
+    # no 2D keypoints and gains none).
+    from .inference.dwpose import detect_keypoints  # noqa: PLC0415
+
+    providers = ["CUDAExecutionProvider", "CPUExecutionProvider"] if args.gpu else None
+    detection = detect_keypoints(str(image), providers=providers)
+    board = FigureBoard.from_detection(detection)
+    if not board.figures:
+        raise RiggermortisError(
+            "no person detected in the image",
+            hint="try a clearer reference; DWPose is trained on photoreal "
+                 "poses, anime/sketch accuracy is a known gap "
+                 "(docs/BENCHMARKS.md tracks the number)",
+        )
+    payload_label = str(entry.get("label", ""))
+    figure = board.select(payload_label) if payload_label else None
+    if figure is None:
+        raise RiggermortisError(
+            f"the payload's figure {payload_label!r} is not in this image's "
+            "detection",
+            hint=f"detected: {', '.join(board.labels())} — the payload and "
+                 "the image must match (regenerate the payload with: rigpose "
+                 "pose <image> ...)",
+        )
+    kps = figure.keypoints
+    confs = figure.confidences
+    CONF_FLOOR = 0.55  # the CONVENTIONS bar — a sub-floor anchor fabricates widths
+    weak = [
+        name for name, idx in (
+            ("shoulder.L", SHOULDER_L), ("shoulder.R", SHOULDER_R),
+            ("hip.L", HIP_L), ("hip.R", HIP_R),
+        ) if confs[idx] < CONF_FLOOR
+    ]
+    if weak:
+        raise RiggermortisError(
+            "anchor keypoints below the 0.55 confidence floor: " + ", ".join(weak),
+            hint="a bad anchor would fabricate volume widths — use a clearer "
+                 "reference (the full body must be visible)",
+        )
+    anchors, torso_px = anchor_points_px({
+        "hips": (
+            (kps[HIP_L][0] + kps[HIP_R][0]) / 2.0,
+            (kps[HIP_L][1] + kps[HIP_R][1]) / 2.0,
+        ),
+        "neck": (
+            (kps[SHOULDER_L][0] + kps[SHOULDER_R][0]) / 2.0,
+            (kps[SHOULDER_L][1] + kps[SHOULDER_R][1]) / 2.0,
+        ),
+        "upper_leg.L": (float(kps[HIP_L][0]), float(kps[HIP_L][1])),
+        "upper_leg.R": (float(kps[HIP_R][0]), float(kps[HIP_R][1])),
+    })
+
+    from PIL import Image  # noqa: PLC0415 — the inference-extra pattern
+
+    from .inference import segment  # noqa: PLC0415
+
+    sess, inp = segment.u2net_session()  # loud + actionable when absent
+    import numpy as np  # noqa: PLC0415 — the inference-extra pattern
+
+    rgb = np.asarray(Image.open(image).convert("RGB"))
+    mask = segment.u2net_mask(sess, inp, rgb)
+    vol_ratios = region_widths(mask, anchors, torso_px)
+    dead = sorted(p for p, w in vol_ratios.items() if w <= 1e-9)
+    notes: list[str] = []
+    if dead:
+        notes.append(
+            "zero-width region(s) at the anchors: " + ", ".join(dead)
+            + " — the mask read nothing there; the solve clamps loudly"
+        )
+
+    solve = SculptSolve(
+        figure=payload_label,
+        reference_image=str(image),
+        image_size=(detection.width, detection.height),
+        reference_ratios=ref_ratios,
+        volume_ratios=vol_ratios,
+        notes=notes,
+    )
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(solve.to_dict(), indent=2, sort_keys=True), encoding="utf-8")
+    print(f"image: {image} ({detection.width}x{detection.height})")
+    print(f"figure: {payload_label} (detection score {figure.score:.2f})")
+    print(
+        "proportion ratios: "
+        + " ".join(f"{k}={v:.3f}" for k, v in sorted(ref_ratios.items()))
+    )
+    print(
+        "volume ratios: "
+        + " ".join(f"{k}={v:.4f}" for k, v in sorted(vol_ratios.items()))
+    )
+    for note in notes:
+        print(f"  note: {note}")
+    print(f"sculpt solve written: {out}")
+    print("apply it in Blender: Riggermortis panel -> Apply Sculpt "
+          "(payload + sculpt solve)")
+    return EXIT_OK
+
+
 def cmd_live(args: argparse.Namespace) -> int:
     """P5-1: the live side-process entry (this process IS the side process)."""
     from . import live
@@ -766,6 +941,8 @@ def main(argv: list[str] | None = None) -> int:
             return cmd_detect(args)
         if args.command == "pose":
             return cmd_pose(args)
+        if args.command == "solve-sculpt":
+            return cmd_solve_sculpt(args)
         if args.command == "pose-video":
             return cmd_pose_video(args)
         if args.command == "live":

@@ -43,6 +43,7 @@ from . import (
     overlay,
     policy,
     pose_apply,
+    sculpt_wire,
     session,
     tails,
 )
@@ -195,6 +196,12 @@ class RM_SceneSettings(PropertyGroup):
     payload_path: StringProperty(  # type: ignore[valid-type]
         name="Pose payload",
         description="JSON written by 'rigpose pose' (D-009: the add-on consumes payloads)",
+        subtype="FILE_PATH",
+    )
+    sculpt_path: StringProperty(  # type: ignore[valid-type]
+        name="Sculpt solve",
+        description="JSON written by 'rigpose solve-sculpt' (the volume half of "
+                    "Apply Sculpt, P9-3; optional — proportions need only the payload)",
         subtype="FILE_PATH",
     )
     figure: EnumProperty(  # type: ignore[valid-type]
@@ -469,6 +476,56 @@ class RM_OT_apply_pose(Operator):
             self.report({"WARNING"}, lines[0] + " — see Last Report")
         else:
             self.report({"INFO"}, lines[0] + f", worst {report['worst_deg']:.3f} deg")
+        return {"FINISHED"}
+
+
+class RM_OT_apply_sculpt(Operator):
+    """Apply the static sculpt (proportions + volume) from the payload and
+    the sculpt solve to the active armature — once, at the rest state,
+    before any pose or animation drives the rig (P9-3, docs/WIRING.md)"""
+
+    bl_idname = "rm.apply_sculpt"
+    bl_label = "Apply Sculpt"
+    bl_options: ClassVar[set[str]] = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        obj = context.active_object
+        return obj is not None and obj.type == "ARMATURE"
+
+    def execute(self, context: bpy.types.Context) -> set[str]:
+        settings = context.scene.rm_settings
+        payload = None
+        solve = None
+        try:
+            if settings.payload_path:
+                payload = _load_payload(settings.payload_path)
+            if settings.sculpt_path:
+                with open(settings.sculpt_path, encoding="utf-8") as fh:
+                    solve = bpy_bridge.import_core().SculptSolve.from_dict(
+                        json.load(fh)
+                    )
+            report = sculpt_wire.apply_sculpt(
+                context.active_object, payload=payload, solve=solve
+            )
+        except (ValueError, ImportError, OSError) as exc:
+            self.report({"ERROR"}, str(exc))
+            return {"CANCELLED"}
+        pose_apply.push_undo()
+
+        lines = sculpt_wire.report_lines(report)
+        applied = (
+            (report["proportions"] is not None and report["proportions"].get("applied"))
+            or (report["volume"] is not None and report["volume"].get("applied"))
+        )
+        if not lines:
+            lines = ["nothing to apply (set a payload and/or a sculpt solve)"]
+        settings.last_report = "\n".join(lines)
+        settings.rig_object = context.active_object.name
+        if applied:
+            self.report({"INFO"}, lines[0])
+        else:
+            self.report({"WARNING"}, lines[0])
         return {"FINISHED"}
 
 
@@ -838,6 +895,13 @@ class RM_PT_main_panel(Panel):
         row.operator("rm.apply_pose", icon="PLAY")
         box.operator("rm.clear_pose", icon="X")
 
+        box = layout.box()
+        box.label(text="Sculpt from reference (P9-3)", icon="MOD_SCREW")
+        box.prop(settings, "sculpt_path")
+        if not settings.sculpt_path:
+            box.label(text="volume needs a solve: rigpose solve-sculpt", icon="INFO")
+        box.operator("rm.apply_sculpt", icon="MOD_MESHDEFORM")
+
         fix = layout.box()
         fix.label(text="Fix defects (P8-9)", icon="TOOL_SETTINGS")
         row = fix.row(align=True)
@@ -1010,6 +1074,7 @@ _CLASSES = (
     RM_OT_show_report,
     RM_OT_policy_check,
     RM_OT_apply_pose,
+    RM_OT_apply_sculpt,
     RM_OT_flip_toggle,
     RM_OT_pick_joint,
     RM_OT_flip_reset,
