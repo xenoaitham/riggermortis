@@ -247,7 +247,11 @@ committed.
 - No panel/operator wiring claimed this session (P9-3 wires the
   static sculpt into the user-facing flow; the S31 unit-boundary
   precedent — this session lands the mechanism core + the REAL-apply
-  gate).
+  gate). *Landed since: P9-3 wires the apply into the product flow —
+  `rigpose solve-sculpt` + the Apply Sculpt operator + the `sculpt`
+  session action; design of record `docs/WIRING.md`, gate rows RM_WIRE
+  (the proportion apply itself is untouched — this module's functions
+  run unchanged underneath the wiring).*
 - No edits to the certified FK/pose-apply path (the sculpt edits the
   REST; the apply path consumes rests as-is — zero apply-path
   changes, the spine-arch property).

@@ -10,7 +10,7 @@ Common setup (once):
 
 ```bash
 pip install -e "core[inference]"     # engine + ONNX runtime extra
-rigpose models download all          # two checksum-pinned models; the only network action ever
+rigpose models download all          # three checksum-pinned models (DWPose x2 + u2net for the sculpt); the only network action ever
 ```
 
 Blender add-on (once): zip the `riggermortis_addon/` folder → Blender →
@@ -53,6 +53,22 @@ Every gate exercises this add-on headlessly on Blender 5.1.
    Pose. Something bent the wrong way? The viewport overlay's flip buttons
    fix it in one click (that's the designed remedy for the documented
    single-view ambiguities).
+
+3b. **Match the body to the reference (auto-sculpt, P9-3):**
+
+   ```bash
+   rigpose solve-sculpt ref_pose.jpg payload.json --out sculpt.json
+   ```
+
+   Then in Blender, same panel: set **Sculpt solve** to `sculpt.json` →
+   **Apply Sculpt** (before posing or animating — the sculpt edits the
+   rest state once). The rig's proportions AND silhouette volumes follow
+   the reference; every result lands on editable shape keys and pose-bone
+   offsets, a re-apply overwrites instead of composing, and starved rigs
+   are refused with a line saying exactly what's missing. Agents drive the
+   same path as the `sculpt` session action. Gate: `make pose-verify`
+   RM_WIRE (the sculpt survives a baked animation byte-identically, FK
+   0.0000°).
 
 4. **Animate from a video:**
 

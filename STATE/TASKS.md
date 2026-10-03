@@ -764,8 +764,73 @@ quadruped) with ≤2 manual corrections each, proven headless.
     ownership, the region-scoped bar + counterfactual). FULL battery PASS
     (pose-verify incl. the new block; every prior number byte-identical;
     lint clean). NEXT: S38 = P9-3 sculpt + animation wiring.
-- [ ] P9-3 Sculpt + animation wiring: static sculpt at frame one;
+- [x] P9-3 Sculpt + animation wiring: static sculpt at frame one;
   per-frame soft tissue OUT (declared).
+  - CLAIMED [S38] (2026-10-03T18:21Z): camera fork silent a 26th session
+    (ffmpeg exit 124, no packets); P9-3 per the work order (the declared
+    unit-boundary debt: DESIGN-FIRST docs/WIRING.md -> operator/panel ->
+    session/MCP -> the animation-order proof RM_WIRE).
+  - DONE S38 (2026-10-03T19:29Z): design-first docs/WIRING.md (the
+    VOLUME.md sibling: the flow, the solve artifact contract, the operator
+    + session surfaces, the staged rest-snapshot instrument, the RM_WIRE
+    rows, the OUT limits — all declared BEFORE code) -> the solve-flow
+    integration: core `sculpt.py` (the format-1 sculpt solve artifact +
+    the product anchors A1 [the detector's body keypoints] + the S37
+    measurement lifted VERBATIM — volume_common aliases the core copies,
+    the certified rows re-ran BYTE-IDENTICAL: BAR 0.9499/0.8907/0.8592) +
+    `inference/segment.py` (the ONE u2net wrapper copy) + CLI
+    `rigpose solve-sculpt` (LIVE-VERIFIED end to end on the real benchmark
+    reference + real payload: proportion + volume ratios written) -> the
+    addon wiring `sculpt_wire.py` (ONE shared apply: proportion from the
+    payload via the S36 target build + apply UNCHANGED; volume from the
+    solve artifact via the staged rest-snapshot measurement + the S37
+    apply UNCHANGED; loud capability lines; idempotent absolute-target
+    both halves) -> the operator `rm.apply_sculpt` + the panel section
+    riding the pose-apply panel -> the `sculpt` session action
+    (KNOWN_ACTION_KINDS additive BOTH sides same-commit; MCP tool table
+    untouched, D-019 SFW pin test-pinned; executor validates inputs
+    BEFORE bpy) -> the gate xtask/wiring_gate.py (11 RM_WIRE grep rows,
+    model-free) wired into pose-verify + the Makefile lint list.
+  - GATE (real Blender 5.1.0, the S37 fixture builders, fresh scene per
+    case): WIRE-MEASURE worst rel 0.0000 BOTH classes (bar 2e-2) — the
+    staged snapshot reproduces the certified exact-alpha instrument
+    exactly; WIRE-SOLVE factors EXACT + joints byte-invariant; WIRE-FLOW
+    (THE order proof): the sculpt survives the baked animation
+    BYTE-IDENTICALLY, frame-one width drift 0.00e+00 m (bar 1e-05), bake
+    re-eval 0.0000 deg + independent re-eval 0.0000 deg over 70 checks
+    (bar 0.5), fcurves ROTATION-ONLY (per-frame soft tissue OUT, made
+    structural); WIRE-RESCULPT values byte-identical + the target
+    re-landed (worst 0.000029/0.047085, bar 0.05) + the action intact;
+    WIRE-OPS + WIRE-SESSION land the direct path's state EXACTLY;
+    WIRE-NOTARGET the loud lines verbatim; WIRE-DETERM twins
+    byte-identical. FULL battery PASS (pose-verify incl. the new block;
+    blender/session-verify + media-guard green; every prior gate number
+    byte-identical — RM_BAKE 0.0242 deg, RM_FOOT_LOCK 0.0371->0.0000,
+    RM_MOTION 44997x, RM_COUPLE 0.00016/0.00035, RM_FINGER
+    0.0070/0.00/10.30, RM_VOL BAR 0.9499, RST ST-PIN 0.000174).
+  - GATE-EARNED (recorded in WIRING.md as-built A2-A4): the SCENE LAW's
+    second earn — the two rig classes share one world position and a
+    sculpted neighbour poisons the next case's render-based base
+    measurement (the first draft's factors read 0.9895-1.0127 on an
+    authored 1.15); fresh scene per render-adjacent case. The re-eval
+    frame lesson: the bake's default frame_offset 1 maps source f to
+    Blender f+1 — a re-eval reading frame_set(f) measures exactly the
+    20-deg frame spacing. The re-sculpt semantics made honest: a
+    re-solve compensates the current frame's rotation BY DESIGN
+    (locations are not the target; positions are), and
+    measure_volume_base_ratios MUTES the assigned action during the rest
+    snapshot (fcurves override matrix_basis at evaluation).
+  - Tests: 15 new (669 total): the sculpt solve contract, the product
+    anchors, the lifted measurement + the pipeline alias identity, the
+    solve/clamp laws, the wiring module's bpy-free import + loud lines,
+    the session kinds mirrored both sides, the executor's pre-bpy
+    validation. Lint clean (gate on the lint list). Claim-bearing
+    surfaces swept together: README (the P9 bullet + the three-model
+    quickstart line), TUTORIALS (the 3b sculpt step + the three-model
+    line), LAUNCH (the V2 update note), BENCHMARKS (the WIRING block),
+    VOLUME/AUTO_SCULPT (landed-since pointers). D-026 stays FREE (no
+    payload change, no new pose field). NEXT: S39 = sculpt polish + the
+    P10-1 opener per the session map.
 - [ ] P10-1 PoseSpec + the plausibility validator (pure core, model-free;
   red-set refusal 100%; injection constants frozen in the contract).
 - [ ] P10-2 Agent-driven posing (MCP/session; SFW over MCP permanently).

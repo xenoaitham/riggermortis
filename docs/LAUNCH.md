@@ -23,6 +23,16 @@ below already follows — keep them true if you edit:
   honest-limits ledger is fully CLOSED or REFUSED-with-evidence. The
   labeled limits above (single-view flips, the anime detector gap, walk-
   in-place, replay-only live) remain the truth and stay in the copy.
+- **V2 UPDATE (S38, 2026-10-03)**: Phase 9 shipped — the auto-sculpt flow
+  is user-facing (proportions P9-1 + volume P9-2 via the pinned u2net
+  pass + the P9-3 wiring: `rigpose solve-sculpt`, the Apply Sculpt
+  operator, the `sculpt` session action). Copy published from here may
+  claim it with its citations: docs/WIRING.md + docs/BENCHMARKS.md §
+  WIRING (the animation-order proof: the baked action stays
+  rotation-only, the sculpt survives byte-identically, FK 0.0000°). The
+  declared limits stay in the copy too: volume is single-view visible-
+  scope (depth follows the declared circular prior) and per-frame soft
+  tissue is OUT.
 
 ---
 

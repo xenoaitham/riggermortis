@@ -211,6 +211,11 @@ never committed; nothing from the scan dir commits.
 - No per-frame soft tissue, no video masks (P9-3's declared limits).
 - No operator/panel wiring and no user-facing solve-flow integration
   (P9-3's declared scope — the S31/S36 unit-boundary precedent).
+  *Landed since: P9-3 wires the apply into the product flow —
+  `rigpose solve-sculpt` + the Apply Sculpt operator + the `sculpt`
+  session action; design of record `docs/WIRING.md`, gate rows RM_WIRE
+  (the volume apply itself is untouched — this module's functions run
+  unchanged underneath the wiring).*
 - No edits to the certified FK/pose-apply path and NO joint motion (the
   invariance instrument is the proof).
 - No payload format change, no new pose field (shape keys are mesh data;

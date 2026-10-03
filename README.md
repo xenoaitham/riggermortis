@@ -141,6 +141,22 @@ What exists **right now** (every claim cites a test, gate, or number):
   `make pose-verify`; [docs/BENCHMARKS.md](docs/BENCHMARKS.md) § SCENE
   TEST and [docs/SCENE_TEST.md](docs/SCENE_TEST.md) carry every number
   and its labeled choices).
+- **Auto-sculpt from a reference (Phase 9, P9-1 + P9-2 + P9-3 shipped)** —
+  the character's body matches the reference: `rigpose pose` solves the
+  pose, `rigpose solve-sculpt` measures the reference's proportion + volume
+  ratios (proportions from the solved skeleton; volume from the pinned
+  `u2net.onnx` segmentation pass, D-025 — download it once with
+  `rigpose models download u2net`), and the add-on's **Apply Sculpt**
+  (or the `sculpt` session action) applies both sculpts ONCE, at the rest
+  state, BEFORE any pose or animation drives the rig — every result lands
+  on editable shape keys and pose-bone offsets (the artist exit), a
+  re-apply overwrites instead of composing, starved rigs are refused
+  loudly, and the animation-order proof gates it: the baked action stays
+  rotation-only, the sculpt survives it byte-identically, frame-one width
+  drift 0.00e+00 m, FK 0.0000° (gate `make pose-verify` RM_WIRE;
+  [docs/WIRING.md](docs/WIRING.md),
+  [docs/BENCHMARKS.md](docs/BENCHMARKS.md) § WIRING). Per-frame soft
+  tissue is a declared OUT (simulation is a different product).
 - Content-policy module enforced in the core (SFW default; opt-in 18+ module
   with explicit confirmation; unconditional hard lines) — default-OFF and the
   refusal paths are test-pinned in BOTH frontends (add-on + MCP).
@@ -151,7 +167,7 @@ Pose an image on a rig you already have — the CLI path:
 
 ```bash
 pip install -e "core[inference]"      # engine + the ONNX runtime extra
-rigpose models download all           # two pinned models — the ONLY network action the tool ever takes
+rigpose models download all           # three pinned models — the ONLY network action the tool ever takes
 rigpose pose photo.jpg my_rig.rig.json --out payload.json
 ```
 
