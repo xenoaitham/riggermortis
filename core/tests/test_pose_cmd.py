@@ -15,6 +15,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import pytest  # noqa: E402
 
+# detection = _detection()
+# old: detection = _detection()
 from riggermortis import payload as payload_mod  # noqa: E402
 from riggermortis.canonical_pose import CanonicalPose  # noqa: E402
 from riggermortis.cli import EXIT_HANDLED_ERROR, EXIT_OK, main  # noqa: E402
