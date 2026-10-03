@@ -33,6 +33,7 @@ from pathlib import Path
 import bpy  # type: ignore[name-defined] — the builder runs inside Blender
 from mathutils import Matrix, Vector
 
+BUILD_HUMANOID_VERBOSE = False
 FPS = 24
 N_FRAMES = 49  # two 24-frame cycles + the wrap frame (f49 == f1 pose)
 STANCE = 12  # frames per stance/swing half-cycle
