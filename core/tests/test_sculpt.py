@@ -80,6 +80,7 @@ def test_anchor_points_px_refuses_missing_roles_and_degenerate_torso():
 
 # -- the mask measurement (a synthetic rectangle GT) ---------------------------
 def test_region_widths_measure_synthetic_rectangles():
+    pytest.importorskip("numpy")  # the mask math is numpy-class (the extra)
     import numpy as np
 
     w, h = 200, 400
@@ -100,6 +101,7 @@ def test_region_widths_measure_synthetic_rectangles():
 
 
 def test_region_widths_thigh_sums_separated_legs():
+    pytest.importorskip("numpy")  # the mask math is numpy-class (the extra)
     import numpy as np
 
     w, h = 200, 400
